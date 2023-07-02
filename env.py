@@ -13,12 +13,6 @@ class GenChemEnv(gym.Env):
         max_length=60,
     ):
 
-        super(GenChemEnv, self).__init__(
-            scoring_function,
-            vocabulary,
-            max_length,
-        )
-
         self.max_length = max_length
         self.vocabulary = vocabulary
         self.scoring_function = scoring_function
