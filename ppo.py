@@ -47,7 +47,6 @@ def main(cfg: "DictConfig"):
         env.append_transform(create_rhs_transform())
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        env.append_transform(TensorDictPrimer())
         return env
 
     def create_env_fn(num_workers=2):
@@ -105,7 +104,6 @@ def main(cfg: "DictConfig"):
         batch = batch.to(device)
         with torch.no_grad():
             batch = adv_module(batch)
-        batch = batch.reshape(-1)
         loss = loss_module(batch)  # TypeError: expected Tensor as element 0 in argument 2, but got NoneType
 
     collector.shutdown()
