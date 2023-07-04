@@ -39,6 +39,7 @@ def create_policy(vocabulary, output_size, out_key="logits"):
         in_key="embed",
         out_key="features",
     )
+    lstm_module = lstm_module.set_recurrent_mode(True)
     mlp = TensorDictModule(
         MLP(
             in_features=256,
@@ -49,7 +50,7 @@ def create_policy(vocabulary, output_size, out_key="logits"):
         out_keys=[out_key],
     )
 
-    return TensorDictSequential(embedding_module, lstm_module, mlp)
+    return TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
 
 
 def create_critic(vocabulary, output_size, out_key="state_value"):

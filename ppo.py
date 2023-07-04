@@ -102,12 +102,11 @@ def main(cfg: "DictConfig"):
 
     for batch in collector:
 
-        import ipdb; ipdb.set_trace()
         batch = batch.to(device)
-
         with torch.no_grad():
             batch = adv_module(batch)
-        loss = loss_module(batch)
+        batch = batch.reshape(-1)
+        loss = loss_module(batch)  # TypeError: expected Tensor as element 0 in argument 2, but got NoneType
 
     collector.shutdown()
 
