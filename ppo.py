@@ -23,7 +23,7 @@ from utils import create_policy, create_critic, create_rhs_transform
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
 def main(cfg: "DictConfig"):
 
-    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device(cfg.device) if torch.cuda.is_available() else torch.device("cpu")
 
     # Create vocabulary from data
     vocabulary = DeNovoVocabulary.from_list("dataset")
@@ -94,8 +94,7 @@ def main(cfg: "DictConfig"):
         policy=actor,
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
-        device="cuda:0",
-        storing_device="cuda:0",
+        device=device,
         max_frames_per_traj=-1,
     )
 
@@ -115,7 +114,7 @@ def main(cfg: "DictConfig"):
 
         print("step!")
 
-        # batch = batch.to(device)
+        batch = batch.to(device)
         with torch.no_grad():
             batch = adv_module(batch)
 

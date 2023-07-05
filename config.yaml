@@ -13,4 +13,4 @@ frames_per_batch: 256
 
 # PPO configuration
 gamma: 0.99
-lambda: 0.95
+lmbda: 0.95
