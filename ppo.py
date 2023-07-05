@@ -27,8 +27,25 @@ def main(cfg: "DictConfig"):
 
     device = torch.device(cfg.device) if torch.cuda.is_available() else torch.device("cpu")
 
+    ####################################################################################################################
+
+    from utils import adapt_reinvent_checkpoint
+
+    (
+        vocabulary,
+        max_sequence_length,
+        recurrent_net_kwargs,
+        policy_network_weights,
+        value_network_weights,
+    ) = adapt_reinvent_checkpoint(
+        file_path="/home/abou/torchrl_chem/de_novo.prior",
+        target_path="/tmp",
+    )
+
+    ####################################################################################################################
+
     # Create vocabulary from data
-    vocabulary = DeNovoVocabulary.from_list("dataset")
+    # vocabulary = DeNovoVocabulary.from_list("dataset")
 
     # Environment
     ####################################################################################################################
@@ -65,8 +82,10 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
+    actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+    actor_model.load_state_dict(torch.load(policy_network_weights))
     actor = ProbabilisticActor(
-        module=create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1]),
+        module=actor_model,
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
@@ -74,6 +93,7 @@ def main(cfg: "DictConfig"):
     )
     actor = actor.to(device)
     critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
+    # critic.load_state_dict(torch.load(value_network_weights)) # TODO: fix partial loading
     critic = critic.to(device)
 
     # Loss modules

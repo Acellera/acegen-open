@@ -35,14 +35,14 @@ def create_model(vocabulary, output_size, out_key="logits"):
     )
     lstm_module = LSTMModule(
         input_size=256,
-        hidden_size=256,
+        hidden_size=512,
         num_layers=3,
         in_key="embed",
         out_key="features",
     )
     mlp = TensorDictModule(
         MLP(
-            in_features=256,
+            in_features=512,
             out_features=output_size,
             num_cells=[],
         ),
@@ -56,7 +56,7 @@ def create_model(vocabulary, output_size, out_key="logits"):
 def create_rhs_transform():
     lstm_module = LSTMModule(
         input_size=256,
-        hidden_size=256,
+        hidden_size=512,
         num_layers=3,
         in_key="embed",
         out_key="features",
@@ -65,21 +65,21 @@ def create_rhs_transform():
 
 
 reinvent_weights_policy_mapping = {
-    "_embedding.weight": "module.0.module.0.module._embedding.weight",
-    "_rnn.weight_ih_l0": "module.0.module.1.lstm.weight_ih_l0",
-    "_rnn.weight_hh_l0": "module.0.module.1.lstm.weight_hh_l0",
-    "_rnn.bias_ih_l0": "module.0.module.1.lstm.bias_ih_l0",
-    "_rnn.bias_hh_l0": "module.0.module.1.lstm.bias_hh_l0",
-    "_rnn.weight_ih_l1": "module.0.module.1.lstm.weight_ih_l1",
-    "_rnn.weight_hh_l1": "module.0.module.1.lstm.weight_hh_l1",
-    "_rnn.bias_ih_l1": "module.0.module.1.lstm.bias_ih_l1",
-    "_rnn.bias_hh_l1": "module.0.module.1.lstm.bias_hh_l1",
-    "_rnn.weight_ih_l2": "module.0.module.1.lstm.weight_ih_l2",
-    "_rnn.weight_hh_l2": "module.0.module.1.lstm.weight_hh_l2",
-    "_rnn.bias_ih_l2": "module.0.module.1.lstm.bias_ih_l2",
-    "_rnn.bias_hh_l2": "module.0.module.1.lstm.bias_hh_l2",
-    "_linear.weight": "module.0.module.2.module.0.weight",
-    "_linear.bias": "module.0.module.2.module.0.bias",
+    "_embedding.weight": "module.0.module._embedding.weight",
+    "_rnn.weight_ih_l0": "module.1.lstm.weight_ih_l0",
+    "_rnn.weight_hh_l0": "module.1.lstm.weight_hh_l0",
+    "_rnn.bias_ih_l0": "module.1.lstm.bias_ih_l0",
+    "_rnn.bias_hh_l0": "module.1.lstm.bias_hh_l0",
+    "_rnn.weight_ih_l1": "module.1.lstm.weight_ih_l1",
+    "_rnn.weight_hh_l1": "module.1.lstm.weight_hh_l1",
+    "_rnn.bias_ih_l1": "module.1.lstm.bias_ih_l1",
+    "_rnn.bias_hh_l1": "module.1.lstm.bias_hh_l1",
+    "_rnn.weight_ih_l2": "module.1.lstm.weight_ih_l2",
+    "_rnn.weight_hh_l2": "module.1.lstm.weight_hh_l2",
+    "_rnn.bias_ih_l2": "module.1.lstm.bias_ih_l2",
+    "_rnn.bias_hh_l2": "module.1.lstm.bias_hh_l2",
+    "_linear.weight": "module.2.module.0.weight",
+    "_linear.bias": "module.2.module.0.bias",
 }
 
 reinvent_weights_value_mapping = {
