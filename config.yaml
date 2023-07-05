@@ -12,5 +12,8 @@ total_frames: 1_000_000
 frames_per_batch: 256
 
 # PPO configuration
+lr: 0.001
 gamma: 0.99
 lmbda: 0.95
+critic_coef: 0.5
+entropy_coef: 0.01

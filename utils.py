@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import os
 import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.modules import LSTMModule, MLP
+from vocabulary import DeNovoVocabulary
 
 
 class Embed(torch.nn.Module):
@@ -62,3 +64,80 @@ def create_rhs_transform():
     return lstm_module.make_tensordict_primer()
 
 
+reinvent_weights_policy_mapping = {
+    "_embedding.weight": "module.0.module.0.module._embedding.weight",
+    "_rnn.weight_ih_l0": "module.0.module.1.lstm.weight_ih_l0",
+    "_rnn.weight_hh_l0": "module.0.module.1.lstm.weight_hh_l0",
+    "_rnn.bias_ih_l0": "module.0.module.1.lstm.bias_ih_l0",
+    "_rnn.bias_hh_l0": "module.0.module.1.lstm.bias_hh_l0",
+    "_rnn.weight_ih_l1": "module.0.module.1.lstm.weight_ih_l1",
+    "_rnn.weight_hh_l1": "module.0.module.1.lstm.weight_hh_l1",
+    "_rnn.bias_ih_l1": "module.0.module.1.lstm.bias_ih_l1",
+    "_rnn.bias_hh_l1": "module.0.module.1.lstm.bias_hh_l1",
+    "_rnn.weight_ih_l2": "module.0.module.1.lstm.weight_ih_l2",
+    "_rnn.weight_hh_l2": "module.0.module.1.lstm.weight_hh_l2",
+    "_rnn.bias_ih_l2": "module.0.module.1.lstm.bias_ih_l2",
+    "_rnn.bias_hh_l2": "module.0.module.1.lstm.bias_hh_l2",
+    "_linear.weight": "module.0.module.2.module.0.weight",
+    "_linear.bias": "module.0.module.2.module.0.bias",
+}
+
+reinvent_weights_value_mapping = {
+    "_embedding.weight": "module.0.module._embedding.weight",
+    "_rnn.weight_ih_l0": "module.1.lstm.weight_ih_l0",
+    "_rnn.weight_hh_l0": "module.1.lstm.weight_hh_l0",
+    "_rnn.bias_ih_l0": "module.1.lstm.bias_ih_l0",
+    "_rnn.bias_hh_l0": "module.1.lstm.bias_hh_l0",
+    "_rnn.weight_ih_l1": "module.1.lstm.weight_ih_l1",
+    "_rnn.weight_hh_l1": "module.1.lstm.weight_hh_l1",
+    "_rnn.bias_ih_l1": "module.1.lstm.bias_ih_l1",
+    "_rnn.bias_hh_l1": "module.1.lstm.bias_hh_l1",
+    "_rnn.weight_ih_l2": "module.1.lstm.weight_ih_l2",
+    "_rnn.weight_hh_l2": "module.1.lstm.weight_hh_l2",
+    "_rnn.bias_ih_l2": "module.1.lstm.bias_ih_l2",
+    "_rnn.bias_hh_l2": "module.1.lstm.bias_hh_l2",
+    # "_linear.weight": "module.2.module.0.weight",
+    # "_linear.bias": "module.2.module.0.bias",
+}
+
+
+def adapt_reinvent_checkpoint(file_path, target_path="/tmp", device=None):
+    """Loads a Reinvent pretrained model and make the necessary changes for it to be compatible with pytorchrl"""
+
+    target_path_policy_weights = os.path.join(target_path, "network_policy_params.init")
+    target_path_value_weights = os.path.join(target_path, "network_value_params.init")
+
+    if device is None and torch.cuda.is_available():
+        save_dict = torch.load(file_path)
+    elif device is not None:
+        save_dict = torch.load(file_path, map_location=device)
+    else:
+        save_dict = torch.load(file_path, map_location=lambda storage, loc: storage)
+
+    # Change network weight names
+    new_policy_save_dict = {}
+    for k in save_dict["network"].keys():
+        new_policy_save_dict[reinvent_weights_policy_mapping[k]] = save_dict["network"][k]
+
+    # Change network value names
+    new_value_save_dict = {}
+    for k in save_dict["network"].keys():
+        if k in reinvent_weights_value_mapping:
+            new_value_save_dict[reinvent_weights_value_mapping[k]] = save_dict["network"][k]
+
+    # Temporarily save network weights to /tmp
+    torch.save(new_policy_save_dict, target_path_policy_weights)
+    torch.save(new_value_save_dict, target_path_value_weights)
+
+    # Remove unnecessary network parameters
+    network_params = save_dict["network_params"]
+    network_params.pop("cell_type", None)
+    network_params["embedding_size"] = network_params.pop("embedding_layer_size", None)
+
+    return (
+        DeNovoVocabulary(save_dict["vocabulary"], save_dict["tokenizer"]),
+        save_dict["max_sequence_length"],
+        save_dict["network_params"],
+        target_path_policy_weights,
+        target_path_value_weights,
+    )

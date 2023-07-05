@@ -12,12 +12,14 @@ from torchrl.envs import (
     TransformedEnv,
     InitTracker,
     StepCounter,
-    TensorDictPrimer,
 )
 
 from env import GenChemEnv
 from vocabulary import DeNovoVocabulary
 from utils import create_model, create_rhs_transform
+
+
+# TODO: load checkpoint
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
@@ -84,7 +86,7 @@ def main(cfg: "DictConfig"):
         average_gae=True,
         shifted=True,
     )
-    loss_module = PPOLoss(actor, critic)
+    loss_module = PPOLoss(actor, critic, critic_coef=cfg.critic_coef, entropy_coef=cfg.entropy_coef)
     loss_module = loss_module.to(device)
 
     # Collector
@@ -104,7 +106,7 @@ def main(cfg: "DictConfig"):
 
     optim = torch.optim.Adam(
         loss_module.parameters(),
-        lr=0.001,
+        lr=cfg.lr,
         weight_decay=0.000,
     )
 
