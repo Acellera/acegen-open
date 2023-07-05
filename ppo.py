@@ -49,7 +49,7 @@ def main(cfg: "DictConfig"):
         env.append_transform(InitTracker())
         return env
 
-    def create_env_fn(num_workers=2):
+    def create_env_fn(num_workers=cfg.num_env_workers):
         env = ParallelEnv(
             create_env_fn=create_transformed_env,
             num_workers=num_workers,
@@ -78,8 +78,8 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     adv_module = GAE(
-        gamma=0.99,
-        lmbda=0.95,
+        gamma=cfg.gamma,
+        lmbda=cfg.lmbda,
         value_network=critic,
         average_gae=True,
     )
@@ -92,19 +92,42 @@ def main(cfg: "DictConfig"):
     collector = SyncDataCollector(
         create_env_fn=create_env_fn,
         policy=actor,
-        frames_per_batch=64,
-        total_frames=128,
-        device="cpu",
-        storing_device="cpu",
+        frames_per_batch=cfg.frames_per_batch,
+        total_frames=cfg.total_frames,
+        device="cuda:0",
+        storing_device="cuda:0",
         max_frames_per_traj=-1,
     )
 
+    # Optimizer
+    ####################################################################################################################
+
+    optim = torch.optim.Adam(
+        loss_module.parameters(),
+        lr=0.001,
+        weight_decay=0.000,
+    )
+
+    # Training loop
+    ####################################################################################################################
+
     for batch in collector:
 
-        batch = batch.to(device)
+        print("step!")
+
+        # batch = batch.to(device)
         with torch.no_grad():
             batch = adv_module(batch)
-        loss = loss_module(batch)  # TypeError: expected Tensor as element 0 in argument 2, but got NoneType
+
+        loss = loss_module(batch)
+        loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+
+        # Backward pass
+        loss_sum.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=0.5)
+
+        optim.step()
+        optim.zero_grad()
 
     collector.shutdown()
 

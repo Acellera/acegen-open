@@ -3,3 +3,14 @@ experiment_name: generative_chemistry_ppo
 agent_name: ppo
 wandb_key: null
 log_dir: generative_chemistry_ppo
+
+# Environment configuration
+num_env_workers: 8
+
+# Collector configuration
+total_frames: 1_000_000
+frames_per_batch: 256
+
+# PPO configuration
+gamma: 0.99
+lambda: 0.95
