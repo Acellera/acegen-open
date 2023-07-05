@@ -24,14 +24,13 @@ class Embed(torch.nn.Module):
         return out
 
 
-def create_policy(vocabulary, output_size, out_key="logits"):
+def create_model(vocabulary, output_size, out_key="logits"):
 
     embedding_module = TensorDictModule(
         Embed(len(vocabulary), 256),
         in_keys=["obs"],
         out_keys=["embed"],
     )
-
     lstm_module = LSTMModule(
         input_size=256,
         hidden_size=256,
@@ -39,7 +38,6 @@ def create_policy(vocabulary, output_size, out_key="logits"):
         in_key="embed",
         out_key="features",
     )
-    lstm_module = lstm_module.set_recurrent_mode(True)
     mlp = TensorDictModule(
         MLP(
             in_features=256,
@@ -51,26 +49,6 @@ def create_policy(vocabulary, output_size, out_key="logits"):
     )
 
     return TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
-
-
-def create_critic(vocabulary, output_size, out_key="state_value"):
-
-    embedding_module = TensorDictModule(
-        Embed(len(vocabulary), 256),
-        in_keys=["obs"],
-        out_keys=["embed"],
-    )
-    mlp = TensorDictModule(
-        MLP(
-            in_features=256,
-            out_features=output_size,
-            num_cells=[256, 256, 256],
-        ),
-        in_keys=["embed"],
-        out_keys=[out_key],
-    )
-
-    return TensorDictSequential(embedding_module, mlp)
 
 
 def create_rhs_transform():

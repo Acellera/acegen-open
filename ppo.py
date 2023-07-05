@@ -17,7 +17,7 @@ from torchrl.envs import (
 
 from env import GenChemEnv
 from vocabulary import DeNovoVocabulary
-from utils import create_policy, create_critic, create_rhs_transform
+from utils import create_model, create_rhs_transform
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
@@ -64,14 +64,14 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     actor = ProbabilisticActor(
-        module=create_policy(vocabulary=vocabulary, output_size=action_spec.shape[-1]),
+        module=create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1]),
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
         return_log_prob=True,
     )
     actor = actor.to(device)
-    critic = create_critic(vocabulary=vocabulary, output_size=1, out_key="state_value")
+    critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
     critic = critic.to(device)
 
     # Loss modules
@@ -82,6 +82,7 @@ def main(cfg: "DictConfig"):
         lmbda=cfg.lmbda,
         value_network=critic,
         average_gae=True,
+        shifted=True,
     )
     loss_module = PPOLoss(actor, critic)
     loss_module = loss_module.to(device)
