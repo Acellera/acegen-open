@@ -17,3 +17,5 @@ gamma: 0.99
 lmbda: 0.95
 critic_coef: 0.5
 entropy_coef: 0.01
+mini_batch_size: 128
+ppo_epochs: 2

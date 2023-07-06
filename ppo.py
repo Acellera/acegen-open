@@ -3,7 +3,6 @@ import os.path
 import rdkit
 import hydra
 import torch
-import random
 
 from torchrl.objectives import PPOLoss
 from torchrl.envs.libs.gym import GymWrapper
@@ -18,12 +17,11 @@ from torchrl.envs import (
 )
 
 from env import GenChemEnv
-from vocabulary import DeNovoVocabulary
-from utils import create_model, create_rhs_transform, partially_load_checkpoint
+from utils import create_model, create_rhs_transform
+from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
+from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-
-# TODO: load checkpoint partially for value net
-# TODO: save checkpoints to avoid adapting every time
+# TODO: add storage
 # TODO: add training logging
 # TODO: add smiles logging
 
@@ -32,10 +30,6 @@ from utils import create_model, create_rhs_transform, partially_load_checkpoint
 def main(cfg: "DictConfig"):
 
     device = torch.device(cfg.device) if torch.cuda.is_available() else torch.device("cpu")
-
-    ####################################################################################################################
-
-    vocabulary = torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vocabulary.prior"))
 
     # Environment
     ####################################################################################################################
@@ -73,6 +67,7 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
+    vocabulary = torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vocabulary.prior"))
     actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
     actor_model.load_state_dict(torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "actor.prior")))
     actor = ProbabilisticActor(
@@ -112,6 +107,17 @@ def main(cfg: "DictConfig"):
         max_frames_per_traj=-1,
     )
 
+    # Storage
+    ####################################################################################################################
+
+    sampler = SamplerWithoutReplacement()
+    buffer = TensorDictReplayBuffer(
+        storage=LazyMemmapStorage(cfg.frames_per_batch),
+        sampler=sampler,
+        batch_size=cfg.mini_batch_size,
+        prefetch=10,
+    )
+
     # Optimizer
     ####################################################################################################################
 
@@ -126,21 +132,28 @@ def main(cfg: "DictConfig"):
 
     for batch in collector:
 
-        print("step!")
+        for j in range(cfg.ppo_epochs):
 
-        batch = batch.to(device)
-        with torch.no_grad():
-            batch = adv_module(batch)
+            with torch.no_grad():
+                batch = adv_module(batch)
 
-        loss = loss_module(batch)
-        loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+            # it is important to pass data that is not flattened
+            import ipdb; ipdb.set_trace()
+            buffer.extend(batch.unsqueeze(0).to_tensordict().cpu())
 
-        # Backward pass
-        loss_sum.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=0.5)
+            for i, batch in enumerate(buffer):
 
-        optim.step()
-        optim.zero_grad()
+                import ipdb; ipdb.set_trace()
+                batch = batch.to(device)
+                loss = loss_module(batch)
+                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+
+                # Backward pass
+                loss_sum.backward()
+                grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=0.5)
+
+                optim.step()
+                optim.zero_grad()
 
     collector.shutdown()
 
