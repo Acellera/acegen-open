@@ -1,0 +1,12 @@
+experiment_name: generative_chemistry_ppo
+agent_name: ppo
+wandb_key: null
+log_dir: generative_chemistry_ppo
+num_env_workers: 8
+total_frames: 1000000
+frames_per_batch: 256
+lr: 0.001
+gamma: 0.99
+lmbda: 0.95
+critic_coef: 0.5
+entropy_coef: 0.01
