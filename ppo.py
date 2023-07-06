@@ -1,11 +1,13 @@
-import os.path
 
+import os
 import rdkit
 import hydra
 import torch
+from tqdm import tqdm
 
 from torchrl.objectives import PPOLoss
 from torchrl.envs.libs.gym import GymWrapper
+from torchrl.record.loggers import get_logger
 from torchrl.modules import ProbabilisticActor
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives.value.advantages import GAE
@@ -21,7 +23,6 @@ from utils import create_model, create_rhs_transform
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-# TODO: add storage
 # TODO: add training logging
 # TODO: add smiles logging
 
@@ -33,6 +34,8 @@ def main(cfg: "DictConfig"):
 
     # Environment
     ####################################################################################################################
+
+    vocabulary = torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vocabulary.prior"))
 
     # Let's use a basic scoring function that gives a reward of 1.0 if the SMILES is valid and 0.0 otherwise.
     def dummy_scoring(smiles):
@@ -67,7 +70,6 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    vocabulary = torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vocabulary.prior"))
     actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
     actor_model.load_state_dict(torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "actor.prior")))
     actor = ProbabilisticActor(
@@ -112,7 +114,7 @@ def main(cfg: "DictConfig"):
 
     sampler = SamplerWithoutReplacement()
     buffer = TensorDictReplayBuffer(
-        storage=LazyMemmapStorage(cfg.frames_per_batch),
+        storage=LazyMemmapStorage(cfg.num_env_workers),
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
@@ -127,23 +129,44 @@ def main(cfg: "DictConfig"):
         weight_decay=0.000,
     )
 
+    # Logger
+    ####################################################################################################################
+
+    logger = None
+    if cfg.logger.backend:
+        logger = get_logger(cfg.logger_backend, logger_name="ppo", experiment_name=cfg.exp_name)
+
     # Training loop
     ####################################################################################################################
 
-    for batch in collector:
+    total_done = 0
+    collected_frames = 0
+    pbar = tqdm.tqdm(total=cfg.collector.total_frames)
+
+    for data in collector:
+
+        frames_in_batch = data.numel()
+        total_done += data.get(("next", "done")).sum()
+        collected_frames += frames_in_batch
+        pbar.update(data.numel())
+
+        # Log end-of-episode accumulated rewards for training
+        episode_rewards = data["next", "episode_reward"][data["next", "done"]]
+        if logger is not None and len(episode_rewards) > 0:
+            logger.log_scalar(
+                "reward_training", episode_rewards.mean().item(), collected_frames
+            )
 
         for j in range(cfg.ppo_epochs):
 
             with torch.no_grad():
-                batch = adv_module(batch)
+                data = adv_module(data)
 
             # it is important to pass data that is not flattened
-            import ipdb; ipdb.set_trace()
-            buffer.extend(batch.unsqueeze(0).to_tensordict().cpu())
+            buffer.extend(data.cpu())
 
             for i, batch in enumerate(buffer):
 
-                import ipdb; ipdb.set_trace()
                 batch = batch.to(device)
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]

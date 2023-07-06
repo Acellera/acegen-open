@@ -3,6 +3,7 @@ experiment_name: generative_chemistry_ppo
 agent_name: ppo
 wandb_key: null
 log_dir: generative_chemistry_ppo
+logger_backend: wandb
 
 # Environment configuration
 num_env_workers: 8
@@ -17,5 +18,6 @@ gamma: 0.99
 lmbda: 0.95
 critic_coef: 0.5
 entropy_coef: 0.01
-mini_batch_size: 128
+mini_batch_size: 4 # rollouts from 4 envs
 ppo_epochs: 2
+
