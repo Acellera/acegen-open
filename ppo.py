@@ -1,3 +1,6 @@
+import os.path
+
+import rdkit
 import hydra
 import torch
 import random
@@ -16,10 +19,13 @@ from torchrl.envs import (
 
 from env import GenChemEnv
 from vocabulary import DeNovoVocabulary
-from utils import create_model, create_rhs_transform
+from utils import create_model, create_rhs_transform, partially_load_checkpoint
 
 
-# TODO: load checkpoint
+# TODO: load checkpoint partially for value net
+# TODO: save checkpoints to avoid adapting every time
+# TODO: add training logging
+# TODO: add smiles logging
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
@@ -38,8 +44,8 @@ def main(cfg: "DictConfig"):
         policy_network_weights,
         value_network_weights,
     ) = adapt_reinvent_checkpoint(
-        file_path="/home/abou/torchrl_chem/de_novo.prior",
-        target_path="/tmp",
+        file_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "de_novo.prior"),
+        target_path="/tmp",  # temporary directory to save the adapted checkpoint
     )
 
     ####################################################################################################################
@@ -50,10 +56,11 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    # Let's use a random scoring function for now
+    # Let's use a basic scoring function that gives a reward of 1.0 if the SMILES is valid and 0.0 otherwise.
     def dummy_scoring(smiles):
+        mol = rdkit.Chem.MolFromSmiles(smiles)
         output = {
-            "reward": random.random(),
+            "reward": 1.0 if mol else 0.0,
             "valid_smile": True,
         }
         return output
@@ -93,6 +100,10 @@ def main(cfg: "DictConfig"):
     )
     actor = actor.to(device)
     critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
+
+    import ipdb; ipdb.set_trace()
+    partially_load_checkpoint(critic, "module.0", value_network_weights)
+    partially_load_checkpoint(critic, "module.1", value_network_weights)
     # critic.load_state_dict(torch.load(value_network_weights)) # TODO: fix partial loading
     critic = critic.to(device)
 

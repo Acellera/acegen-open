@@ -141,3 +141,12 @@ def adapt_reinvent_checkpoint(file_path, target_path="/tmp", device=None):
         target_path_policy_weights,
         target_path_value_weights,
     )
+
+
+def partially_load_checkpoint(module, submodule_name, checkpoint, map_location=None):
+    """Load `submodule_name` to `module` from checkpoint."""
+    current_state = module.state_dict()
+    checkpoint_state = torch.load(checkpoint, map_location=map_location)
+    for name, param in checkpoint_state.items():
+        if name.startswith(submodule_name):
+            current_state[name].copy_(param)
