@@ -3,7 +3,7 @@ import os
 import rdkit
 import hydra
 import torch
-from tqdm import tqdm
+import tqdm
 
 from torchrl.objectives import PPOLoss
 from torchrl.envs.libs.gym import GymWrapper
@@ -13,9 +13,11 @@ from torchrl.collectors import SyncDataCollector
 from torchrl.objectives.value.advantages import GAE
 from torchrl.envs import (
     ParallelEnv,
+    SerialEnv,
     TransformedEnv,
     InitTracker,
     StepCounter,
+    RewardSum,
 )
 
 from env import GenChemEnv
@@ -53,6 +55,7 @@ def main(cfg: "DictConfig"):
         env = TransformedEnv(env)
         env.append_transform(create_rhs_transform())
         env.append_transform(StepCounter())
+        env.append_transform(RewardSum())
         env.append_transform(InitTracker())
         return env
 
@@ -106,6 +109,7 @@ def main(cfg: "DictConfig"):
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
         device=device,
+        storing_device=device,
         max_frames_per_traj=-1,
     )
 
@@ -133,15 +137,15 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     logger = None
-    if cfg.logger.backend:
-        logger = get_logger(cfg.logger_backend, logger_name="ppo", experiment_name=cfg.exp_name)
+    if cfg.logger_backend:
+        logger = get_logger(cfg.logger_backend, logger_name="ppo", experiment_name=cfg.experiment_name)
 
     # Training loop
     ####################################################################################################################
 
     total_done = 0
     collected_frames = 0
-    pbar = tqdm.tqdm(total=cfg.collector.total_frames)
+    pbar = tqdm.tqdm(total=cfg.total_frames)
 
     for data in collector:
 
@@ -168,7 +172,9 @@ def main(cfg: "DictConfig"):
             for i, batch in enumerate(buffer):
 
                 batch = batch.to(device)
+
                 loss = loss_module(batch)
+
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
 
                 # Backward pass

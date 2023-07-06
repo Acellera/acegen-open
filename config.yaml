@@ -5,6 +5,9 @@ wandb_key: null
 log_dir: generative_chemistry_ppo
 logger_backend: wandb
 
+# device configuration
+device: cuda:0
+
 # Environment configuration
 num_env_workers: 8
 
