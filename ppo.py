@@ -35,23 +35,7 @@ def main(cfg: "DictConfig"):
 
     ####################################################################################################################
 
-    from utils import adapt_reinvent_checkpoint
-
-    (
-        vocabulary,
-        max_sequence_length,
-        recurrent_net_kwargs,
-        policy_network_weights,
-        value_network_weights,
-    ) = adapt_reinvent_checkpoint(
-        file_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "de_novo.prior"),
-        target_path="/tmp",  # temporary directory to save the adapted checkpoint
-    )
-
-    ####################################################################################################################
-
-    # Create vocabulary from data
-    # vocabulary = DeNovoVocabulary.from_list("dataset")
+    vocabulary = torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vocabulary.prior"))
 
     # Environment
     ####################################################################################################################
@@ -90,7 +74,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
-    actor_model.load_state_dict(torch.load(policy_network_weights))
+    actor_model.load_state_dict(torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "actor.prior")))
     actor = ProbabilisticActor(
         module=actor_model,
         in_keys=["logits"],
@@ -100,11 +84,7 @@ def main(cfg: "DictConfig"):
     )
     actor = actor.to(device)
     critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
-
-    import ipdb; ipdb.set_trace()
-    partially_load_checkpoint(critic, "module.0", value_network_weights)
-    partially_load_checkpoint(critic, "module.1", value_network_weights)
-    # critic.load_state_dict(torch.load(value_network_weights)) # TODO: fix partial loading
+    critic.load_state_dict(torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "critic.prior")))
     critic = critic.to(device)
 
     # Loss modules
