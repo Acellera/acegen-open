@@ -1,4 +1,0 @@
-experiment_name: generative_chemistry_ppo
-agent_name: ppo
-wandb_key: null
-log_dir: generative_chemistry_ppo
