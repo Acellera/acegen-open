@@ -48,7 +48,8 @@ def create_model(vocabulary, output_size, out_key="logits"):
         out_keys=[out_key],
     )
 
-    return TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
+    # return TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
+    return TensorDictSequential(embedding_module, lstm_module, mlp)
 
 
 def create_rhs_transform():

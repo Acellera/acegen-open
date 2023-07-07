@@ -4,6 +4,7 @@ import rdkit
 import hydra
 import torch
 import tqdm
+from pathlib import Path
 
 from torchrl.objectives import PPOLoss
 from torchrl.envs.libs.gym import GymWrapper
@@ -25,9 +26,8 @@ from utils import create_model, create_rhs_transform
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-# TODO: add training logging
-# TODO: add smiles logging
 
+# TODO: add smiles loging
 
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
 def main(cfg: "DictConfig"):
@@ -37,7 +37,7 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    vocabulary = torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vocabulary.prior"))
+    vocabulary = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
 
     # Let's use a basic scoring function that gives a reward of 1.0 if the SMILES is valid and 0.0 otherwise.
     def dummy_scoring(smiles):
@@ -60,7 +60,8 @@ def main(cfg: "DictConfig"):
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):
-        env = ParallelEnv(
+        # env = ParallelEnv(  # There is some bug here! When using it hidden states are always zero
+        env = SerialEnv(  # This works!
             create_env_fn=create_transformed_env,
             num_workers=num_workers,
         )
@@ -74,7 +75,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
-    actor_model.load_state_dict(torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "actor.prior")))
+    actor_model.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
     actor = ProbabilisticActor(
         module=actor_model,
         in_keys=["logits"],
@@ -84,7 +85,7 @@ def main(cfg: "DictConfig"):
     )
     actor = actor.to(device)
     critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
-    critic.load_state_dict(torch.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "critic.prior")))
+    critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
     critic = critic.to(device)
 
     # Loss modules
@@ -111,6 +112,7 @@ def main(cfg: "DictConfig"):
         device=device,
         storing_device=device,
         max_frames_per_traj=-1,
+        split_trajs=False,
     )
 
     # Storage
@@ -160,6 +162,9 @@ def main(cfg: "DictConfig"):
             logger.log_scalar(
                 "reward_training", episode_rewards.mean().item(), collected_frames
             )
+            logger.log_scalar(
+                "total_smiles", total_done, collected_frames
+            )
 
         for j in range(cfg.ppo_epochs):
 
@@ -183,6 +188,11 @@ def main(cfg: "DictConfig"):
 
                 optim.step()
                 optim.zero_grad()
+
+                if logger is not None:
+                    for key, value in loss.items():
+                        logger.log_scalar(key, value.item(), collected_frames)
+                    logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
 
     collector.shutdown()
 
