@@ -27,7 +27,9 @@ from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
 
-# TODO: add smiles loging
+# TODO: add smiles logging
+# TODO: add batched scoring
+# TODO: add KL penalty to the loss or to the reward
 
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
 def main(cfg: "DictConfig"):
