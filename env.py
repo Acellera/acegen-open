@@ -1,4 +1,5 @@
 import gym
+import numpy as np
 from rdkit import Chem
 from collections import deque
 
@@ -25,14 +26,8 @@ class GenChemEnv(gym.Env):
 
         # Define action and observation space
         self.action_space = gym.spaces.Discrete(len(self.vocabulary))
-        observation_space = gym.spaces.Discrete(len(self.vocabulary))
-        observation_length = gym.spaces.Discrete(self.max_length)
-        self.observation_space = gym.spaces.Dict(
-            {
-                "obs": observation_space,
-                "obs_length": observation_length,
-            }
-        )
+        # self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
+        self.observation_space = gym.spaces.Box(low=0, high=len(self.vocabulary) - 1, shape=(1, ), dtype=np.int64)
 
     def step(self, action):
         """Execute one time step within the environment"""
@@ -109,11 +104,7 @@ class GenChemEnv(gym.Env):
             done = True
 
         # Define next observation
-        next_obs = {
-            "obs": self.vocabulary.encode_token(action),
-            "obs_length": 1,
-        }
-
+        next_obs = self.vocabulary.encode_token(action)
         return next_obs, reward, done, info
 
     def reset(self):
@@ -123,10 +114,7 @@ class GenChemEnv(gym.Env):
         """
         self.current_molecule_str = "^"
         self.current_episode_length = 1
-        obs = {
-            "obs":  self.vocabulary.encode_token("^"),
-            "obs_length": 1,
-        }
+        obs = self.vocabulary.encode_token("^")
         info = {k: 0.0 for k, v in self.scoring_example.items()}
 
         return obs, info

@@ -137,13 +137,13 @@ class DeNovoVocabulary:
         self.vocabulary = vocabulary
         self.tokenizer = tokenizer
 
-    def encode_smile(self, smile, with_begin_and_end=True):
+    def encode_smiles(self, smile, with_begin_and_end=True):
         """Encodes a SMILE from str to np.array."""
         return self.vocabulary.encode(
             self.tokenizer.tokenize(smile, with_begin_and_end)
         )
 
-    def decode_smile(self, encoded_smile):
+    def decode_smiles(self, encoded_smile):
         """Decodes a SMILE from np.array to str."""
         return self.tokenizer.untokenize(self.vocabulary.decode(encoded_smile))
 

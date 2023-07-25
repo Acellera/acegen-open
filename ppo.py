@@ -19,13 +19,14 @@ from torchrl.envs import (
     InitTracker,
     StepCounter,
     RewardSum,
+    CatFrames,
 )
-
-from env import GenChemEnv
-from utils import create_model, create_rhs_transform
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
+from env import GenChemEnv
+from utils import create_model, create_rhs_transform
+from reward_transform import SMILESReward
 
 # TODO: add smiles logging
 # TODO: add batched scoring
@@ -59,6 +60,7 @@ def main(cfg: "DictConfig"):
         env.append_transform(StepCounter())
         env.append_transform(RewardSum())
         env.append_transform(InitTracker())
+        env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):
@@ -126,6 +128,7 @@ def main(cfg: "DictConfig"):
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
+        transform=SMILESReward(reward_function=dummy_scoring, vocabulary=vocabulary),
     )
 
     # Optimizer
@@ -168,33 +171,36 @@ def main(cfg: "DictConfig"):
                 "total_smiles", total_done, collected_frames
             )
 
+        # Score the current batch
+        finished_smiles = data["next", "SMILES"][data["next", "done"].squeeze()]
+        for smiles in finished_smiles:
+            print(vocabulary.decode_smiles(smiles.cpu().numpy()))
+
         for j in range(cfg.ppo_epochs):
 
-            with torch.no_grad():
-                data = adv_module(data)
+                with torch.no_grad():
+                    data = adv_module(data)
 
-            # it is important to pass data that is not flattened
-            buffer.extend(data.cpu())
+                # it is important to pass data that is not flattened
+                buffer.extend(data.cpu())
 
-            for i, batch in enumerate(buffer):
+                for i, batch in enumerate(buffer):
 
-                batch = batch.to(device)
+                    batch = batch.to(device)
+                    loss = loss_module(batch)
+                    loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
 
-                loss = loss_module(batch)
+                    # Backward pass
+                    loss_sum.backward()
+                    grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=0.5)
 
-                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                    optim.step()
+                    optim.zero_grad()
 
-                # Backward pass
-                loss_sum.backward()
-                grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=0.5)
-
-                optim.step()
-                optim.zero_grad()
-
-                if logger is not None:
-                    for key, value in loss.items():
-                        logger.log_scalar(key, value.item(), collected_frames)
-                    logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
+                    if logger is not None:
+                        for key, value in loss.items():
+                            logger.log_scalar(key, value.item(), collected_frames)
+                        logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
 
     collector.shutdown()
 

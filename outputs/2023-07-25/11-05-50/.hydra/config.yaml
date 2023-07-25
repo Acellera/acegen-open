@@ -1,26 +1,16 @@
-# Logging configuration
 experiment_name: generative_chemistry_ppo
 agent_name: ppo
 wandb_key: null
 log_dir: generative_chemistry_ppo
 logger_backend: null
-
-# device configuration
 device: cpu
-
-# Environment configuration
 num_env_workers: 8
-
-# Collector configuration
-total_frames: 1_000_000
+total_frames: 1000000
 frames_per_batch: 256
-
-# PPO configuration
 lr: 0.001
 gamma: 0.99
 lmbda: 0.95
 critic_coef: 0.5
 entropy_coef: 0.01
-mini_batch_size: 4 # rollouts from 4 envs
+mini_batch_size: 4
 ppo_epochs: 2
-

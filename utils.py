@@ -21,6 +21,7 @@ class Embed(torch.nn.Module):
         out = self._embedding(inputs)
         if len(batch) > 1:
             out = out.unflatten(0, batch)
+        out = out.squeeze()  # This is an ugly hack, should not be necessary
         return out
 
 
@@ -28,7 +29,7 @@ def create_model(vocabulary, output_size, out_key="logits"):
 
     embedding_module = TensorDictModule(
         Embed(len(vocabulary), 256),
-        in_keys=["obs"],
+        in_keys=["observation"],
         out_keys=["embed"],
     )
     lstm_module = LSTMModule(
