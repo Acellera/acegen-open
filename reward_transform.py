@@ -1,4 +1,3 @@
-import rdkit
 import torch
 from typing import Callable, Any
 from tensordict import TensorDict, TensorDictBase
@@ -10,11 +9,6 @@ from torchrl.data.tensor_specs import (
 )
 from torchrl.envs.transforms.transforms import Transform
 from vocabulary import DeNovoVocabulary
-
-
-def test_scoring(smiles):
-    mol = rdkit.Chem.MolFromSmiles(smiles)
-    return 2.0 if mol else 0.0,
 
 
 class SMILESReward(Transform):
@@ -45,8 +39,7 @@ class SMILESReward(Transform):
         super().__init__(in_keys, out_keys)
 
         self.vocabulary = vocabulary
-        # self.reward_function = reward_function
-        self.reward_function = test_scoring
+        self.reward_function = reward_function
 
     def _call(self, tensordict: TensorDictBase) -> TensorDictBase:
         return tensordict

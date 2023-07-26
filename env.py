@@ -37,7 +37,6 @@ class GenChemEnv(gym.Env):
             {
                 "molecule": "invalid",
                 "valid_smile": False,
-                "repeated": 0.0,
             }
         )
 

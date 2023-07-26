@@ -1,9 +1,8 @@
-
-import os
 import rdkit
 import hydra
 import torch
 import tqdm
+from copy import deepcopy
 from pathlib import Path
 
 from torchrl.objectives import PPOLoss
@@ -13,6 +12,7 @@ from torchrl.modules import ProbabilisticActor
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives.value.advantages import GAE
 from torchrl.envs import (
+    Compose,
     ParallelEnv,
     SerialEnv,
     TransformedEnv,
@@ -20,6 +20,7 @@ from torchrl.envs import (
     StepCounter,
     RewardSum,
     CatFrames,
+    KLRewardTransform,
 )
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
@@ -27,10 +28,19 @@ from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from env import GenChemEnv
 from utils import create_model, create_rhs_transform
 from reward_transform import SMILESReward
+from scoring import WrapperScoringClass
+
+# Ugly hack to be able to use the scoring function
+import sys
+import sklearn.ensemble._forest as forest
+from sklearn import tree
+sys.modules['sklearn.ensemble.forest'] = forest
+sys.modules['sklearn.tree.tree'] = tree
 
 # TODO: add smiles logging
 # TODO: add batched scoring
 # TODO: add KL penalty to the loss or to the reward
+
 
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
 def main(cfg: "DictConfig"):
@@ -43,15 +53,8 @@ def main(cfg: "DictConfig"):
     vocabulary = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
 
     # Let's use a basic scoring function that gives a reward of 1.0 if the SMILES is valid and 0.0 otherwise.
-    def dummy_scoring(smiles):
-        mol = rdkit.Chem.MolFromSmiles(smiles)
-        output = {
-            "reward": 1.0 if mol else 0.0,
-            "valid_smile": True,
-        }
-        return output
-
-    env_kwargs = {"scoring_function": dummy_scoring, "vocabulary": vocabulary}
+    scoring = WrapperScoringClass()
+    env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
 
     def create_transformed_env():
         env = GymWrapper(GenChemEnv(**env_kwargs), categorical_action_encoding=True)
@@ -88,6 +91,7 @@ def main(cfg: "DictConfig"):
         return_log_prob=True,
     )
     actor = actor.to(device)
+    actor_prior = deepcopy(actor)
     critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
     critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
     critic = critic.to(device)
@@ -123,12 +127,18 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     sampler = SamplerWithoutReplacement()
+    rew_transform = SMILESReward(reward_function=scoring.get_final_score(), vocabulary=vocabulary)
+    kl_transform = KLRewardTransform(actor_prior, coef=0.1)
+    transforms = Compose(
+        # rew_transform,
+        kl_transform,
+    )
     buffer = TensorDictReplayBuffer(
         storage=LazyMemmapStorage(cfg.num_env_workers),
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
-        # transform=SMILESReward(reward_function=dummy_scoring, vocabulary=vocabulary),
+        # transform=transforms,
     )
 
     # Optimizer
