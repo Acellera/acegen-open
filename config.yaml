@@ -9,18 +9,18 @@ logger_backend: null
 device: cuda:0
 
 # Environment configuration
-num_env_workers: 8
+num_env_workers: 32
 
 # Collector configuration
 total_frames: 1_000_000
 frames_per_batch: 256
 
 # PPO configuration
-lr: 0.001
-gamma: 0.99
+lr: 0.0001
+gamma: 0.999
 lmbda: 0.95
-critic_coef: 0.5
-entropy_coef: 0.01
+critic_coef: 0.25
+entropy_coef: 0.002
 mini_batch_size: 4 # rollouts from 4 envs
 ppo_epochs: 2
 max_grad_norm: 1.0
