@@ -84,8 +84,8 @@ def main(cfg: "DictConfig"):
         distribution_class=torch.distributions.Categorical,
         return_log_prob=True,
     )
-    actor = actor.to(device)
     actor_prior = deepcopy(actor)
+    actor = actor.to(device)
     critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
     critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
     critic = critic.to(device)
@@ -121,7 +121,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     sampler = SamplerWithoutReplacement()
-    rew_transform = SMILESReward(reward_function=scoring.get_final_score(), vocabulary=vocabulary)
+    # rew_transform = SMILESReward(reward_function=scoring.get_final_score, vocabulary=vocabulary)
     kl_transform = KLRewardTransform(actor_prior, coef=0.1)
     transforms = Compose(
         # rew_transform,
@@ -132,7 +132,7 @@ def main(cfg: "DictConfig"):
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
-        # transform=transforms,
+        transform=transforms,
     )
 
     # Optimizer
