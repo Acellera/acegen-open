@@ -22,7 +22,7 @@ from torchrl.envs import (
     CatFrames,
     KLRewardTransform,
 )
-from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
+from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
 from env import GenChemEnv
@@ -128,11 +128,11 @@ def main(cfg: "DictConfig"):
         kl_transform,
     )
     buffer = TensorDictReplayBuffer(
-        storage=LazyMemmapStorage(cfg.num_env_workers),
+        storage=LazyTensorStorage(cfg.num_env_workers, device=device),
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
-        transform=transforms,
+        # transform=transforms,
     )
 
     # Optimizer
