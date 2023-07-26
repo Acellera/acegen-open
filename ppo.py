@@ -30,12 +30,6 @@ from utils import create_model, create_rhs_transform
 from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
 
-# Ugly hack to be able to use the scoring function
-import sys
-import sklearn.ensemble._forest as forest
-from sklearn import tree
-sys.modules['sklearn.ensemble.forest'] = forest
-sys.modules['sklearn.tree.tree'] = tree
 
 # TODO: add smiles logging
 # TODO: add batched scoring

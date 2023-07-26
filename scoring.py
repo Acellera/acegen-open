@@ -4,6 +4,14 @@ from reinvent_scoring.scoring.scoring_function_parameters import (
     ScoringFunctionParameters,
 )
 
+# Ugly hack to be able to use the scoring function
+import sys
+import sklearn.ensemble._forest as forest
+from sklearn import tree
+sys.modules['sklearn.ensemble.forest'] = forest
+sys.modules['sklearn.tree.tree'] = tree
+
+
 DRD2_SCORING_PARAMS = {
     "name": "custom_sum",
     "parallel": False,
@@ -45,7 +53,7 @@ DRD2_SCORING_PARAMS = {
             "component_type": "predictive_property",
             "specific_parameters": {
                 "descriptor_type": "ecfp",
-                "model_path": "drd2.pkl",
+                "model_path": "/home/abou/torchrl_chem/drd2.pkl",
                 "radius": 3,
                 "scikit": "classification",
                 "size": 2048,
@@ -83,3 +91,8 @@ class WrapperScoringClass:
             output[component["name"]] = float(scores.profile[n].score[0])
 
         return output
+
+
+if __name__ == "__main__":
+
+    scoring_class = WrapperScoringClass()
