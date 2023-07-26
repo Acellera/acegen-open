@@ -1,8 +1,8 @@
+import rdkit
 import torch
-
 from typing import Callable, Any
-from tensordict import TensorDictBase
-from tensordict.utils import _normalize_key, is_seq_of_nested_key, unravel_keys
+from tensordict import TensorDict, TensorDictBase
+from tensordict.utils import unravel_keys
 from torchrl.data.tensor_specs import (
     CompositeSpec,
     TensorSpec,
@@ -10,6 +10,11 @@ from torchrl.data.tensor_specs import (
 )
 from torchrl.envs.transforms.transforms import Transform
 from vocabulary import DeNovoVocabulary
+
+
+def test_scoring(smiles):
+    mol = rdkit.Chem.MolFromSmiles(smiles)
+    return 2.0 if mol else 0.0,
 
 
 class SMILESReward(Transform):
@@ -35,18 +40,22 @@ class SMILESReward(Transform):
         if out_keys is None:
             out_keys = ["reward"]
         if in_keys is None:
-            out_keys = ["SMILES"]
+            in_keys = ["SMILES"]
 
         super().__init__(in_keys, out_keys)
-        self.reward_function = reward_function
+
+        self.vocabulary = vocabulary
+        # self.reward_function = reward_function
+        self.reward_function = test_scoring
 
     def _call(self, tensordict: TensorDictBase) -> TensorDictBase:
+        return tensordict
+
+    def _inv(self, tensordict: TensorDictBase) -> TensorDictBase:
         with torch.set_grad_enabled(self.gradient_mode):
             tensordict_save = tensordict
             if self.on_done_only:
                 done = tensordict.get("done")
-                if self.out_keys[0] in tensordict.keys(include_nested=True):
-                    tensordict = tensordict.exclude(self.out_keys[0])
                 truncated = tensordict.get(self.truncated_key, None)
                 if truncated is not None:
                     done = done | truncated
@@ -56,17 +65,12 @@ class SMILESReward(Transform):
                         "the done state shape must match the tensordict shape."
                     )
                 sub_tensordict = tensordict.get_sub_tensordict(done)
-            else:
-                sub_tensordict = tensordict
-
-            import ipdb; ipdb.set_trace()
-            out = self.reward_model(sub_tensordict)
-
-            if out is not sub_tensordict:
-                raise RuntimeError(
-                    f"The reward function provided to {type(self)} must modify the tensordict in place."
-                )
-            tensordict_save.update(tensordict, inplace=True)
+                reward = sub_tensordict.get("reward")
+                smiles = sub_tensordict.get(self.in_keys[0])
+                for i, smi in enumerate(smiles):
+                    reward[i] *= self.reward_function(self.vocabulary.decode_smiles(smi.cpu().numpy()))
+                sub_tensordict.set("reward", reward, inplace=True)
+        tensordict_save.update(tensordict, inplace=True)
         return tensordict_save
 
     def transform_reward_spec(self, reward_spec: TensorSpec) -> TensorSpec:
@@ -97,8 +101,11 @@ class SMILESReward(Transform):
         return tensordict
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+        return tensordict
+
+    def _inv_call(self, tensordict: TensorDictBase) -> TensorDictBase:
         if self.use_next:
-            self._call(tensordict.get("next"))
+            self._inv(tensordict.get("next"))
         else:
-            self._call(tensordict)
+            self._inv(tensordict)
         return tensordict

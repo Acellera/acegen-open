@@ -128,7 +128,7 @@ def main(cfg: "DictConfig"):
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
-        transform=SMILESReward(reward_function=dummy_scoring, vocabulary=vocabulary),
+        # transform=SMILESReward(reward_function=dummy_scoring, vocabulary=vocabulary),
     )
 
     # Optimizer
