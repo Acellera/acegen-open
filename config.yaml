@@ -23,4 +23,5 @@ critic_coef: 0.5
 entropy_coef: 0.01
 mini_batch_size: 4 # rollouts from 4 envs
 ppo_epochs: 2
+max_grad_norm: 1.0
 

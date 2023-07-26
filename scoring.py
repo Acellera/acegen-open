@@ -80,18 +80,15 @@ class WrapperScoringClass:
 
     def get_final_score(self, smiles):
 
-        output = {}
         try:
             scores = self.scoring_class.get_final_score(smiles)
-        except Exception:
-            import ipdb; ipdb.set_trace()
-        valid_smiles = np.zeros_like(scores.total_score, dtype=bool)
-        valid_smiles[scores.valid_idxs] = True
-
-        output.update({"valid_smile": valid_smiles, "reward": float(scores.total_score[0])})
-
-        for n, component in enumerate(self.params["components"]):
-            output[component["name"]] = float(scores.profile[n].score[0])
+            output = {"valid_smile": True, "reward": float(scores.total_score[0])}
+            for n, component in enumerate(self.params["components"]):
+                output[component["name"]] = float(scores.profile[n].score[0])
+        except TypeError:
+            output = {"valid_smile": False, "reward": 0.0}
+            for n, component in enumerate(self.params["components"]):
+                output[component["name"]] = 0.0
 
         return output
 

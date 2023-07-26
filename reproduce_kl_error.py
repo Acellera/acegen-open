@@ -132,7 +132,7 @@ def main(cfg: "DictConfig"):
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
-        # transform=transforms,
+        transform=transforms,
     )
 
     # Optimizer

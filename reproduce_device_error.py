@@ -128,7 +128,8 @@ def main(cfg: "DictConfig"):
         kl_transform,
     )
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_env_workers),  # TODO: ideally device should be "device"
+        # storage=LazyTensorStorage(cfg.num_env_workers),  # TODO: ideally device should be "device"
+        storage=LazyTensorStorage(cfg.num_env_workers, device=device),  # TODO: ideally device should be "device"
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
