@@ -48,21 +48,21 @@ DRD2_SCORING_PARAMS = {
             },
             "weight": 1,
         },
-        # {
-        #     "name": "DRD2",
-        #     "component_type": "predictive_property",
-        #     "specific_parameters": {
-        #         "descriptor_type": "ecfp",
-        #         "model_path": "/home/abou/torchrl_chem/drd2.pkl",
-        #         "radius": 3,
-        #         "scikit": "classification",
-        #         "size": 2048,
-        #         "transformation": {
-        #             "transformation_type": "no_transformation",
-        #         },
-        #     },
-        #     "weight": 1,
-        # }
+        {
+            "name": "DRD2",
+            "component_type": "predictive_property",
+            "specific_parameters": {
+                "descriptor_type": "ecfp",
+                "model_path": "/home/abou/torchrl_chem/drd2.pkl",
+                "radius": 3,
+                "scikit": "classification",
+                "size": 2048,
+                "transformation": {
+                    "transformation_type": "no_transformation",
+                },
+            },
+            "weight": 1,
+        }
     ],
 }
 

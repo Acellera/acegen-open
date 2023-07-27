@@ -30,12 +30,12 @@ from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
 
 
+# TODO: add fps logging
 # TODO: add smiles logging
-# TODO: add batched scoring
 # TODO: add KL penalty to the loss or to the reward
+# TODO: add batched scoring
 
-
-@hydra.main(config_path=".", config_name="config", version_base="1.1")
+@hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     device = torch.device(cfg.device) if torch.cuda.is_available() else torch.device("cpu")
@@ -50,13 +50,9 @@ def main(cfg: "DictConfig"):
     env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
 
     def create_transformed_env():
-        env = GymWrapper(GenChemEnv(**env_kwargs), categorical_action_encoding=True)
+        env = GymWrapper(GenChemEnv(**env_kwargs), categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
         env.append_transform(create_rhs_transform())
-        env.append_transform(StepCounter())
-        env.append_transform(RewardSum())
-        env.append_transform(InitTracker())
-        env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):
@@ -65,6 +61,11 @@ def main(cfg: "DictConfig"):
             create_env_fn=create_transformed_env,
             num_workers=num_workers,
         )
+        env = TransformedEnv(env)
+        env.append_transform(StepCounter())
+        env.append_transform(RewardSum())
+        env.append_transform(InitTracker())
+        env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
         return env
 
     test_env = GymWrapper(GenChemEnv(**env_kwargs))
@@ -99,6 +100,7 @@ def main(cfg: "DictConfig"):
         average_gae=True,
         shifted=True,
     )
+    adv_module = adv_module.to(device)
     loss_module = ClipPPOLoss(
         actor, critic,
         critic_coef=cfg.critic_coef,
@@ -142,11 +144,11 @@ def main(cfg: "DictConfig"):
 
     sampler = SamplerWithoutReplacement()
     diversity_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(10_000),
+        storage=LazyTensorStorage(10_000, device=device),
         sampler=sampler,
     )
 
-# Optimizer
+    # Optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
@@ -183,6 +185,9 @@ def main(cfg: "DictConfig"):
                 "reward_training", episode_rewards.mean().item(), collected_frames
             )
             logger.log_scalar(
+                "max_reward_training", episode_rewards.max().item(), collected_frames
+            )
+            logger.log_scalar(
                 "total_smiles", total_done, collected_frames
             )
 
@@ -198,7 +203,7 @@ def main(cfg: "DictConfig"):
         num_finished_smiles = len(finished_smiles_td)
 
         if num_finished_smiles > 0 and num_unique_smiles == 0:
-            diversity_buffer.extend(finished_smiles_td.clone().cpu())
+            diversity_buffer.extend(finished_smiles_td.clone())
 
         elif num_finished_smiles > 0:
             td_smiles = diversity_buffer.sample(batch_size=num_unique_smiles)
@@ -210,7 +215,7 @@ def main(cfg: "DictConfig"):
                 if repeated:
                     reward[i] = 0.5 * reward[i]
                 else:
-                    diversity_buffer.extend(finished_smiles_td[i:i+1].clone().cpu())  # TODO: is clone necessary?
+                    diversity_buffer.extend(finished_smiles_td[i:i+1].clone())  # TODO: is clone necessary?
             sub_td.set("reward", reward, inplace=True)
 
         for j in range(cfg.ppo_epochs):
