@@ -1,7 +1,6 @@
 import gym
 import numpy as np
 from rdkit import Chem
-from collections import deque
 
 
 class GenChemEnv(gym.Env):
@@ -25,8 +24,8 @@ class GenChemEnv(gym.Env):
 
         # Define action and observation space
         self.action_space = gym.spaces.Discrete(len(self.vocabulary))
-        self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
-        # self.observation_space = gym.spaces.Box(low=0, high=len(self.vocabulary) - 1, shape=(1, ), dtype=np.int64)
+        # self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
+        self.observation_space = gym.spaces.Box(low=0, high=len(self.vocabulary) - 1, shape=(1, ), dtype=np.int64)
 
     def step(self, action):
         """Execute one time step within the environment"""
@@ -56,19 +55,15 @@ class GenChemEnv(gym.Env):
             smiles = self.vocabulary.remove_start_and_end_tokens(self.current_molecule_str)
 
             # check smiles validity
-            import ipdb; ipdb.set_trace()
             mol = Chem.MolFromSmiles(smiles)
 
             if mol is not None:
 
                 # Compute score
-                import ipdb; ipdb.set_trace()
                 score = self.scoring_function(smiles)
 
                 # Get reward or score
                 reward = score["reward"]
-
-            import ipdb; ipdb.set_trace()
 
         # Define next observation
         next_obs = self.vocabulary.encode_token(action)
