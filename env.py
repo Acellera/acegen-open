@@ -34,8 +34,6 @@ class GenChemEnv(gym.Env):
     def step(self, action):
         """Execute one time step within the environment"""
 
-        import ipdb; ipdb.set_trace()
-
         # Get next action
         action = (
             "$"

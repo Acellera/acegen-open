@@ -32,8 +32,9 @@ from scoring import WrapperScoringClass
 
 # TODO: add fps logging
 # TODO: add smiles logging
+# TODO: how to combine clipping and KL penalty?
 # TODO: add KL penalty to the loss or to the reward
-# TODO: add batched scoring
+# TODO: add batched scoring as a buffer transform
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
@@ -144,7 +145,7 @@ def main(cfg: "DictConfig"):
 
     sampler = SamplerWithoutReplacement()
     diversity_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(10_000, device=device),
+        storage=LazyTensorStorage(100_000, device=device),
         sampler=sampler,
     )
 
@@ -169,6 +170,7 @@ def main(cfg: "DictConfig"):
 
     total_done = 0
     collected_frames = 0
+    repeated_smiles = 0
     pbar = tqdm.tqdm(total=cfg.total_frames)
 
     for data in collector:
@@ -190,6 +192,9 @@ def main(cfg: "DictConfig"):
             logger.log_scalar(
                 "total_smiles", total_done, collected_frames
             )
+            logger.log_scalar(
+                "repeated_smiles", repeated_smiles, collected_frames
+            )
 
         # Penalize repeated SMILES
         td = data.get("next")
@@ -206,13 +211,14 @@ def main(cfg: "DictConfig"):
             diversity_buffer.extend(finished_smiles_td.clone())
 
         elif num_finished_smiles > 0:
-            td_smiles = diversity_buffer.sample(batch_size=num_unique_smiles)
-            unique_smiles = td_smiles.get("SMILES").to(device)  # TODO: which device to use?
-            unique_index = td_smiles.get("index").unique()
-            assert len(unique_index) == num_unique_smiles
             for i, smi in enumerate(finished_smiles):
+                td_smiles = diversity_buffer.sample(batch_size=num_unique_smiles)
+                unique_smiles = td_smiles.get("SMILES")
+                unique_index = td_smiles.get("index").unique()
+                assert len(unique_index) == num_unique_smiles
                 repeated = (smi == unique_smiles).all(dim=-1).any()
                 if repeated:
+                    repeated_smiles += 1
                     reward[i] = 0.5 * reward[i]
                 else:
                     diversity_buffer.extend(finished_smiles_td[i:i+1].clone())  # TODO: is clone necessary?
