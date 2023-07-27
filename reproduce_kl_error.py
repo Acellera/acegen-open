@@ -69,8 +69,8 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    # actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
-    actor_model = create_simple_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+    actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+    # actor_model = create_simple_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
     # actor_model.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
     actor = ProbabilisticActor(
         module=actor_model,
@@ -81,8 +81,8 @@ def main(cfg: "DictConfig"):
     )
     actor_prior = deepcopy(actor)
     actor = actor.to(device)
-    # critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
-    critic = create_simple_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
+    critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
+    # critic = create_simple_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
     # critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
     critic = critic.to(device)
 
