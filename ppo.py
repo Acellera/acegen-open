@@ -1,4 +1,3 @@
-import rdkit
 import hydra
 import torch
 import tqdm

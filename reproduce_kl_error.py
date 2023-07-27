@@ -1,4 +1,3 @@
-import rdkit
 import hydra
 import torch
 import tqdm
@@ -26,14 +25,9 @@ from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
 from env import GenChemEnv
-from utils import create_model, create_rhs_transform
+from utils import create_model, create_simple_model, create_rhs_transform
 from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
-
-
-# TODO: add smiles logging
-# TODO: add batched scoring
-# TODO: add KL penalty to the loss or to the reward
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
@@ -75,8 +69,9 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
-    actor_model.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
+    # actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+    actor_model = create_simple_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+    # actor_model.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
     actor = ProbabilisticActor(
         module=actor_model,
         in_keys=["logits"],
@@ -86,8 +81,9 @@ def main(cfg: "DictConfig"):
     )
     actor_prior = deepcopy(actor)
     actor = actor.to(device)
-    critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
-    critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
+    # critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
+    critic = create_simple_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
+    # critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
     critic = critic.to(device)
 
     # Loss modules
