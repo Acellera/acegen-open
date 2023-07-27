@@ -4,7 +4,7 @@ import tqdm
 from copy import deepcopy
 from pathlib import Path
 
-from torchrl.objectives import PPOLoss
+from torchrl.objectives import ClipPPOLoss, KLPENPPOLoss
 from torchrl.envs.libs.gym import GymWrapper
 from torchrl.record.loggers import get_logger
 from torchrl.modules import ProbabilisticActor
@@ -99,7 +99,13 @@ def main(cfg: "DictConfig"):
         average_gae=True,
         shifted=True,
     )
-    loss_module = PPOLoss(actor, critic, critic_coef=cfg.critic_coef, entropy_coef=cfg.entropy_coef)
+    loss_module = ClipPPOLoss(
+        actor, critic,
+        critic_coef=cfg.critic_coef,
+        entropy_coef=cfg.entropy_coef,
+        clip_epsilon=cfg.ppo_clip,
+        normalize_advantage=True,
+    )
     loss_module = loss_module.to(device)
 
     # Collector
@@ -127,14 +133,20 @@ def main(cfg: "DictConfig"):
         kl_transform,
     )
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_env_workers),  # TODO: ideally device should be "device"
+        storage=LazyTensorStorage(cfg.num_env_workers, device=device),
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
         # transform=transforms,
     )
 
-    # Optimizer
+    sampler = SamplerWithoutReplacement()
+    diversity_buffer = TensorDictReplayBuffer(
+        storage=LazyTensorStorage(10_000),
+        sampler=sampler,
+    )
+
+# Optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
@@ -174,37 +186,57 @@ def main(cfg: "DictConfig"):
                 "total_smiles", total_done, collected_frames
             )
 
-        # Score the current batch
-        finished_smiles = data["next", "SMILES"][data["next", "done"].squeeze()]
-        for smiles in finished_smiles:
-            print(vocabulary.decode_smiles(smiles.cpu().numpy()))
+        # Penalize repeated SMILES
+        td = data.get("next")
+        # td = td.exclude("reward")
+        done = td.get("done").squeeze(-1)
+        sub_td = td.get_sub_tensordict(done)
+        reward = sub_td.get("reward")
+        finished_smiles = sub_td.get("SMILES")
+        finished_smiles_td = sub_td.select("SMILES")
+        num_unique_smiles = len(diversity_buffer)
+        num_finished_smiles = len(finished_smiles_td)
+
+        if num_finished_smiles > 0 and num_unique_smiles == 0:
+            diversity_buffer.extend(finished_smiles_td.clone().cpu())
+
+        elif num_finished_smiles > 0:
+            td_smiles = diversity_buffer.sample(batch_size=num_unique_smiles)
+            unique_smiles = td_smiles.get("SMILES").to(device)  # TODO: which device to use?
+            unique_index = td_smiles.get("index").unique()
+            assert len(unique_index) == num_unique_smiles
+            for i, smi in enumerate(finished_smiles):
+                repeated = (smi == unique_smiles).all(dim=-1).any()
+                if repeated:
+                    reward[i] = 0.5 * reward[i]
+                else:
+                    diversity_buffer.extend(finished_smiles_td[i:i+1].clone().cpu())  # TODO: is clone necessary?
+            sub_td.set("reward", reward, inplace=True)
 
         for j in range(cfg.ppo_epochs):
 
-                with torch.no_grad():
-                    data = adv_module(data)
+            with torch.no_grad():
+                data = adv_module(data)
 
-                # it is important to pass data that is not flattened
-                buffer.extend(data)
+            # it is important to pass data that is not flattened
+            buffer.extend(data)
 
-                for i, batch in enumerate(buffer):
+            for i, batch in enumerate(buffer):
 
-                    batch = batch.to(device)  # TODO: ideally batch should already be in "device"
+                loss = loss_module(batch)
+                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
 
-                    loss = loss_module(batch)
-                    loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                # Backward pass
+                loss_sum.backward()
+                grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=cfg.max_grad_norm)
 
-                    # Backward pass
-                    loss_sum.backward()
-                    grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=cfg.max_grad_norm)
+                optim.step()
+                optim.zero_grad()
 
-                    optim.step()
-                    optim.zero_grad()
-
-                    if logger is not None:
-                        for key, value in loss.items():
-                            logger.log_scalar(key, value.item(), collected_frames)
-                        logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
+                if logger is not None:
+                    for key, value in loss.items():
+                        logger.log_scalar(key, value.item(), collected_frames)
+                    logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
 
     collector.shutdown()
 

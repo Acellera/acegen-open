@@ -11,13 +11,12 @@ class GenChemEnv(gym.Env):
         self,
         scoring_function,
         vocabulary,
-        max_length=60,
+        max_length=100,
     ):
 
         self.max_length = max_length
         self.vocabulary = vocabulary
         self.scoring_function = scoring_function
-        self.running_mean_valid_smiles = deque(maxlen=100)
 
         # Scoring example
         test_smiles = "C"
@@ -26,19 +25,11 @@ class GenChemEnv(gym.Env):
 
         # Define action and observation space
         self.action_space = gym.spaces.Discrete(len(self.vocabulary))
-        # self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
-        self.observation_space = gym.spaces.Box(low=0, high=len(self.vocabulary) - 1, shape=(1, ), dtype=np.int64)
+        self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
+        # self.observation_space = gym.spaces.Box(low=0, high=len(self.vocabulary) - 1, shape=(1, ), dtype=np.int64)
 
     def step(self, action):
         """Execute one time step within the environment"""
-
-        info = {k: 0.0 for k, v in self.scoring_example.items()}
-        info.update(
-            {
-                "molecule": "invalid",
-                "valid_smile": False,
-            }
-        )
 
         # Get next action
         action = (
@@ -51,56 +42,33 @@ class GenChemEnv(gym.Env):
         self.current_molecule_str += action
         self.current_episode_length += 1
 
-        # Handle end of molecule/episode if action is $
         reward = 0.0
         done = False
+        info = {}
+
+        # Handle end of molecule/episode if action is $
         if action == "$":
 
+            # Set done flag
+            done = True
+
             # Get smile
-            smiles = self.vocabulary.remove_start_and_end_tokens(
-                self.current_molecule_str
-            )
+            smiles = self.vocabulary.remove_start_and_end_tokens(self.current_molecule_str)
 
             # check smiles validity
+            import ipdb; ipdb.set_trace()
             mol = Chem.MolFromSmiles(smiles)
 
             if mol is not None:
 
                 # Compute score
+                import ipdb; ipdb.set_trace()
                 score = self.scoring_function(smiles)
-
-                # Sanity check
-                if not (isinstance(score, dict) and "reward" in score.keys()):
-                    raise ValueError(
-                        "scoring_function has to return a dict with at least the keyword ´reward´"
-                    )
 
                 # Get reward or score
                 reward = score["reward"]
 
-                # Update info and done flag
-                info.update(score)
-                self.running_mean_valid_smiles.append(True)
-                info.update({"valid_smile": True})
-
-            else:
-                self.running_mean_valid_smiles.append(False)
-
-            info.update(
-                {
-                    "running_mean_valid_smiles": float(
-                        (
-                            sum(self.running_mean_valid_smiles)
-                            / len(self.running_mean_valid_smiles)
-                        )
-                        * 100
-                    ),
-                    "molecule": smiles,
-                }
-            )
-
-            # Set done flag
-            done = True
+            import ipdb; ipdb.set_trace()
 
         # Define next observation
         next_obs = self.vocabulary.encode_token(action)

@@ -4,7 +4,7 @@ import tqdm
 from copy import deepcopy
 from pathlib import Path
 
-from torchrl.objectives import PPOLoss
+from torchrl.objectives import ClipPPOLoss, KLPENPPOLoss
 from torchrl.envs.libs.gym import GymWrapper
 from torchrl.record.loggers import get_logger
 from torchrl.modules import ProbabilisticActor
@@ -25,9 +25,14 @@ from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
 from env import GenChemEnv
-from utils import create_model, create_simple_model, create_rhs_transform
+from utils import create_model, create_rhs_transform
 from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
+
+
+# TODO: add smiles logging
+# TODO: add batched scoring
+# TODO: add KL penalty to the loss or to the reward
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.1")
@@ -51,7 +56,7 @@ def main(cfg: "DictConfig"):
         env.append_transform(StepCounter())
         env.append_transform(RewardSum())
         env.append_transform(InitTracker())
-        env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
+        # env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):
@@ -70,8 +75,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     actor_model = create_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
-    # actor_model = create_simple_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
-    # actor_model.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
+    actor_model.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
     actor = ProbabilisticActor(
         module=actor_model,
         in_keys=["logits"],
@@ -82,8 +86,7 @@ def main(cfg: "DictConfig"):
     actor_prior = deepcopy(actor)
     actor = actor.to(device)
     critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
-    # critic = create_simple_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
-    # critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
+    critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
     critic = critic.to(device)
 
     # Loss modules
@@ -96,7 +99,12 @@ def main(cfg: "DictConfig"):
         average_gae=True,
         shifted=True,
     )
-    loss_module = PPOLoss(actor, critic, critic_coef=cfg.critic_coef, entropy_coef=cfg.entropy_coef)
+    loss_module = ClipPPOLoss(
+        actor, critic,
+        critic_coef=cfg.critic_coef,
+        entropy_coef=cfg.entropy_coef,
+        normalize_advantage=True,
+    )
     loss_module = loss_module.to(device)
 
     # Collector
@@ -124,15 +132,20 @@ def main(cfg: "DictConfig"):
         kl_transform,
     )
     buffer = TensorDictReplayBuffer(
-        # storage=LazyTensorStorage(cfg.num_env_workers),  # TODO: ideally device should be "device"
-        storage=LazyTensorStorage(cfg.num_env_workers, device=device),  # TODO: ideally device should be "device"
+        storage=LazyTensorStorage(cfg.num_env_workers, device=device),
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=10,
         # transform=transforms,
     )
 
-    # Optimizer
+    sampler = SamplerWithoutReplacement()
+    diversity_buffer = TensorDictReplayBuffer(
+        storage=LazyTensorStorage(10_000),
+        sampler=sampler,
+    )
+
+# Optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
@@ -172,37 +185,30 @@ def main(cfg: "DictConfig"):
                 "total_smiles", total_done, collected_frames
             )
 
-        # Score the current batch
-        finished_smiles = data["next", "SMILES"][data["next", "done"].squeeze()]
-        for smiles in finished_smiles:
-            print(vocabulary.decode_smiles(smiles.cpu().numpy()))
-
         for j in range(cfg.ppo_epochs):
 
-                with torch.no_grad():
-                    data = adv_module(data)
+            with torch.no_grad():
+                data = adv_module(data)
 
-                # it is important to pass data that is not flattened
-                buffer.extend(data)
+            # it is important to pass data that is not flattened
+            buffer.extend(data)
 
-                for i, batch in enumerate(buffer):
+            for i, batch in enumerate(buffer):
 
-                    batch = batch.to(device)  # TODO: ideally batch should already be in "device"
+                loss = loss_module(batch)
+                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
 
-                    loss = loss_module(batch)
-                    loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                # Backward pass
+                loss_sum.backward()
+                grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=cfg.max_grad_norm)
 
-                    # Backward pass
-                    loss_sum.backward()
-                    grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=cfg.max_grad_norm)
+                optim.step()
+                optim.zero_grad()
 
-                    optim.step()
-                    optim.zero_grad()
-
-                    if logger is not None:
-                        for key, value in loss.items():
-                            logger.log_scalar(key, value.item(), collected_frames)
-                        logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
+                if logger is not None:
+                    for key, value in loss.items():
+                        logger.log_scalar(key, value.item(), collected_frames)
+                    logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
 
     collector.shutdown()
 

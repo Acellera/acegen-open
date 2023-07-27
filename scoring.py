@@ -48,21 +48,21 @@ DRD2_SCORING_PARAMS = {
             },
             "weight": 1,
         },
-        {
-            "name": "DRD2",
-            "component_type": "predictive_property",
-            "specific_parameters": {
-                "descriptor_type": "ecfp",
-                "model_path": "/home/abou/torchrl_chem/drd2.pkl",
-                "radius": 3,
-                "scikit": "classification",
-                "size": 2048,
-                "transformation": {
-                    "transformation_type": "no_transformation",
-                },
-            },
-            "weight": 1,
-        }
+        # {
+        #     "name": "DRD2",
+        #     "component_type": "predictive_property",
+        #     "specific_parameters": {
+        #         "descriptor_type": "ecfp",
+        #         "model_path": "/home/abou/torchrl_chem/drd2.pkl",
+        #         "radius": 3,
+        #         "scikit": "classification",
+        #         "size": 2048,
+        #         "transformation": {
+        #             "transformation_type": "no_transformation",
+        #         },
+        #     },
+        #     "weight": 1,
+        # }
     ],
 }
 
@@ -81,7 +81,7 @@ class WrapperScoringClass:
     def get_final_score(self, smiles):
 
         try:
-            scores = self.scoring_class.get_final_score(smiles)
+            scores = self.scoring_class.get_final_score([smiles])
             output = {"valid_smile": True, "reward": float(scores.total_score[0])}
             for n, component in enumerate(self.params["components"]):
                 output[component["name"]] = float(scores.profile[n].score[0])
