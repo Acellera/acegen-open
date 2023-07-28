@@ -1,15 +1,9 @@
+import tqdm
 import hydra
 import torch
-import tqdm
-from copy import deepcopy
 from pathlib import Path
+from copy import deepcopy
 
-from torchrl.objectives import ClipPPOLoss, KLPENPPOLoss
-from torchrl.envs.libs.gym import GymWrapper
-from torchrl.record.loggers import get_logger
-from torchrl.modules import ProbabilisticActor
-from torchrl.collectors import SyncDataCollector
-from torchrl.objectives.value.advantages import GAE
 from torchrl.envs import (
     Compose,
     ParallelEnv,
@@ -21,6 +15,12 @@ from torchrl.envs import (
     CatFrames,
     KLRewardTransform,
 )
+from torchrl.envs.libs.gym import GymWrapper
+from torchrl.record.loggers import get_logger
+from torchrl.modules import ProbabilisticActor
+from torchrl.collectors import SyncDataCollector
+from torchrl.objectives.value.advantages import GAE
+from torchrl.objectives import ClipPPOLoss, KLPENPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
@@ -98,7 +98,7 @@ def main(cfg: "DictConfig"):
         gamma=cfg.gamma,
         lmbda=cfg.lmbda,
         value_network=critic,
-        average_gae=True,
+        average_gae=False,
         shifted=True,
     )
     adv_module = adv_module.to(device)
@@ -139,14 +139,12 @@ def main(cfg: "DictConfig"):
         storage=LazyTensorStorage(cfg.num_env_workers, device=device),
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
-        prefetch=10,
+        prefetch=2,
         # transform=transforms,
     )
 
-    sampler = SamplerWithoutReplacement()
     diversity_buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(100_000, device=device),
-        sampler=sampler,
     )
 
     # Optimizer
@@ -155,7 +153,7 @@ def main(cfg: "DictConfig"):
     optim = torch.optim.Adam(
         loss_module.parameters(),
         lr=cfg.lr,
-        weight_decay=0.000,
+        weight_decay=cfg.weight_decay,
     )
 
     # Logger
@@ -180,22 +178,6 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Log end-of-episode accumulated rewards for training
-        episode_rewards = data["next", "episode_reward"][data["next", "done"]]
-        if logger is not None and len(episode_rewards) > 0:
-            logger.log_scalar(
-                "reward_training", episode_rewards.mean().item(), collected_frames
-            )
-            logger.log_scalar(
-                "max_reward_training", episode_rewards.max().item(), collected_frames
-            )
-            logger.log_scalar(
-                "total_smiles", total_done, collected_frames
-            )
-            logger.log_scalar(
-                "repeated_smiles", repeated_smiles, collected_frames
-            )
-
         # Penalize repeated SMILES
         td = data.get("next")
         # td = td.exclude("reward")
@@ -212,17 +194,34 @@ def main(cfg: "DictConfig"):
 
         elif num_finished_smiles > 0:
             for i, smi in enumerate(finished_smiles):
-                td_smiles = diversity_buffer.sample(batch_size=num_unique_smiles)
-                unique_smiles = td_smiles.get("SMILES")
-                unique_index = td_smiles.get("index").unique()
+                td_smiles = diversity_buffer._storage._storage
+                unique_smiles = td_smiles.get("_data").get("SMILES")[0:num_unique_smiles]
+                unique_index = td_smiles.get("index")[0:num_unique_smiles].unique()
                 assert len(unique_index) == num_unique_smiles
                 repeated = (smi == unique_smiles).all(dim=-1).any()
                 if repeated:
+                    reward[i] *= 0.5
                     repeated_smiles += 1
-                    reward[i] = 0.5 * reward[i]
                 else:
                     diversity_buffer.extend(finished_smiles_td[i:i+1].clone())  # TODO: is clone necessary?
+                    num_unique_smiles += 1
             sub_td.set("reward", reward, inplace=True)
+
+        # Log end-of-episode accumulated rewards for training
+        episode_rewards = data["next", "episode_reward"][data["next", "done"]]
+        if logger is not None and len(episode_rewards) > 0:
+            logger.log_scalar(
+                "reward_training", episode_rewards.mean().item(), collected_frames
+            )
+            logger.log_scalar(
+                "max_reward_training", episode_rewards.max().item(), collected_frames
+            )
+            logger.log_scalar(
+                "total_smiles", total_done, collected_frames
+            )
+            logger.log_scalar(
+                "repeated_smiles", repeated_smiles, collected_frames
+            )
 
         for j in range(cfg.ppo_epochs):
 

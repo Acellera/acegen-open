@@ -12,16 +12,17 @@ device: cuda:0
 num_env_workers: 32
 
 # Collector configuration
-total_frames: 1_000_000
-frames_per_batch: 3200
+total_frames: 10_000_000
+frames_per_batch: 3840
 
 # PPO configuration
 lr: 0.0001
+weight_decay: 0.00
 gamma: 0.999
 lmbda: 0.95
 critic_coef: 0.25
 entropy_coef: 0.002
-mini_batch_size: 2
+mini_batch_size: 16
 ppo_epochs: 2
 max_grad_norm: 1.0
 ppo_clip: 0.2
