@@ -20,7 +20,7 @@ from torchrl.record.loggers import get_logger
 from torchrl.modules import ProbabilisticActor
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives.value.advantages import GAE
-from torchrl.objectives import ClipPPOLoss, KLPENPPOLoss
+from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
@@ -28,7 +28,7 @@ from env import GenChemEnv
 from utils import create_model, create_rhs_transform
 from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
-
+# from writer import TensorDictMaxValueWriter
 
 # TODO: add fps logging
 # TODO: add smiles logging
@@ -38,6 +38,19 @@ from scoring import WrapperScoringClass
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
+
+    seed = 101
+
+    # Set a seed for the random module
+    import random
+    random.seed(int(seed))
+
+    # Set a seed for the numpy module
+    import numpy as np
+    np.random.seed(int(seed))
+
+    # Set a seed for the torch module
+    torch.manual_seed(int(seed))
 
     device = torch.device(cfg.device) if torch.cuda.is_available() else torch.device("cpu")
 
@@ -64,7 +77,6 @@ def main(cfg: "DictConfig"):
         )
         env = TransformedEnv(env)
         env.append_transform(StepCounter())
-        env.append_transform(RewardSum())
         env.append_transform(InitTracker())
         env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
         return env
@@ -86,6 +98,7 @@ def main(cfg: "DictConfig"):
         return_log_prob=True,
     )
     actor_prior = deepcopy(actor)
+    actor_prior = actor_prior.to(device)
     actor = actor.to(device)
     critic = create_model(vocabulary=vocabulary, output_size=1, out_key="state_value")
     critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
@@ -98,7 +111,7 @@ def main(cfg: "DictConfig"):
         gamma=cfg.gamma,
         lmbda=cfg.lmbda,
         value_network=critic,
-        average_gae=False,
+        average_gae=True,
         shifted=True,
     )
     adv_module = adv_module.to(device)
@@ -107,7 +120,7 @@ def main(cfg: "DictConfig"):
         critic_coef=cfg.critic_coef,
         entropy_coef=cfg.entropy_coef,
         clip_epsilon=cfg.ppo_clip,
-        normalize_advantage=True,
+        loss_critic_type="l2",
     )
     loss_module = loss_module.to(device)
 
@@ -130,18 +143,20 @@ def main(cfg: "DictConfig"):
 
     sampler = SamplerWithoutReplacement()
     # rew_transform = SMILESReward(reward_function=scoring.get_final_score, vocabulary=vocabulary)
-    kl_transform = KLRewardTransform(actor_prior, coef=0.1, out_keys="reward_kl")
-    transforms = Compose(
-        # rew_transform,
-        kl_transform,
-    )
+    kl_transform = KLRewardTransform(actor_prior, coef=cfg.kl_coef, out_keys="reward")
     buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(cfg.num_env_workers, device=device),
         sampler=sampler,
         batch_size=cfg.mini_batch_size,
         prefetch=2,
-        # transform=transforms,
     )
+
+    # topSMILESBuffer = TensorDictReplayBuffer(
+    #     storage=LazyTensorStorage(100, device=device),
+    #     sampler=sampler,
+    #     batch_size=cfg.mini_batch_size,
+    #     prefetch=2,
+    # )
 
     diversity_buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(100_000, device=device),
@@ -178,12 +193,14 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
+        # Apply reward augmentation
+        data = kl_transform(data)
+
         # Penalize repeated SMILES
         td = data.get("next")
-        # td = td.exclude("reward")
         done = td.get("done").squeeze(-1)
         sub_td = td.get_sub_tensordict(done)
-        reward = sub_td.get("reward")
+        reward = sub_td.pop("reward")
         finished_smiles = sub_td.get("SMILES")
         finished_smiles_td = sub_td.select("SMILES")
         num_unique_smiles = len(diversity_buffer)
@@ -200,18 +217,22 @@ def main(cfg: "DictConfig"):
                 assert len(unique_index) == num_unique_smiles
                 repeated = (smi == unique_smiles).all(dim=-1).any()
                 if repeated:
-                    reward[i] *= 0.5
+                    reward[i] = reward[i] * 0.0
                     repeated_smiles += 1
                 else:
-                    diversity_buffer.extend(finished_smiles_td[i:i+1].clone())  # TODO: is clone necessary?
+                    # diversity_buffer.extend(finished_smiles_td[i:i+1].clone())  # TODO: is clone necessary?
+                    diversity_buffer.add(finished_smiles_td[i].clone())  # TODO: is clone necessary?
                     num_unique_smiles += 1
-            sub_td.set("reward", reward, inplace=True)
+        sub_td.set("reward", reward, inplace=True)
 
         # Log end-of-episode accumulated rewards for training
-        episode_rewards = data["next", "episode_reward"][data["next", "done"]]
+        episode_rewards = data["next", "reward"][data["next", "done"]]
         if logger is not None and len(episode_rewards) > 0:
             logger.log_scalar(
                 "reward_training", episode_rewards.mean().item(), collected_frames
+            )
+            logger.log_scalar(
+                "min_reward_training", episode_rewards.min().item(), collected_frames
             )
             logger.log_scalar(
                 "max_reward_training", episode_rewards.max().item(), collected_frames
@@ -223,10 +244,10 @@ def main(cfg: "DictConfig"):
                 "repeated_smiles", repeated_smiles, collected_frames
             )
 
-        for j in range(cfg.ppo_epochs):
+        with torch.no_grad():
+            data = adv_module(data)
 
-            with torch.no_grad():
-                data = adv_module(data)
+        for j in range(cfg.ppo_epochs):
 
             # it is important to pass data that is not flattened
             buffer.extend(data)
@@ -247,6 +268,8 @@ def main(cfg: "DictConfig"):
                     for key, value in loss.items():
                         logger.log_scalar(key, value.item(), collected_frames)
                     logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
+
+        collector.update_policy_weights_()
 
     collector.shutdown()
 

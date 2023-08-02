@@ -80,15 +80,10 @@ class WrapperScoringClass:
 
     def get_final_score(self, smiles):
 
-        try:
-            scores = self.scoring_class.get_final_score([smiles])
-            output = {"valid_smile": True, "reward": float(scores.total_score[0])}
-            for n, component in enumerate(self.params["components"]):
-                output[component["name"]] = float(scores.profile[n].score[0])
-        except TypeError:
-            output = {"valid_smile": False, "reward": 0.0}
-            for n, component in enumerate(self.params["components"]):
-                output[component["name"]] = 0.0
+        scores = self.scoring_class.get_final_score([smiles])
+        output = {"valid_smile": True, "reward": float(scores.total_score[0])}
+        for n, component in enumerate(self.params["components"]):
+            output[component["name"]] = float(scores.profile[n].score[0])
 
         return output
 
