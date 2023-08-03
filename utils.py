@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import torch
-from torchrl.modules import LSTMModule, MLP
+from torchrl.modules import LSTMModule, MLP, ActorValueOperator, ProbabilisticActor
 from tensordict.nn import TensorDictModule, TensorDictSequential
 
 
@@ -25,7 +25,7 @@ class Embed(torch.nn.Module):
         return out
 
 
-def create_model(vocabulary, output_size, out_key="logits"):
+def create_model(vocabulary, output_size, net_name="actor", out_key="logits"):
 
     embedding_module = TensorDictModule(
         Embed(len(vocabulary), 256),
@@ -36,9 +36,8 @@ def create_model(vocabulary, output_size, out_key="logits"):
         input_size=256,
         hidden_size=512,
         num_layers=3,
-        in_key="embed",
-        out_key="features",
-    )
+        in_keys=["embed", f"recurrent_state_h_{net_name}", f"recurrent_state_c_{net_name}"],
+        out_keys=["features", ("next", f"recurrent_state_h_{net_name}"), ("next", f"recurrent_state_c_{net_name}")])
     mlp = TensorDictModule(
         MLP(
             in_features=512,
@@ -50,36 +49,58 @@ def create_model(vocabulary, output_size, out_key="logits"):
     )
 
     # return TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
-    return TensorDictSequential(embedding_module, lstm_module, mlp)
+    return TensorDictSequential(embedding_module, lstm_module, mlp), lstm_module.make_tensordict_primer()
 
 
-def create_simple_model(vocabulary, output_size, out_key="logits"):
+def create_shared_model(vocabulary, output_size, out_key="logits"):
 
     embedding_module = TensorDictModule(
         Embed(len(vocabulary), 256),
         in_keys=["observation"],
         out_keys=["embed"],
     )
-    mlp = TensorDictModule(
-        MLP(
-            in_features=256,
-            out_features=output_size,
-            num_cells=[],
-        ),
-        in_keys=["embed"],
-        out_keys=[out_key],
-    )
-
-    return TensorDictSequential(embedding_module, mlp)
-
-
-def create_rhs_transform():
     lstm_module = LSTMModule(
         input_size=256,
         hidden_size=512,
         num_layers=3,
-        in_key="embed",
-        out_key="features",
+        in_keys=["embed", "recurrent_state_h", "recurrent_state_c"],
+        out_keys=["features", ("next", "recurrent_state_h"), ("next", "recurrent_state_c")])
+    actor_model = TensorDictModule(
+        MLP(
+            in_features=512,
+            out_features=output_size,
+            num_cells=[],
+        ),
+        in_keys=["features"],
+        out_keys=[out_key],
     )
-    return lstm_module.make_tensordict_primer()
+    policy_module = ProbabilisticActor(
+        module=actor_model,
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=torch.distributions.Categorical,
+        return_log_prob=True,
+    )
 
+    critic_module = TensorDictModule(
+        MLP(
+            in_features=512,
+            out_features=1,
+            num_cells=[],
+        ),
+        in_keys=["features"],
+        out_keys=[out_key],
+    )
+
+    # Wrap modules in a single ActorCritic operator
+    actor_critic = ActorValueOperator(
+        common_operator=TensorDictSequential(embedding_module, lstm_module),
+        policy_operator=policy_module,
+        value_operator=critic_module,
+    )
+
+    actor = actor_critic.get_policy_operator()
+    critic = actor_critic.get_value_operator()
+    critic_head = actor_critic.get_value_head()
+
+    return actor, critic, critic_head, lstm_module.make_tensordict_primer()

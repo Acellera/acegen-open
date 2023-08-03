@@ -25,7 +25,7 @@ from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
 from env import GenChemEnv
-from utils import create_model
+from utils import create_shared_model
 from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
 # from writer import TensorDictMaxValueWriter
@@ -65,26 +65,13 @@ def main(cfg: "DictConfig"):
     action_spec = test_env.action_spec
     observation_spec = test_env.observation_spec
 
-    actor_model, rhs_transform_actor = create_model(
-        vocabulary=vocabulary,
-        output_size=action_spec.shape[-1])
-    actor_model.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
-    actor = ProbabilisticActor(
-        module=actor_model,
-        in_keys=["logits"],
-        out_keys=["action"],
-        distribution_class=torch.distributions.Categorical,
-        return_log_prob=True,
-    )
+    actor, critic, critic_head, rhs_transform = create_shared_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+
+    import ipdb; ipdb.set_trace()
+
     actor_prior = deepcopy(actor)
     actor_prior = actor_prior.to(device)
     actor = actor.to(device)
-    critic, rhs_transform_critic = create_model(
-        vocabulary=vocabulary,
-        output_size=1,
-        net_name="critic",
-        out_key="state_value")
-    critic.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
     critic = critic.to(device)
 
     # Environment
