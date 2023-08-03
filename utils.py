@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import torch
-from torchrl.modules import LSTMModule, MLP, ActorValueOperator, ProbabilisticActor
+from torchrl.modules import LSTMModule, MLP, ActorValueOperator, ProbabilisticActor, ValueOperator
 from tensordict.nn import TensorDictModule, TensorDictSequential
 
 
@@ -82,14 +82,13 @@ def create_shared_model(vocabulary, output_size, out_key="logits"):
         return_log_prob=True,
     )
 
-    critic_module = TensorDictModule(
+    critic_module = ValueOperator(
         MLP(
             in_features=512,
             out_features=1,
             num_cells=[],
         ),
         in_keys=["features"],
-        out_keys=[out_key],
     )
 
     # Wrap modules in a single ActorCritic operator

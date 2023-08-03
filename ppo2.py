@@ -67,7 +67,30 @@ def main(cfg: "DictConfig"):
 
     actor, critic, critic_head, rhs_transform = create_shared_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
 
-    import ipdb; ipdb.set_trace()
+    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior")
+
+    aaa = {
+        "module.0.module._embedding.weight": "module.0.module.0.module._embedding.weight",
+        "module.1.lstm.weight_ih_l0": "module.0.module.1.lstm.weight_ih_l0",
+        "module.1.lstm.weight_hh_l0": "module.0.module.1.lstm.weight_hh_l0",
+        "module.1.lstm.bias_ih_l0": "module.0.module.1.lstm.bias_ih_l0",
+        "module.1.lstm.bias_hh_l0": "module.0.module.1.lstm.bias_hh_l0",
+        "module.1.lstm.weight_ih_l1": "module.0.module.1.lstm.weight_ih_l1",
+        "module.1.lstm.weight_hh_l1": "module.0.module.1.lstm.weight_hh_l1",
+        "module.1.lstm.bias_ih_l1": "module.0.module.1.lstm.bias_ih_l1",
+        "module.1.lstm.bias_hh_l1": "module.0.module.1.lstm.bias_hh_l1",
+        "module.1.lstm.weight_ih_l2": "module.0.module.1.lstm.weight_ih_l2",
+        "module.1.lstm.weight_hh_l2": "module.0.module.1.lstm.weight_hh_l2",
+        "module.1.lstm.bias_ih_l2": "module.0.module.1.lstm.bias_ih_l2",
+        "module.1.lstm.bias_hh_l2": "module.0.module.1.lstm.bias_hh_l2",
+        "module.2.module.0.weight": "module.1.module.0.weight",
+        "module.2.module.0.bias": "module.1.module.0.bias",
+    }
+
+    new_ckpt = {}
+    for k, v in ckpt.items(): new_ckpt[aaa[k]] = v
+
+    actor.load_state_dict(new_ckpt)
 
     actor_prior = deepcopy(actor)
     actor_prior = actor_prior.to(device)
@@ -84,8 +107,7 @@ def main(cfg: "DictConfig"):
     def create_transformed_env():
         env = GymWrapper(GenChemEnv(**env_kwargs), categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
-        # env.append_transform(rhs_transform_actor.clone())
-        env.append_transform(rhs_transform_critic.clone())
+        env.append_transform(rhs_transform.clone())
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):
@@ -248,7 +270,6 @@ def main(cfg: "DictConfig"):
 
             for i, batch in enumerate(buffer):
 
-                import ipdb; ipdb.set_trace()
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
 
