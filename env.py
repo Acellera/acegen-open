@@ -84,3 +84,75 @@ class GenChemEnv(gym.Env):
         info = {k: 0.0 for k, v in self.scoring_example.items()}
 
         return obs, info
+
+
+class Monitor(gym.Wrapper):
+
+    def __init__(self, env, filename, info_keywords=()):
+        super(Monitor, self).__init__(env)
+
+        self.f = None
+        self.tstart = time.time()
+        self.filename = f"monitor_{os.getpid()}_{id(self)}.csv"
+        self.results_writer = ResultsWriter(
+            filename,
+            header={"t_start": time.time()},
+            extra_keys=info_keywords)
+        self.info_keywords = info_keywords
+        self.rewards = None
+
+    def reset(self, **kwargs):
+        self.reset_state()
+        return self.env.reset(**kwargs)
+
+    def reset_state(self):
+        self.rewards = []
+
+    def step(self, action):
+        ob, rew, done, info = self.env.step(action)
+        self.update(ob, rew, done, info)
+        return ob, rew, done, info
+
+    def update(self, ob, rew, done, info):
+        self.rewards.append(rew)
+        if done:
+            eprew = 0.0 + sum(self.rewards)
+            eplen = 1.0 + len(self.rewards)
+            epinfo = {"r": round(eprew, 6), "l": eplen, "t": round(time.time() - self.tstart, 6)}
+            for k in self.info_keywords:
+                epinfo[k] = info[k]
+            if self.results_writer:
+                self.results_writer.write_row(epinfo)
+
+    def close(self):
+        super(Monitor, self).close()
+        if self.f is not None:
+            self.f.close()
+
+
+class ResultsWriter:
+    def __init__(self, filename, header='', extra_keys=()):
+        self.extra_keys = extra_keys
+        assert filename is not None
+        if not filename.endswith(Monitor.EXT):
+            if os.path.isdir(filename):
+                filename = os.path.join(filename, Monitor.EXT)
+            else:
+                filename = filename + "." + Monitor.EXT
+
+        already_exists = os.path.isfile(filename)
+        self.f = open(filename, "a+")
+        if not already_exists:
+            if isinstance(header, dict):
+                header = '# {} \n'.format(json.dumps(header))
+            self.f.write(header)
+        self.f.flush()
+        self.logger = csv.DictWriter(self.f, fieldnames=('r', 'l', 't')+tuple(extra_keys))
+        if not already_exists:
+            self.logger.writeheader()
+        self.f.flush()
+
+    def write_row(self, epinfo):
+        if self.logger:
+            self.logger.writerow(epinfo)
+            self.f.flush()

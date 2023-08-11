@@ -24,14 +24,13 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-from env import GenChemEnv
+from env import GenChemEnv, Monitor
 from utils import create_model
 from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
 # from writer import TensorDictMaxValueWriter
 
 # TODO: add fps logging
-# TODO: add smiles logging
 # TODO: how to combine clipping and KL penalty?
 # TODO: add KL penalty to the loss or to the reward
 # TODO: add batched scoring as a buffer transform
@@ -58,7 +57,7 @@ def main(cfg: "DictConfig"):
     vocabulary = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
     env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
 
-# Models
+    # Models
     ####################################################################################################################
 
     test_env = GymWrapper(GenChemEnv(**env_kwargs))
@@ -90,12 +89,8 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    # # hack because it is not allowed to have 2 equal transforms
-    # for k, v in rhs_transform_critic.primers.items():
-    #     rhs_transform_actor.primers[k] = v
-
     def create_transformed_env():
-        env = GymWrapper(GenChemEnv(**env_kwargs), categorical_action_encoding=True, device=device)
+        env = GymWrapper(Monitor(GenChemEnv(**env_kwargs)), categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
         # env.append_transform(rhs_transform_actor.clone())
         env.append_transform(rhs_transform_critic.clone())
@@ -261,7 +256,6 @@ def main(cfg: "DictConfig"):
 
             for i, batch in enumerate(buffer):
 
-                import ipdb; ipdb.set_trace()
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
 
