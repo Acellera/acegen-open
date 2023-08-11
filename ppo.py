@@ -90,7 +90,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     def create_transformed_env():
-        env = GymWrapper(Monitor(GenChemEnv(**env_kwargs)), categorical_action_encoding=True, device=device)
+        env = GymWrapper(Monitor(GenChemEnv(**env_kwargs), log_dir=cfg.log_dir), categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
         # env.append_transform(rhs_transform_actor.clone())
         env.append_transform(rhs_transform_critic.clone())

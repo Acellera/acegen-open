@@ -88,12 +88,12 @@ class GenChemEnv(gym.Env):
 
 class Monitor(gym.Wrapper):
 
-    def __init__(self, env, filename, info_keywords=()):
+    def __init__(self, env, log_dir, info_keywords=()):
         super(Monitor, self).__init__(env)
 
         self.f = None
         self.tstart = time.time()
-        self.filename = f"monitor_{os.getpid()}_{id(self)}.csv"
+        filename = os.path.join(log_dir, f"monitor_{os.getpid()}_{id(self)}.csv")
         self.results_writer = ResultsWriter(
             filename,
             header={"t_start": time.time()},
