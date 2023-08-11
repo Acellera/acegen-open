@@ -28,8 +28,7 @@ class GenChemEnv(gym.Env):
 
         # Define action and observation space
         self.action_space = gym.spaces.Discrete(len(self.vocabulary))
-        # self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
-        self.observation_space = gym.spaces.Box(low=0, high=len(self.vocabulary) - 1, shape=(1, ), dtype=np.int64)
+        self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
 
     def step(self, action):
         """Execute one time step within the environment"""
@@ -57,6 +56,7 @@ class GenChemEnv(gym.Env):
 
             # Get smile
             smiles = self.vocabulary.remove_start_and_end_tokens(self.current_molecule_str)
+            info["molecule"] = smiles
 
             # check smiles validity
             mol = Chem.MolFromSmiles(smiles)
@@ -70,7 +70,7 @@ class GenChemEnv(gym.Env):
                 reward = score["reward"]
 
         # Define next observation
-        next_obs = self.vocabulary.encode_token(action)
+        next_obs = self.vocabulary.encode_token(action).astype(np.int64)
         return next_obs, reward, done, info
 
     def reset(self):
@@ -80,19 +80,38 @@ class GenChemEnv(gym.Env):
         """
         self.current_molecule_str = "^"
         self.current_episode_length = 1
-        obs = self.vocabulary.encode_token("^")
+        obs = self.vocabulary.encode_token("^").astype(np.int64)
         info = {k: 0.0 for k, v in self.scoring_example.items()}
 
         return obs, info
 
 
+class ResultsWriter:
+    def __init__(self, filename, header, extra_keys=()):
+        self.extra_keys = extra_keys
+        already_exists = os.path.isfile(filename)
+        self.f = open(filename, "a+")
+        self.logger = csv.DictWriter(self.f, fieldnames=('r', 'l', 't')+tuple(extra_keys))
+        if not already_exists:
+            header = '# {} \n'.format(json.dumps(header))
+            self.f.write(header)
+            self.f.flush()
+            self.logger.writeheader()
+            self.f.flush()
+
+    def write_row(self, epinfo):
+        if self.logger:
+            self.logger.writerow(epinfo)
+            self.f.flush()
+
+
 class Monitor(gym.Wrapper):
 
-    def __init__(self, env, log_dir, info_keywords=()):
+    def __init__(self, env, log_dir, info_keywords=("molecule", )):
         super(Monitor, self).__init__(env)
-
         self.f = None
         self.tstart = time.time()
+        os.makedirs(log_dir, exist_ok=True)
         filename = os.path.join(log_dir, f"monitor_{os.getpid()}_{id(self)}.csv")
         self.results_writer = ResultsWriter(
             filename,
@@ -121,38 +140,10 @@ class Monitor(gym.Wrapper):
             epinfo = {"r": round(eprew, 6), "l": eplen, "t": round(time.time() - self.tstart, 6)}
             for k in self.info_keywords:
                 epinfo[k] = info[k]
-            if self.results_writer:
-                self.results_writer.write_row(epinfo)
+            self.results_writer.write_row(epinfo)
 
     def close(self):
         super(Monitor, self).close()
         if self.f is not None:
             self.f.close()
 
-
-class ResultsWriter:
-    def __init__(self, filename, header='', extra_keys=()):
-        self.extra_keys = extra_keys
-        assert filename is not None
-        if not filename.endswith(Monitor.EXT):
-            if os.path.isdir(filename):
-                filename = os.path.join(filename, Monitor.EXT)
-            else:
-                filename = filename + "." + Monitor.EXT
-
-        already_exists = os.path.isfile(filename)
-        self.f = open(filename, "a+")
-        if not already_exists:
-            if isinstance(header, dict):
-                header = '# {} \n'.format(json.dumps(header))
-            self.f.write(header)
-        self.f.flush()
-        self.logger = csv.DictWriter(self.f, fieldnames=('r', 'l', 't')+tuple(extra_keys))
-        if not already_exists:
-            self.logger.writeheader()
-        self.f.flush()
-
-    def write_row(self, epinfo):
-        if self.logger:
-            self.logger.writerow(epinfo)
-            self.f.flush()

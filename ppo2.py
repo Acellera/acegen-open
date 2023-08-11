@@ -14,6 +14,7 @@ from torchrl.envs import (
     RewardSum,
     CatFrames,
     KLRewardTransform,
+    UnsqueezeTransform,
 )
 from torchrl.envs.libs.gym import GymWrapper
 from torchrl.record.loggers import get_logger
@@ -115,6 +116,7 @@ def main(cfg: "DictConfig"):
         env = TransformedEnv(env)
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
+        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
         return env
 
