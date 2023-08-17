@@ -2,6 +2,7 @@
 
 import torch
 from torchrl.modules import LSTMModule, MLP, ActorValueOperator, ProbabilisticActor, ValueOperator
+from torchrl.envs import ExplorationType
 from tensordict.nn import TensorDictModule, TensorDictSequential
 
 
@@ -80,6 +81,7 @@ def create_shared_model(vocabulary, output_size, out_key="logits"):
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
         return_log_prob=True,
+        default_interaction_type=ExplorationType.RANDOM,
     )
 
     critic_module = ValueOperator(

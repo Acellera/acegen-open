@@ -8,16 +8,20 @@ from torchrl.envs import (
     Compose,
     ParallelEnv,
     SerialEnv,
+    VecNorm,
     TransformedEnv,
     InitTracker,
     StepCounter,
     RewardSum,
     CatFrames,
+    DoubleToFloat,
     KLRewardTransform,
+    ExplorationType,
+    UnsqueezeTransform,
 )
 from torchrl.envs.libs.gym import GymWrapper
 from torchrl.record.loggers import get_logger
-from torchrl.modules import ProbabilisticActor
+from torchrl.modules import ProbabilisticActor, OneHotCategorical
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives.value.advantages import GAE
 from torchrl.objectives import ClipPPOLoss
@@ -74,6 +78,7 @@ def main(cfg: "DictConfig"):
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
         return_log_prob=True,
+        default_interaction_type=ExplorationType.RANDOM,
     )
     actor_prior = deepcopy(actor)
     actor_prior = actor_prior.to(device)
@@ -105,7 +110,9 @@ def main(cfg: "DictConfig"):
         env = TransformedEnv(env)
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
+        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
+        # env.append_transform(VecNorm(in_keys=["reward"]))
         return env
 
     # Loss modules
@@ -173,6 +180,7 @@ def main(cfg: "DictConfig"):
         loss_module.parameters(),
         lr=cfg.lr,
         weight_decay=cfg.weight_decay,
+        eps=1e-5,
     )
 
     # Logger
@@ -188,6 +196,9 @@ def main(cfg: "DictConfig"):
     total_done = 0
     collected_frames = 0
     repeated_smiles = 0
+    num_network_updates = 0
+    num_mini_batches = cfg.frames_per_batch // cfg.mini_batch_size
+    total_network_updates = (cfg.total_frames // cfg.frames_per_batch) * cfg.ppo_epochs * num_mini_batches
     pbar = tqdm.tqdm(total=cfg.total_frames)
 
     for data in collector:
@@ -249,12 +260,18 @@ def main(cfg: "DictConfig"):
         with torch.no_grad():
             data = adv_module(data)
 
+        # it is important to pass data that is not flattened
+        buffer.extend(data)
+
         for j in range(cfg.ppo_epochs):
 
-            # it is important to pass data that is not flattened
-            buffer.extend(data)
-
             for i, batch in enumerate(buffer):
+
+                # Linearly decrease the learning rate and clip epsilon
+                alpha = 1 - (num_network_updates / total_network_updates)
+                for g in optim.param_groups:
+                    g['lr'] = cfg.lr * alpha
+                num_network_updates += 1
 
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]

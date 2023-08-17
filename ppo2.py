@@ -59,7 +59,7 @@ def main(cfg: "DictConfig"):
     vocabulary = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
     env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
 
-# Models
+    # Models
     ####################################################################################################################
 
     test_env = GymWrapper(GenChemEnv(**env_kwargs))
@@ -127,7 +127,7 @@ def main(cfg: "DictConfig"):
         gamma=cfg.gamma,
         lmbda=cfg.lmbda,
         value_network=critic,
-        average_gae=True,
+        average_gae=False,
         shifted=True,
     )
     adv_module = adv_module.to(device)
@@ -137,6 +137,7 @@ def main(cfg: "DictConfig"):
         entropy_coef=cfg.entropy_coef,
         clip_epsilon=cfg.ppo_clip,
         loss_critic_type="l2",
+
     )
     loss_module = loss_module.to(device)
 
@@ -258,10 +259,10 @@ def main(cfg: "DictConfig"):
                     num_unique_smiles += 1
         sub_td.set("reward", reward, inplace=True)
 
-        with torch.no_grad():
-            data = adv_module(data)
-
         for j in range(cfg.ppo_epochs):
+
+            with torch.no_grad():
+                data = adv_module(data)
 
             # it is important to pass data that is not flattened
             buffer.extend(data)
