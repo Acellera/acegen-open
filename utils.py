@@ -102,6 +102,5 @@ def create_shared_model(vocabulary, output_size, out_key="logits"):
 
     actor = actor_critic.get_policy_operator()
     critic = actor_critic.get_value_operator()
-    critic_head = actor_critic.get_value_head()
 
-    return actor, critic, critic_head, lstm_module.make_tensordict_primer()
+    return actor, critic, lstm_module.make_tensordict_primer()

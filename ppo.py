@@ -34,10 +34,6 @@ from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
 # from writer import TensorDictMaxValueWriter
 
-# TODO: add fps logging
-# TODO: how to combine clipping and KL penalty?
-# TODO: add KL penalty to the loss or to the reward
-# TODO: add batched scoring as a buffer transform
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
@@ -97,13 +93,12 @@ def main(cfg: "DictConfig"):
     def create_transformed_env():
         env = GymWrapper(Monitor(GenChemEnv(**env_kwargs), log_dir=cfg.log_dir), categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
-        # env.append_transform(rhs_transform_actor.clone())
+        env.append_transform(rhs_transform_actor.clone())
         env.append_transform(rhs_transform_critic.clone())
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):
-        # env = ParallelEnv(  # There is some bug here! When using it hidden states are always zero
-        env = SerialEnv(  # This works!
+        env = ParallelEnv(
             create_env_fn=create_transformed_env,
             num_workers=num_workers,
         )
@@ -112,7 +107,7 @@ def main(cfg: "DictConfig"):
         env.append_transform(InitTracker())
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
-        # env.append_transform(VecNorm(in_keys=["reward"]))
+        env.append_transform(KLRewardTransform(actor_prior, coef=cfg.kl_coef, out_keys="reward_kl"))
         return env
 
     # Loss modules
@@ -200,9 +195,9 @@ def main(cfg: "DictConfig"):
     num_mini_batches = cfg.frames_per_batch // cfg.mini_batch_size
     total_network_updates = (cfg.total_frames // cfg.frames_per_batch) * cfg.ppo_epochs * num_mini_batches
     pbar = tqdm.tqdm(total=cfg.total_frames)
-
     for data in collector:
 
+        log_info = {}
         frames_in_batch = data.numel()
         total_done += data.get(("next", "done")).sum()
         collected_frames += frames_in_batch
@@ -210,22 +205,14 @@ def main(cfg: "DictConfig"):
 
         # Log end-of-episode accumulated rewards for training
         episode_rewards = data["next", "reward"][data["next", "done"]]
-        if logger is not None and len(episode_rewards) > 0:
-            logger.log_scalar(
-                "reward_training", episode_rewards.mean().item(), collected_frames
-            )
-            logger.log_scalar(
-                "min_reward_training", episode_rewards.min().item(), collected_frames
-            )
-            logger.log_scalar(
-                "max_reward_training", episode_rewards.max().item(), collected_frames
-            )
-            logger.log_scalar(
-                "total_smiles", total_done, collected_frames
-            )
-            logger.log_scalar(
-                "repeated_smiles", repeated_smiles, collected_frames
-            )
+        if len(episode_rewards) > 0:
+            log_info.update({
+                "reward_training": episode_rewards.mean().item(),
+                "min_reward_training": episode_rewards.min().item(),
+                "max_reward_training": episode_rewards.max().item(),
+                "total_smiles": total_done,
+                "repeated_smiles": repeated_smiles,
+            })
 
         # Apply reward augmentation
         data = kl_transform(data)
@@ -283,11 +270,17 @@ def main(cfg: "DictConfig"):
                 optim.step()
                 optim.zero_grad()
 
+            for key, value in losses_mean.items():
+                log_info.update({f"train/{key}": value.item()})
+
                 if logger is not None:
                     for key, value in loss.items():
                         logger.log_scalar(key, value.item(), collected_frames)
                     logger.log_scalar("grad_norm", grad_norm.item(), collected_frames)
 
+        if logger:
+            for key, value in log_info.items():
+                logger.log_scalar(key, value, collected_frames)
         collector.update_policy_weights_()
 
     collector.shutdown()
