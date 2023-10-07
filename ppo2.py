@@ -59,7 +59,7 @@ def main(cfg: "DictConfig"):
     action_spec = test_env.action_spec
     actor, critic, rhs_transform = create_shared_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
     ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "actor_critic.prior")
-    actor.load_state_dict(torch.load(ckpt))
+    actor.load_state_dict(ckpt)
     actor = actor.to(device)
     critic = critic.to(device)
 
@@ -86,6 +86,18 @@ def main(cfg: "DictConfig"):
         env.append_transform(KLRewardTransform(actor, coef=cfg.kl_coef, out_keys="reward-kl"))
         return env
 
+    # Collector
+    ####################################################################################################################
+
+    collector = SyncDataCollector(
+        create_env_fn=create_env_fn,
+        policy=actor,
+        frames_per_batch=cfg.frames_per_batch,
+        total_frames=cfg.total_frames,
+        device=device,
+        storing_device=device,
+    )
+
     # Loss modules
     ####################################################################################################################
 
@@ -106,20 +118,9 @@ def main(cfg: "DictConfig"):
         normalize_advantage=True,
 
     )
+    loss_module = loss_module.to(device)
     # use end-of-life as done key
     loss_module.set_keys(reward="reward-kl")
-
-    # Collector
-    ####################################################################################################################
-
-    collector = SyncDataCollector(
-        create_env_fn=create_env_fn,
-        policy=actor,
-        frames_per_batch=cfg.frames_per_batch,
-        total_frames=cfg.total_frames,
-        device=device,
-        storing_device=device,
-    )
 
     # Storage
     ####################################################################################################################
