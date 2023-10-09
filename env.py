@@ -71,7 +71,8 @@ class GenChemEnv(gym.Env):
 
         # Define next observation
         next_obs = self.vocabulary.encode_token(action).astype(np.int64)
-        return next_obs, reward, done, info
+        truncated = done
+        return next_obs, reward, done, truncated, info
 
     def reset(self):
         """
@@ -128,9 +129,10 @@ class Monitor(gym.Wrapper):
         self.rewards = []
 
     def step(self, action):
-        ob, rew, done, info = self.env.step(action)
+        ob, rew, done, truncated, info = self.env.step(action)
         self.update(ob, rew, done, info)
-        return ob, rew, done, info
+        truncated = done
+        return ob, rew, done, truncated, info
 
     def update(self, ob, rew, done, info):
         self.rewards.append(rew)

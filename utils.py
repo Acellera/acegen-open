@@ -49,8 +49,11 @@ def create_model(vocabulary, output_size, net_name="actor", out_key="logits"):
         out_keys=[out_key],
     )
 
-    # return TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
-    return TensorDictSequential(embedding_module, lstm_module, mlp), lstm_module.make_tensordict_primer()
+    policy_inference = TensorDictSequential(embedding_module, lstm_module, mlp)
+    policy_training = TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
+    transform = lstm_module.make_tensordict_primer()
+
+    return policy_inference, policy_training, transform
 
 
 def create_shared_model(vocabulary, output_size, out_key="logits"):
@@ -94,13 +97,22 @@ def create_shared_model(vocabulary, output_size, out_key="logits"):
     )
 
     # Wrap modules in a single ActorCritic operator
-    actor_critic = ActorValueOperator(
+    actor_critic_inference = ActorValueOperator(
         common_operator=TensorDictSequential(embedding_module, lstm_module),
         policy_operator=policy_module,
         value_operator=critic_module,
     )
 
-    actor = actor_critic.get_policy_operator()
-    critic = actor_critic.get_value_operator()
+    actor_critic_training = ActorValueOperator(
+        common_operator=TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True)),
+        policy_operator=policy_module,
+        value_operator=critic_module,
+    )
 
-    return actor, critic, lstm_module.make_tensordict_primer()
+    actor_inference = actor_critic_inference.get_policy_operator()
+    critic_inference = actor_critic_inference.get_value_operator()
+    actor_training = actor_critic_training.get_policy_operator()
+    critic_training = actor_critic_training.get_value_operator()
+    transform = lstm_module.make_tensordict_primer()
+
+    return actor_inference, actor_training, critic_inference, critic_training, transform
