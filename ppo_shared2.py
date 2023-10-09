@@ -1,6 +1,7 @@
 import tqdm
 import hydra
 import torch
+from copy import deepcopy
 from pathlib import Path
 
 from tensordict import TensorDict
@@ -26,11 +27,10 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
+from torch.distributions.kl import kl_divergence
 from env import GenChemEnv, Monitor
 from utils import create_shared_model, penalise_repeated_smiles
-from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
-# from writer import TensorDictMaxValueWriter
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -60,13 +60,15 @@ def main(cfg: "DictConfig"):
 
     test_env = GymWrapper(GenChemEnv(**env_kwargs))
     action_spec = test_env.action_spec
-    actor_inference, actor_training, _, critic_training, rhs_transform = create_shared_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+    actor_inference, actor_training, _, critic_training, rhs_transform = create_shared_model(
+        vocabulary=vocabulary, output_size=action_spec.shape[-1])
     ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "actor_critic.prior")
     actor_inference.load_state_dict(ckpt)
     actor_training.load_state_dict(ckpt)
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
+    prior = deepcopy(actor_training)
 
     # Environment
     ####################################################################################################################
@@ -85,9 +87,6 @@ def main(cfg: "DictConfig"):
         env.append_transform(InitTracker())
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
-        env.append_transform(KLRewardTransform(actor_inference, coef=cfg.kl_coef, out_keys="reward-kl"))  # ReInvent prior penalty
-        env.append_transform(RewardScaling(loc=0.0, scale=100.0, out_keys=["reward-scaled"]))  # ReInvent sigma
-        env.append_transform(RewardClipping(0.0, 100.0, in_keys=["reward-kl"], out_keys=["reward-kl"]))
         return env
 
     # Collector
@@ -112,7 +111,7 @@ def main(cfg: "DictConfig"):
         average_gae=False,
         shifted=True,
     )
-    adv_module.set_keys(reward="reward-kl")
+    adv_module.set_keys(reward="penalised_reward")
     adv_module = adv_module.to(device)
     loss_module = ClipPPOLoss(
         actor_training, critic_training,
@@ -124,7 +123,7 @@ def main(cfg: "DictConfig"):
 
     )
     loss_module = loss_module.to(device)
-    loss_module.set_keys(reward="reward-kl")
+    loss_module.set_keys(reward="penalised_reward")
 
     # Storage
     ####################################################################################################################
@@ -136,13 +135,6 @@ def main(cfg: "DictConfig"):
         batch_size=cfg.mini_batch_size,
         prefetch=2,
     )
-
-    # topSMILESBuffer = TensorDictReplayBuffer(
-    #     storage=LazyTensorStorage(100, device=device),
-    #     sampler=sampler,
-    #     batch_size=cfg.mini_batch_size,
-    #     prefetch=2,
-    # )
 
     diversity_buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(100_000, device=device),
@@ -182,30 +174,25 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Log end-of-episode accumulated rewards for training
         episode_rewards = data["next", "reward"][data["next", "terminated"]]
-        episode_rewards_kl = data["next", "reward-kl"][data["next", "terminated"]]
         episode_length = data["next", "step_count"][data["next", "terminated"]]
         if len(episode_rewards) > 0:
             log_info.update({
                 "train/reward": episode_rewards.mean().item(),
                 "train/min_reward": episode_rewards.min().item(),
                 "train/max_reward": episode_rewards.max().item(),
-                "train/reward_kl": episode_rewards_kl.mean().item(),
-                "train/min_reward_kl": episode_rewards_kl.min().item(),
-                "train/max_reward_kl": episode_rewards_kl.max().item(),
                 "train/total_smiles": total_done,
                 "train/repeated_smiles": repeated_smiles,
                 "train/episode_length": episode_length.sum().item() / len(episode_length),
             })
 
-        repeated_smiles = penalise_repeated_smiles(data, diversity_buffer, repeated_smiles)
-
-        episode_rewards_kl = data["next", "reward-kl"][data["next", "terminated"]]
+        repeated_smiles = penalise_repeated_smiles(
+            data, diversity_buffer, repeated_smiles, in_keys="reward", out_keys="penalised_reward")
+        episode_rewards = data["next", "penalised_reward"][data["next", "terminated"]]
         log_info.update({
-            "train/penalised_reward_kl": episode_rewards_kl.mean().item(),
-            "train/penalised_min_reward_kl": episode_rewards_kl.min().item(),
-            "train/penalised_max_reward_kl": episode_rewards_kl.max().item(),
+            "train/penalised_reward": episode_rewards.mean().item(),
+            "train/penalised_min_reward": episode_rewards.min().item(),
+            "train/penalised_max_reward": episode_rewards.max().item(),
         })
 
         for j in range(cfg.ppo_epochs):
@@ -219,8 +206,11 @@ def main(cfg: "DictConfig"):
             for i, batch in enumerate(buffer):
 
                 loss = loss_module(batch)
-                losses[j, i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior.get_dist(batch)).mean()
+                loss_sum += kl_div * cfg.kl_coef
+                losses[j, i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+                losses[j, i].set("kl_div", kl_div.detach())
 
                 # Backward pass
                 loss_sum.backward()

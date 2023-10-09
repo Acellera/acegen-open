@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Sequence
 
 import heapq
-import numpy as np
 import torch
 
 from torchrl.data.replay_buffers.writers import Writer
@@ -23,6 +22,8 @@ class TensorDictMaxValueWriter(Writer):
         self._rank_key = rank_key
 
     def add(self, data: Any) -> int:
+
+        import ipdb; ipdb.set_trace()
 
         ret = None
         rank_data = data.get("_data")[self._rank_key]

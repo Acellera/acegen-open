@@ -27,7 +27,6 @@ class Embed(torch.nn.Module):
 
 
 def create_model(vocabulary, output_size, net_name="actor", out_key="logits"):
-
     embedding_module = TensorDictModule(
         Embed(len(vocabulary), 256),
         in_keys=["observation"],
@@ -57,7 +56,6 @@ def create_model(vocabulary, output_size, net_name="actor", out_key="logits"):
 
 
 def create_shared_model(vocabulary, output_size, out_key="logits"):
-
     embedding_module = TensorDictModule(
         Embed(len(vocabulary), 256),
         in_keys=["observation"],
@@ -118,7 +116,7 @@ def create_shared_model(vocabulary, output_size, out_key="logits"):
     return actor_inference, actor_training, critic_inference, critic_training, transform
 
 
-def penalise_repeated_smiles(data, diversity_buffer, repeated_smiles):
+def penalise_repeated_smiles(data, diversity_buffer, repeated_smiles, in_keys="reward", out_keys="reward", penalty=0.0):
     """Penalise repeated smiles and add unique smiles to the diversity buffer."""
 
     td_next = data.get("next")
@@ -126,7 +124,7 @@ def penalise_repeated_smiles(data, diversity_buffer, repeated_smiles):
     terminated = td_next.get("terminated").squeeze(-1)  # Get terminated flags
     assert (done == terminated).all(), "done and terminated flags should be equal"
     sub_td = td_next.get_sub_tensordict(idx=terminated)  # Get sub-tensordict of done trajectories
-    reward_kl = sub_td.get("reward-kl")
+    reward = sub_td.get(in_keys)
     finished_smiles = sub_td.get("SMILES")
     finished_smiles_td = sub_td.select("SMILES")
     num_unique_smiles = len(diversity_buffer)
@@ -140,13 +138,13 @@ def penalise_repeated_smiles(data, diversity_buffer, repeated_smiles):
             td_smiles = diversity_buffer._storage._storage
             unique_smiles = td_smiles.get("_data").get("SMILES")[0:num_unique_smiles]
             repeated = (smi == unique_smiles).all(dim=-1).any()
-            if repeated and reward_kl[i] > 0:
-                reward_kl[i] = reward_kl[i] * 0.5
+            if repeated:
+                reward[i] = reward[i] * penalty
                 repeated_smiles += 1
-            elif reward_kl[i] > 0:
-                diversity_buffer.extend(finished_smiles_td[i:i+1])
+            elif reward[i] > 0:
+                diversity_buffer.extend(finished_smiles_td[i:i + 1])
                 num_unique_smiles += 1
 
-    sub_td.set("reward-kl", reward_kl, inplace=True)
+    sub_td.set(out_keys, reward, inplace=True)
 
-
+    return repeated_smiles
