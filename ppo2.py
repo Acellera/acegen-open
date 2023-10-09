@@ -87,7 +87,7 @@ def main(cfg: "DictConfig"):
         env.append_transform(InitTracker())
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
-        env.append_transform(KLRewardTransform(actor, coef=cfg.kl_coef, out_keys="reward-kl"))
+        env.append_transform(KLRewardTransform(actor_inference, coef=cfg.kl_coef, out_keys="reward-kl"))
         return env
 
     # Collector
