@@ -23,9 +23,13 @@ class TensorDictMaxValueWriter(Writer):
 
     def add(self, data: Any) -> int:
 
-        import ipdb; ipdb.set_trace()
-
         ret = None
+        rank_data = data.get("_data")
+
+        import ipdb; ipdb.set_trace()
+        rank_data["next"]["reward"]
+
+        # Select last element in trajectory
         rank_data = data.get("_data")[self._rank_key]
 
         if rank_data is None:
