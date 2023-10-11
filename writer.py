@@ -3,8 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Sequence
+from typing import Any, Sequence
 
 import heapq
 import torch
@@ -24,13 +23,9 @@ class TensorDictMaxValueWriter(Writer):
     def add(self, data: Any) -> int:
 
         ret = None
-        rank_data = data.get("_data")
 
-        import ipdb; ipdb.set_trace()
-        rank_data["next"]["reward"]
-
-        # Select last element in trajectory
-        rank_data = data.get("_data")[self._rank_key]
+        # Sum the rank key, in case it is a whole trajectory
+        rank_data = data.get("_data")[self._rank_key].sum()
 
         if rank_data is None:
             raise ValueError(f"Rank key {self._rank_key} not found in data.")
@@ -74,3 +69,8 @@ class TensorDictMaxValueWriter(Writer):
     def _empty(self):
         self._cursor = 0
         self._current_filter_values = []
+
+
+if __name__ == "__main__":
+    pass
+

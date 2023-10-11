@@ -1,6 +1,7 @@
 import tqdm
 import hydra
 import torch
+from copy import deepcopy
 from pathlib import Path
 
 from tensordict import TensorDict
@@ -26,11 +27,16 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
+from torch.distributions.kl import kl_divergence
 from env import GenChemEnv, Monitor
-from utils import create_shared_model, penalise_repeated_smiles
+from utils import create_shared_model, penalise_repeated_smiles, create_batch_from_replay_smiles
 from reward_transform import SMILESReward
 from scoring import WrapperScoringClass
-# from writer import TensorDictMaxValueWriter
+from writer import TensorDictMaxValueWriter
+
+
+# TODO: investigate cat frames reaching max length
+# TODO: investigate wrong step count
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -60,13 +66,15 @@ def main(cfg: "DictConfig"):
 
     test_env = GymWrapper(GenChemEnv(**env_kwargs))
     action_spec = test_env.action_spec
-    actor_inference, actor_training, _, critic_training, rhs_transform = create_shared_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+    actor_inference, actor_training, _, critic_training, rhs_transform = create_shared_model(
+        vocabulary=vocabulary, output_size=action_spec.shape[-1])
     ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "actor_critic.prior")
     actor_inference.load_state_dict(ckpt)
     actor_training.load_state_dict(ckpt)
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
+    prior = deepcopy(actor_training)
 
     # Environment
     ####################################################################################################################
@@ -75,19 +83,16 @@ def main(cfg: "DictConfig"):
         env = Monitor(GenChemEnv(**env_kwargs), log_dir=cfg.log_dir)
         env = GymWrapper(env, categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
+        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
+        env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
+        env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
         env.append_transform(rhs_transform.clone())
+        env.append_transform(StepCounter())
+        env.append_transform(InitTracker())
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):
-        env = ParallelEnv(create_env_fn=create_base_env,num_workers=num_workers)
-        env = TransformedEnv(env)
-        env.append_transform(StepCounter())
-        env.append_transform(InitTracker())
-        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
-        env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
-        env.append_transform(KLRewardTransform(actor_inference, coef=cfg.kl_coef, out_keys="reward-kl"))  # ReInvent prior penalty
-        env.append_transform(RewardScaling(loc=0.0, scale=100.0, out_keys=["reward-scaled"]))  # ReInvent sigma
-        env.append_transform(RewardClipping(0.0, 100.0, in_keys=["reward-kl"], out_keys=["reward-kl"]))
+        env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
         return env
 
     # Collector
@@ -112,7 +117,7 @@ def main(cfg: "DictConfig"):
         average_gae=False,
         shifted=True,
     )
-    adv_module.set_keys(reward="reward-kl")
+    adv_module.set_keys(reward="penalised_reward")
     adv_module = adv_module.to(device)
     loss_module = ClipPPOLoss(
         actor_training, critic_training,
@@ -124,25 +129,25 @@ def main(cfg: "DictConfig"):
 
     )
     loss_module = loss_module.to(device)
-    loss_module.set_keys(reward="reward-kl")
+    loss_module.set_keys(reward="penalised_reward")
 
     # Storage
     ####################################################################################################################
 
-    sampler = SamplerWithoutReplacement()
     buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(cfg.num_env_workers, device=device),
-        sampler=sampler,
+        sampler=SamplerWithoutReplacement(),
         batch_size=cfg.mini_batch_size,
         prefetch=2,
     )
 
-    # topSMILESBuffer = TensorDictReplayBuffer(
-    #     storage=LazyTensorStorage(100, device=device),
-    #     sampler=sampler,
-    #     batch_size=cfg.mini_batch_size,
-    #     prefetch=2,
-    # )
+    topSMILESBuffer = TensorDictReplayBuffer(
+        storage=LazyTensorStorage(100, device=device),
+        sampler=SamplerWithoutReplacement(),
+        prefetch=2,
+        batch_size=10,
+        writer=TensorDictMaxValueWriter(rank_key="reward"),
+    )
 
     diversity_buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(100_000, device=device),
@@ -172,9 +177,16 @@ def main(cfg: "DictConfig"):
     collected_frames = 0
     repeated_smiles = 0
     pbar = tqdm.tqdm(total=cfg.total_frames)
-    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, cfg.num_env_workers // cfg.mini_batch_size])
+    num_mini_batches = cfg.num_env_workers // cfg.mini_batch_size
+    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
+    replay_losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
     for data in collector:
+
+        # data.pop("recurrent_state_c")
+        # data.pop("recurrent_state_h")
+        # data.get("next").pop("recurrent_state_c")
+        # data.get("next").pop("recurrent_state_h")
 
         log_info = {}
         frames_in_batch = data.numel()
@@ -182,31 +194,33 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Log end-of-episode accumulated rewards for training
         episode_rewards = data["next", "reward"][data["next", "terminated"]]
-        episode_rewards_kl = data["next", "reward-kl"][data["next", "terminated"]]
         episode_length = data["next", "step_count"][data["next", "terminated"]]
         if len(episode_rewards) > 0:
             log_info.update({
                 "train/reward": episode_rewards.mean().item(),
                 "train/min_reward": episode_rewards.min().item(),
                 "train/max_reward": episode_rewards.max().item(),
-                "train/reward_kl": episode_rewards_kl.mean().item(),
-                "train/min_reward_kl": episode_rewards_kl.min().item(),
-                "train/max_reward_kl": episode_rewards_kl.max().item(),
                 "train/total_smiles": total_done,
                 "train/repeated_smiles": repeated_smiles,
                 "train/episode_length": episode_length.sum().item() / len(episode_length),
             })
 
-        repeated_smiles = penalise_repeated_smiles(data, diversity_buffer, repeated_smiles)
-
-        episode_rewards_kl = data["next", "reward-kl"][data["next", "terminated"]]
+        repeated_smiles = penalise_repeated_smiles(
+            data, diversity_buffer, repeated_smiles, in_keys="reward", out_keys="penalised_reward")
+        episode_rewards = data["next", "penalised_reward"][data["next", "terminated"]]
         log_info.update({
-            "train/penalised_reward_kl": episode_rewards_kl.mean().item(),
-            "train/penalised_min_reward_kl": episode_rewards_kl.min().item(),
-            "train/penalised_max_reward_kl": episode_rewards_kl.max().item(),
+            "train/penalised_reward": episode_rewards.mean().item(),
+            "train/penalised_min_reward": episode_rewards.min().item(),
+            "train/penalised_max_reward": episode_rewards.max().item(),
         })
+
+        # Add data to the replay buffer
+        next_data = data.get("next")
+        terminated = next_data.get("terminated").squeeze(-1)
+        terminated_smiles = next_data.get_sub_tensordict(idx=terminated).select(
+            "SMILES", "SMILES2", "reward", "penalised_reward", "step_count")
+        topSMILESBuffer.extend(terminated_smiles)
 
         for j in range(cfg.ppo_epochs):
 
@@ -216,11 +230,32 @@ def main(cfg: "DictConfig"):
             # it is important to pass data that is not flattened
             buffer.extend(data)
 
-            for i, batch in enumerate(buffer):
+            for i in range(num_mini_batches):
 
+                batch = buffer.sample()
                 loss = loss_module(batch)
-                losses[j, i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                losses[j, i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior.get_dist(batch)).mean()
+                loss_sum += kl_div * cfg.kl_coef
+                losses[j, i].set("kl_div", kl_div.detach())
+
+                replay_data = topSMILESBuffer.sample()
+                replay_batch = create_batch_from_replay_smiles(replay_data, device)
+                with torch.no_grad():
+                    replay_batch = adv_module(replay_batch)
+                replay_loss = loss_module(replay_batch)
+                replay_loss_sum = replay_loss["loss_critic"] + replay_loss["loss_objective"] + replay_loss["loss_entropy"]
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior.get_dist(batch)).mean()
+                replay_loss_sum += kl_div * cfg.kl_coef
+
+                num_batch_smiles = batch.get("next").get("terminated").sum()
+                num_replay_smiles = replay_batch.get("next").get("terminated").sum()
+                total_smiles = num_batch_smiles + num_replay_smiles
+                augmented_loss_sum = loss_sum * (num_batch_smiles / total_smiles) + replay_loss_sum * (num_replay_smiles / total_smiles)
+
+                replay_losses[j, i] = replay_loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+                replay_losses[j, i].set("kl_div", kl_div.detach())
 
                 # Backward pass
                 loss_sum.backward()
@@ -232,6 +267,9 @@ def main(cfg: "DictConfig"):
         losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
         for key, value in losses_mean.items():
             log_info.update({f"train/{key}": value.item()})
+        replay_losses_mean = replay_losses.apply(lambda x: x.float().mean(), batch_size=[])
+        for key, value in replay_losses_mean.items():
+            log_info.update({f"train/replay_{key}": value.item()})
 
         if logger:
             for key, value in log_info.items():

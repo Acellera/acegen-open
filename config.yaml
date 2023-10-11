@@ -2,7 +2,7 @@
 experiment_name: generative_chemistry_ppo
 agent_name: ppo
 log_dir: generative_chemistry_ppo
-logger_backend: wandb
+logger_backend: null
 
 # device configuration
 device: cuda:0

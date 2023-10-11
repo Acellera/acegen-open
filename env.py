@@ -34,15 +34,18 @@ class GenChemEnv(gym.Env):
         """Execute one time step within the environment"""
 
         # Get next action
+        self.current_episode_length += 1
+
+        print(self.current_episode_length)
+
         action = (
             "$"
-            if self.current_episode_length == self.max_length - 1
+            if self.current_episode_length == self.max_length - 2  # account for start and end tokens
             else self.vocabulary.decode_token(action)
         )
 
         # Update current SMILES
         self.current_molecule_str += action
-        self.current_episode_length += 1
 
         reward = 0.0
         done = False
@@ -71,7 +74,7 @@ class GenChemEnv(gym.Env):
 
         # Define next observation
         next_obs = self.vocabulary.encode_token(action).astype(np.int64)
-        truncated = done
+        truncated = False
         return next_obs, reward, done, truncated, info
 
     def reset(self):
@@ -131,7 +134,7 @@ class Monitor(gym.Wrapper):
     def step(self, action):
         ob, rew, done, truncated, info = self.env.step(action)
         self.update(ob, rew, done, info)
-        truncated = done
+        truncated = False
         return ob, rew, done, truncated, info
 
     def update(self, ob, rew, done, info):
