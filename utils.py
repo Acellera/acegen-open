@@ -164,15 +164,15 @@ def create_batch_from_replay_smiles(replay_data, device):
         terminated = done.clone()
         sample_log_prob = reward.clone().reshape(1, -1)
         action = smiles["SMILES"][smiles["SMILES"] != 1].reshape(1, -1)
-        is_init = done.clone()
+        is_init = torch.zeros(tensor_shape, device=device, dtype=torch.bool)
         is_init[0, 0] = True
 
         next_observation = action.clone()
-        next_done = done.clone()
+        next_done = torch.zeros(tensor_shape, device=device, dtype=torch.bool)
         next_done[0, -1] = True
-        next_terminated = done.clone()
+        next_terminated = torch.zeros(tensor_shape, device=device, dtype=torch.bool)
         next_terminated[0, -1] = True
-        next_is_init = done.clone()
+        next_is_init = torch.zeros(tensor_shape, device=device, dtype=torch.bool)
 
         td_list.append(
             TensorDict(
