@@ -22,4 +22,4 @@ or
 
 ## To see the results
 
-    python analyze.py
+    python analyse_logs.py
