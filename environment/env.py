@@ -33,8 +33,6 @@ class GenChemEnv(gym.Env):
         # Get next action
         self.current_episode_length += 1
 
-        print(self.current_episode_length)
-
         action = (
             "$"
             if self.current_episode_length
