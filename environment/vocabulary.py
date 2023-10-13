@@ -172,3 +172,22 @@ class DeNovoVocabulary:
         tokenizer = SMILESTokenizer()
         vocabulary = create_vocabulary(smiles_list, tokenizer)
         return DeNovoVocabulary(vocabulary, tokenizer)
+
+    @classmethod
+    def from_ckpt(cls, state):
+        """Creates the vocabulary from a saved checkpoint."""
+        tokenizer = SMILESTokenizer()
+        vocabulary = Vocabulary()
+        vocabulary._tokens = state['_tokens']
+        vocabulary._current_id = state['_current_id']
+        return DeNovoVocabulary(vocabulary, tokenizer)
+
+    def __getstate__(self):
+        return {'_tokens': self.vocabulary._tokens, '_current_id': self.vocabulary._current_id}
+
+    def __setstate__(self, state):
+        vocabulary = Vocabulary()
+        vocabulary._tokens = state['_tokens']
+        vocabulary._current_id = state['_current_id']
+        self.vocabulary = vocabulary
+        self.tokenizer = SMILESTokenizer()

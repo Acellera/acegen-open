@@ -24,7 +24,7 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-from environment import GenChemEnv, Monitor
+from environment import GenChemEnv, Monitor, DeNovoVocabulary
 from utils import (
     create_shared_model,
     penalise_repeated_smiles,
@@ -48,7 +48,8 @@ def main(cfg: "DictConfig"):
 
     # Create test environment to get action specs
     scoring = DRD2ReinventWrapper()
-    vocabulary = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
+    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
+    vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
     env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
     test_env = GymWrapper(GenChemEnv(**env_kwargs))
     action_spec = test_env.action_spec
