@@ -3,7 +3,7 @@ from rdkit import Chem
 import gymnasium as gym
 
 
-class GenChemEnv(gym.Env):
+class DeNovoEnv(gym.Env):
     """Custom Environment for Generative Chemistry RL."""
 
     def __init__(
@@ -28,7 +28,7 @@ class GenChemEnv(gym.Env):
         self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
 
     def step(self, action):
-        """Execute one time step within the environment"""
+        """Execute one time step within the rl_environments"""
 
         # Get next action
         self.current_episode_length += 1
@@ -52,7 +52,7 @@ class GenChemEnv(gym.Env):
             # Set done flag
             done = True
 
-            # Get smile
+            # Get SMILES
             smiles = self.vocabulary.remove_start_and_end_tokens(
                 self.current_molecule_str
             )
@@ -75,7 +75,7 @@ class GenChemEnv(gym.Env):
 
     def reset(self):
         """
-        Reset the state of the environment to an initial state.
+        Reset the state of the rl_environments to an initial state.
         Return padded base molecule to match length `obs_length`.
         """
         self.current_molecule_str = "^"

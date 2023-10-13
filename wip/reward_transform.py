@@ -8,7 +8,7 @@ from torchrl.data.tensor_specs import (
     UnboundedContinuousTensorSpec,
 )
 from torchrl.envs.transforms.transforms import Transform
-from environment.vocabulary import DeNovoVocabulary
+from rl_environments.vocabulary import DeNovoVocabulary
 
 
 class SMILESReward(Transform):

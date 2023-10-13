@@ -1,4 +1,5 @@
 import json
+import numpy as np
 import pandas as pd
 import argparse
 from pathlib import Path
@@ -6,22 +7,20 @@ from pathlib import Path
 
 def read_logs(logs_dir_path):
     """Read the logs from the log dir."""
-    import ipdb; ipdb.set_trace()
-    monitor_files = list(Path(logs_dir_path).glob("*monitor.json"))
+    monitor_files = list(Path(logs_dir_path).glob("monitor*.csv"))
     if not monitor_files:
         raise Exception(f"no monitor files found in {logs_dir_path}")
     dfs = []
     headers = []
     for fname in monitor_files:
         with open(fname, 'rt') as fh:
-            if fname.endswith('csv'):
-                firstline = fh.readline()
-                if not firstline:
-                    continue
-                assert firstline[0] == '#'
-                header = json.loads(firstline[1:])
-                df = pd.read_csv(fh, index_col=None)
-                headers.append(header)
+            firstline = fh.readline()
+            if not firstline:
+                continue
+            assert firstline[0] == '#'
+            header = json.loads(firstline[1:])
+            df = pd.read_csv(fh, index_col=None)
+            headers.append(header)
             df['t'] += header['t_start']  # TODO: ???
         dfs.append(df)
     df = pd.concat(dfs)
@@ -32,16 +31,34 @@ def read_logs(logs_dir_path):
     return df
 
 
-def analyse_logs(logs_dir_path):
+def analyse_logs(logs_dir_path, N=20, rank_prop="r"):
     """Analise the logs from the log dir."""
     logs_df = read_logs(logs_dir_path)
-    import ipdb; ipdb.set_trace()
+
+    # Compute total steps
+    total_steps = logs_df["l"].cumsum().iloc[-1]
+    logs_df["total_steps"] = total_steps
+
+    # Rank monitor files by property
+    logs_df = logs_df.sort_values(rank_prop, ascending=False)
+
+    # Remove duplicates
+    logs_df.drop_duplicates(subset="molecule", inplace=True)
+
+    # List top X molecules by score
+    pd.options.display.max_colwidth = 300
+    print(
+        f"Here's a list of the top {N} molecules with the obtained score ({rank_prop}):"
+    )
+    print(
+        logs_df[[rank_prop, "molecule"]].head(n=N)
+    )
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Analyse de logs')
-    parser.add_argument('--logs-path', type=str, help='Path to logs directory')
+    parser.add_argument('--logs-path', default="./logs", type=str, help='Path to logs directory')
     args = parser.parse_args()
     analyse_logs(args.logs_path)
 

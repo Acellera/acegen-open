@@ -22,7 +22,7 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-from environment import GenChemEnv, Monitor
+from rl_environments import GenChemEnv, Monitor
 from utils import create_model
 from scoring import WrapperScoringClass
 

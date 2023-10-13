@@ -25,7 +25,7 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-from environment import GenChemEnv, Monitor, DeNovoVocabulary
+from rl_environments import DeNovoEnv, Monitor, DeNovoVocabulary
 from utils import (
     create_ppo_models,
     penalise_repeated_smiles,
@@ -37,9 +37,9 @@ from wip.writer import TensorDictMaxValueWriter
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
-    seed = cfg.seed
 
     # Set seeds
+    seed = cfg.seed
     random.seed(int(seed))
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
@@ -47,12 +47,12 @@ def main(cfg: "DictConfig"):
     # Get available device
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
-    # Create test environment to get action specs
+    # Create test rl_environments to get action specs
     scoring = DRD2ReinventWrapper()
     ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
     env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
-    test_env = GymWrapper(GenChemEnv(**env_kwargs))
+    test_env = GymWrapper(DeNovoEnv(**env_kwargs))
     action_spec = test_env.action_spec
 
     # Models
@@ -69,8 +69,8 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     def create_base_env():
-        """Create a single RL environment."""
-        env = Monitor(GenChemEnv(**env_kwargs), log_dir=cfg.log_dir)
+        """Create a single RL rl_environments."""
+        env = Monitor(DeNovoEnv(**env_kwargs), log_dir=cfg.log_dir)
         env = GymWrapper(env, categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))

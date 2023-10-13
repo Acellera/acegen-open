@@ -22,4 +22,4 @@ or
 
 ## To see the results
 
-    python analyse_logs.py
+    python analyse_logs.py --logs-path path/to/logs/dir
