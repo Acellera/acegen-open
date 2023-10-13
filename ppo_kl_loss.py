@@ -251,7 +251,7 @@ def main(cfg: "DictConfig"):
                 replay_data = top_smiles_buffer.sample()
                 replay_batch = create_batch_from_replay_smiles(replay_data, device)
                 with torch.no_grad():
-                    replay_batch = prior(replay_batch)
+                    replay_batch = actor_inference(replay_batch)
                     replay_batch = adv_module(replay_batch)
                 rb_loss = loss_module(replay_batch)
                 replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
