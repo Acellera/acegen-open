@@ -204,3 +204,8 @@ def create_batch_from_replay_smiles(replay_data, device):
     split_data = split_trajectories(cat_data)
 
     return split_data
+
+
+def read_logs(path):
+    """Read the logs from the log dir."""
+    pass

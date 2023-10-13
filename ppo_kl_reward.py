@@ -9,6 +9,7 @@ from pathlib import Path
 from tensordict import TensorDict
 from torchrl.envs import (
     CatFrames,
+    SerialEnv,
     ParallelEnv,
     InitTracker,
     StepCounter,
@@ -83,6 +84,7 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn(num_workers=cfg.num_env_workers):
         """Create a vector of parallel environments."""
+        env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
         env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
         return env
 
