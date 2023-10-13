@@ -75,7 +75,6 @@ def main(cfg: "DictConfig"):
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
         env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
-        env.append_transform(KLRewardTransform(actor_inference, coef=cfg.kl_coef, out_keys="reward-kl"))
         env.append_transform(rhs_transform.clone())
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
@@ -85,6 +84,7 @@ def main(cfg: "DictConfig"):
         """Create a vector of parallel environments."""
         env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
         # env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
+        env.append_transform(KLRewardTransform(actor_inference, coef=cfg.kl_coef, out_keys="reward-kl"))
         return env
 
     # Collector
