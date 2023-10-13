@@ -69,6 +69,7 @@ def main(cfg: "DictConfig"):
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
+    prior = actor_inference.clone()
 
     # Environment
     ####################################################################################################################
@@ -248,6 +249,7 @@ def main(cfg: "DictConfig"):
                 replay_data = top_smiles_buffer.sample()
                 replay_batch = create_batch_from_replay_smiles(replay_data, device)
                 with torch.no_grad():
+                    replay_batch = prior(replay_batch)
                     replay_batch = adv_module(replay_batch)
                 rb_loss = loss_module(replay_batch)
                 replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
@@ -262,7 +264,7 @@ def main(cfg: "DictConfig"):
                 ) + replay_loss_sum * (num_replay_smiles / total_smiles)
 
                 # Backward pass
-                loss_sum.backward()
+                augmented_loss_sum.backward()
                 torch.nn.utils.clip_grad_norm_(
                     loss_module.parameters(), max_norm=cfg.max_grad_norm
                 )

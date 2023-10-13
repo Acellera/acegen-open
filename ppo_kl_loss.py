@@ -269,7 +269,7 @@ def main(cfg: "DictConfig"):
                 ) + replay_loss_sum * (num_replay_smiles / total_smiles)
 
                 # Backward pass
-                loss_sum.backward()
+                augmented_loss_sum.backward()
                 torch.nn.utils.clip_grad_norm_(
                     loss_module.parameters(), max_norm=cfg.max_grad_norm
                 )
