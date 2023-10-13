@@ -1,4 +1,4 @@
-name: torch_rl2
+name: torchrl_chem
 channels:
   - openeye
   - pytorch
@@ -213,13 +213,10 @@ dependencies:
     - submitit==1.4.5
     - tensorboard==2.14.0
     - tensorboard-data-server==0.7.1
-    - tensordict==0.2.0+7febd39
     - threadpoolctl==3.2.0
-    - torchrl==0.1.1+434fe58
     - tqdm==4.66.1
     - traitlets==5.9.0
     - wandb==0.15.9
     - wcwidth==0.2.6
     - werkzeug==2.3.7
     - zipp==3.16.2
-prefix: /shared/albert/miniconda3/envs/torch_rl2

@@ -6,6 +6,7 @@ Language models + RL for drug discovery using TorchRL
 To create the conda environment, run
 
     conda env create -f environment.yml
+    conda activate torchrl_chem
 
 ## Configuration file
     
