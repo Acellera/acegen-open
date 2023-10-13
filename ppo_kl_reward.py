@@ -3,7 +3,6 @@ import hydra
 import torch
 import random
 import numpy as np
-from copy import deepcopy
 from pathlib import Path
 
 from tensordict import TensorDict
