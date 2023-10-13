@@ -44,7 +44,7 @@ def main(cfg: "DictConfig"):
     torch.manual_seed(int(seed))
 
     # Get available device
-    device = torch.device(cfg.device) if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test environment to get action specs
     scoring = DRD2ReinventWrapper()
