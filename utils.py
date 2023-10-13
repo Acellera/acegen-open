@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
 import torch
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from torchrl.modules import LSTMModule, MLP, ActorValueOperator, ProbabilisticActor, ValueOperator
+from torchrl.modules import (
+    LSTMModule,
+    MLP,
+    ActorValueOperator,
+    ProbabilisticActor,
+    ValueOperator,
+)
 from torchrl.envs import ExplorationType
 from torchrl.collectors.utils import split_trajectories
 
@@ -38,8 +45,17 @@ def create_model(vocabulary, output_size, net_name="actor", out_key="logits"):
         input_size=256,
         hidden_size=512,
         num_layers=3,
-        in_keys=["embed", f"recurrent_state_h_{net_name}", f"recurrent_state_c_{net_name}"],
-        out_keys=["features", ("next", f"recurrent_state_h_{net_name}"), ("next", f"recurrent_state_c_{net_name}")])
+        in_keys=[
+            "embed",
+            f"recurrent_state_h_{net_name}",
+            f"recurrent_state_c_{net_name}",
+        ],
+        out_keys=[
+            "features",
+            ("next", f"recurrent_state_h_{net_name}"),
+            ("next", f"recurrent_state_c_{net_name}"),
+        ],
+    )
     mlp = TensorDictModule(
         MLP(
             in_features=512,
@@ -51,7 +67,9 @@ def create_model(vocabulary, output_size, net_name="actor", out_key="logits"):
     )
 
     model_inference = TensorDictSequential(embedding_module, lstm_module, mlp)
-    model_training = TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
+    model_training = TensorDictSequential(
+        embedding_module, lstm_module.set_recurrent_mode(True), mlp
+    )
     transform = lstm_module.make_tensordict_primer()
 
     return model_inference, model_training, transform
@@ -68,7 +86,12 @@ def create_shared_model(vocabulary, output_size, out_key="logits"):
         hidden_size=512,
         num_layers=3,
         in_keys=["embed", "recurrent_state_h", "recurrent_state_c"],
-        out_keys=["features", ("next", "recurrent_state_h"), ("next", "recurrent_state_c")])
+        out_keys=[
+            "features",
+            ("next", "recurrent_state_h"),
+            ("next", "recurrent_state_c"),
+        ],
+    )
     actor_model = TensorDictModule(
         MLP(
             in_features=512,
@@ -104,7 +127,9 @@ def create_shared_model(vocabulary, output_size, out_key="logits"):
     )
 
     actor_critic_training = ActorValueOperator(
-        common_operator=TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True)),
+        common_operator=TensorDictSequential(
+            embedding_module, lstm_module.set_recurrent_mode(True)
+        ),
         policy_operator=policy_module,
         value_operator=critic_module,
     )
@@ -115,17 +140,30 @@ def create_shared_model(vocabulary, output_size, out_key="logits"):
     critic_training = actor_critic_training.get_value_operator()
     transform = lstm_module.make_tensordict_primer()
 
+    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "actor_critic.prior")
+    actor_inference.load_state_dict(ckpt)
+    actor_training.load_state_dict(ckpt)
+
     return actor_inference, actor_training, critic_inference, critic_training, transform
 
 
-def penalise_repeated_smiles(data, diversity_buffer, repeated_smiles, in_keys="reward", out_keys="reward", penalty=0.0):
+def penalise_repeated_smiles(
+    data,
+    diversity_buffer,
+    repeated_smiles,
+    in_keys="reward",
+    out_keys="reward",
+    penalty=0.0,
+):
     """Penalise repeated smiles and add unique smiles to the diversity buffer."""
 
     td_next = data.get("next")
     done = td_next.get("done").squeeze(-1)  # Get done flags
     terminated = td_next.get("terminated").squeeze(-1)  # Get terminated flags
     assert (done == terminated).all(), "done and terminated flags should be equal"
-    sub_td = td_next.get_sub_tensordict(idx=terminated)  # Get sub-tensordict of done trajectories
+    sub_td = td_next.get_sub_tensordict(
+        idx=terminated
+    )  # Get sub-tensordict of done trajectories
     reward = sub_td.get(in_keys)
     finished_smiles = sub_td.get("SMILES")
     finished_smiles_td = sub_td.select("SMILES")
@@ -144,7 +182,7 @@ def penalise_repeated_smiles(data, diversity_buffer, repeated_smiles, in_keys="r
                 reward[i] = reward[i] * penalty
                 repeated_smiles += 1
             elif reward[i] > 0:
-                diversity_buffer.extend(finished_smiles_td[i:i + 1])
+                diversity_buffer.extend(finished_smiles_td[i : i + 1])
                 num_unique_smiles += 1
 
     sub_td.set(out_keys, reward, inplace=True)
@@ -158,7 +196,6 @@ def create_batch_from_replay_smiles(replay_data, device):
     td_list = []
 
     for smiles in replay_data:
-
         observation = smiles["SMILES2"][smiles["SMILES2"] != 0].reshape(1, -1)
         tensor_shape = (1, observation.shape[-1], 1)
         reward = torch.zeros(tensor_shape, device=device)
@@ -177,21 +214,31 @@ def create_batch_from_replay_smiles(replay_data, device):
         next_terminated[0, -1] = True
         next_is_init = done.clone()
 
-        td_list.append(TensorDict({
-            "done": done,
-            "action": action,
-            "is_init": is_init,
-            "terminated": terminated,
-            "observation": observation,
-            "sample_log_prob": sample_log_prob,
-            "next": TensorDict({
-                "observation": next_observation,
-                "terminated": next_terminated,
-                "penalised_reward": reward,
-                "is_init": next_is_init,
-                "done": next_done,
-            }, batch_size=tensor_shape[0:2], device=device),
-        }, batch_size=tensor_shape[0:2], device=device))
+        td_list.append(
+            TensorDict(
+                {
+                    "done": done,
+                    "action": action,
+                    "is_init": is_init,
+                    "terminated": terminated,
+                    "observation": observation,
+                    "sample_log_prob": sample_log_prob,
+                    "next": TensorDict(
+                        {
+                            "observation": next_observation,
+                            "terminated": next_terminated,
+                            "penalised_reward": reward,
+                            "is_init": next_is_init,
+                            "done": next_done,
+                        },
+                        batch_size=tensor_shape[0:2],
+                        device=device,
+                    ),
+                },
+                batch_size=tensor_shape[0:2],
+                device=device,
+            )
+        )
 
     cat_data = torch.cat(td_list, dim=-1)
     split_data = split_trajectories(cat_data)

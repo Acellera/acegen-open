@@ -21,7 +21,6 @@ class TensorDictMaxValueWriter(Writer):
         self._rank_key = rank_key
 
     def add(self, data: Any) -> int:
-
         ret = None
 
         # Sum the rank key, in case it is a whole trajectory
@@ -32,7 +31,6 @@ class TensorDictMaxValueWriter(Writer):
 
         # If the buffer is not full, add the data
         if len(self._storage) < self._storage.max_size:
-
             ret = self._cursor
             data["index"] = ret
             self._storage[self._cursor] = data
@@ -43,7 +41,6 @@ class TensorDictMaxValueWriter(Writer):
 
         # If the buffer is full, check if the new data is better than the worst data in the buffer
         elif rank_data > self._current_filter_values[0][0]:
-
             # retrieve position of the smallest value
             min_sample = heapq.heappop(self._current_filter_values)
             min_sample_value = min_sample[1]
@@ -73,4 +70,3 @@ class TensorDictMaxValueWriter(Writer):
 
 if __name__ == "__main__":
     pass
-

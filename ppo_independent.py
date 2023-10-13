@@ -4,56 +4,56 @@ import torch
 from pathlib import Path
 
 from torchrl.envs import (
-    Compose,
     ParallelEnv,
-    SerialEnv,
-    VecNorm,
     TransformedEnv,
     InitTracker,
     StepCounter,
-    RewardSum,
     CatFrames,
-    DoubleToFloat,
     KLRewardTransform,
     ExplorationType,
     UnsqueezeTransform,
 )
 from torchrl.envs.libs.gym import GymWrapper
 from torchrl.record.loggers import get_logger
-from torchrl.modules import ProbabilisticActor, OneHotCategorical
+from torchrl.modules import ProbabilisticActor
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives.value.advantages import GAE
 from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-from env import GenChemEnv, Monitor
-from utils import create_model, penalise_repeated_smiles
-from reward_transform import SMILESReward
+from environment.env import GenChemEnv, Monitor
+from utils import create_model
 from scoring import WrapperScoringClass
+
 # from writer import TensorDictMaxValueWriter
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
-
     seed = 101
 
     # Set a seed for the random module
     import random
+
     random.seed(int(seed))
 
     # Set a seed for the numpy module
     import numpy as np
+
     np.random.seed(int(seed))
 
     # Set a seed for the torch module
     torch.manual_seed(int(seed))
 
-    device = torch.device(cfg.device) if torch.cuda.is_available() else torch.device("cpu")
+    device = (
+        torch.device(cfg.device) if torch.cuda.is_available() else torch.device("cpu")
+    )
 
     scoring = WrapperScoringClass()
-    vocabulary = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
+    vocabulary = torch.load(
+        Path(__file__).resolve().parent / "priors" / "vocabulary.prior"
+    )
     env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
 
     # Models
@@ -63,10 +63,14 @@ def main(cfg: "DictConfig"):
     action_spec = test_env.action_spec
 
     policy_inference, policy_training, rhs_transform_actor = create_model(
-        vocabulary=vocabulary,
-        output_size=action_spec.shape[-1])
-    policy_inference.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
-    policy_training.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior"))
+        vocabulary=vocabulary, output_size=action_spec.shape[-1]
+    )
+    policy_inference.load_state_dict(
+        torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior")
+    )
+    policy_training.load_state_dict(
+        torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior")
+    )
     policy_inference = ProbabilisticActor(
         module=policy_inference,
         in_keys=["logits"],
@@ -86,12 +90,14 @@ def main(cfg: "DictConfig"):
     policy_inference = policy_inference.to(device)
     policy_training = policy_training.to(device)
     critic_inference, critic_training, rhs_transform_critic = create_model(
-        vocabulary=vocabulary,
-        output_size=1,
-        net_name="critic",
-        out_key="state_value")
-    critic_inference.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
-    critic_training.load_state_dict(torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior"))
+        vocabulary=vocabulary, output_size=1, net_name="critic", out_key="state_value"
+    )
+    critic_inference.load_state_dict(
+        torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior")
+    )
+    critic_training.load_state_dict(
+        torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior")
+    )
     critic_inference = critic_inference.to(device)
     critic_training = critic_training.to(device)
 
@@ -99,7 +105,11 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     def create_base_env():
-        env = GymWrapper(Monitor(GenChemEnv(**env_kwargs), log_dir=cfg.log_dir), categorical_action_encoding=True, device=device)
+        env = GymWrapper(
+            Monitor(GenChemEnv(**env_kwargs), log_dir=cfg.log_dir),
+            categorical_action_encoding=True,
+            device=device,
+        )
         env = TransformedEnv(env)
         env.append_transform(rhs_transform_actor.clone())
         env.append_transform(rhs_transform_critic.clone())
@@ -113,9 +123,17 @@ def main(cfg: "DictConfig"):
         env = TransformedEnv(env)
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
-        env.append_transform(CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"]))
-        env.append_transform(KLRewardTransform(policy_inference, coef=cfg.kl_coef, out_keys="reward-kl"))
+        env.append_transform(
+            UnsqueezeTransform(
+                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
+            )
+        )
+        env.append_transform(
+            CatFrames(N=100, dim=-1, in_keys=["observation"], out_keys=["SMILES"])
+        )
+        env.append_transform(
+            KLRewardTransform(policy_inference, coef=cfg.kl_coef, out_keys="reward-kl")
+        )
         return env
 
     # Collector
@@ -144,7 +162,8 @@ def main(cfg: "DictConfig"):
     )
     adv_module = adv_module.to(device)
     loss_module = ClipPPOLoss(
-        critic_training, critic_training,
+        critic_training,
+        critic_training,
         critic_coef=cfg.critic_coef,
         entropy_coef=cfg.entropy_coef,
         clip_epsilon=cfg.ppo_clip,
@@ -190,7 +209,9 @@ def main(cfg: "DictConfig"):
 
     logger = None
     if cfg.logger_backend:
-        logger = get_logger(cfg.logger_backend, logger_name="ppo", experiment_name=cfg.experiment_name)
+        logger = get_logger(
+            cfg.logger_backend, logger_name="ppo", experiment_name=cfg.experiment_name
+        )
 
     # Training loop
     ####################################################################################################################
@@ -200,10 +221,11 @@ def main(cfg: "DictConfig"):
     repeated_smiles = 0
     num_network_updates = 0
     num_mini_batches = cfg.frames_per_batch // cfg.mini_batch_size
-    total_network_updates = (cfg.total_frames // cfg.frames_per_batch) * cfg.ppo_epochs * num_mini_batches
+    total_network_updates = (
+        (cfg.total_frames // cfg.frames_per_batch) * cfg.ppo_epochs * num_mini_batches
+    )
     pbar = tqdm.tqdm(total=cfg.total_frames)
     for data in collector:
-
         log_info = {}
         frames_in_batch = data.numel()
         total_done += data.get(("next", "done")).sum()
@@ -213,13 +235,15 @@ def main(cfg: "DictConfig"):
         # Log end-of-episode accumulated rewards for training
         episode_rewards = data["next", "reward"][data["next", "done"]]
         if len(episode_rewards) > 0:
-            log_info.update({
-                "reward_training": episode_rewards.mean().item(),
-                "min_reward_training": episode_rewards.min().item(),
-                "max_reward_training": episode_rewards.max().item(),
-                "total_smiles": total_done,
-                "repeated_smiles": repeated_smiles,
-            })
+            log_info.update(
+                {
+                    "reward_training": episode_rewards.mean().item(),
+                    "min_reward_training": episode_rewards.min().item(),
+                    "max_reward_training": episode_rewards.max().item(),
+                    "total_smiles": total_done,
+                    "repeated_smiles": repeated_smiles,
+                }
+            )
 
         # Apply reward augmentation
         data = kl_transform(data)
@@ -240,14 +264,18 @@ def main(cfg: "DictConfig"):
         elif num_finished_smiles > 0:
             for i, smi in enumerate(finished_smiles):
                 td_smiles = diversity_buffer._storage._storage
-                unique_smiles = td_smiles.get("_data").get("SMILES")[0:num_unique_smiles]
+                unique_smiles = td_smiles.get("_data").get("SMILES")[
+                    0:num_unique_smiles
+                ]
                 repeated = (smi == unique_smiles).all(dim=-1).any()
                 if repeated:
                     reward[i] = reward[i] * 0.5
                     repeated_smiles += 1
                 else:
                     # diversity_buffer.extend(finished_smiles_td[i:i+1].clone())  # TODO: is clone necessary?
-                    diversity_buffer.add(finished_smiles_td[i].clone())  # TODO: is clone necessary?
+                    diversity_buffer.add(
+                        finished_smiles_td[i].clone()
+                    )  # TODO: is clone necessary?
                     num_unique_smiles += 1
         sub_td.set("reward", reward, inplace=True)
 
@@ -258,21 +286,23 @@ def main(cfg: "DictConfig"):
         buffer.extend(data)
 
         for j in range(cfg.ppo_epochs):
-
             for i, batch in enumerate(buffer):
-
                 # Linearly decrease the learning rate and clip epsilon
                 alpha = 1 - (num_network_updates / total_network_updates)
                 for g in optim.param_groups:
-                    g['lr'] = cfg.lr * alpha
+                    g["lr"] = cfg.lr * alpha
                 num_network_updates += 1
 
                 loss = loss_module(batch)
-                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                loss_sum = (
+                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                )
 
                 # Backward pass
                 loss_sum.backward()
-                grad_norm = torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=cfg.max_grad_norm)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    loss_module.parameters(), max_norm=cfg.max_grad_norm
+                )
 
                 optim.step()
                 optim.zero_grad()

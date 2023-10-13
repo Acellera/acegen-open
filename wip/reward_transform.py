@@ -1,6 +1,6 @@
 import torch
-from typing import Callable, Any
-from tensordict import TensorDict, TensorDictBase
+from typing import Callable
+from tensordict import TensorDictBase
 from tensordict.utils import unravel_keys
 from torchrl.data.tensor_specs import (
     CompositeSpec,
@@ -8,20 +8,20 @@ from torchrl.data.tensor_specs import (
     UnboundedContinuousTensorSpec,
 )
 from torchrl.envs.transforms.transforms import Transform
-from vocabulary import DeNovoVocabulary
+from environment.vocabulary import DeNovoVocabulary
 
 
 class SMILESReward(Transform):
     def __init__(
-            self,
-            reward_function: Callable,
-            vocabulary: DeNovoVocabulary,
-            in_keys=None,
-            out_keys=None,
-            on_done_only=True,
-            truncated_key="truncated",
-            use_next: bool = True,
-            gradient_mode=False,
+        self,
+        reward_function: Callable,
+        vocabulary: DeNovoVocabulary,
+        in_keys=None,
+        out_keys=None,
+        on_done_only=True,
+        truncated_key="truncated",
+        use_next: bool = True,
+        gradient_mode=False,
     ):
         self.on_done_only = on_done_only
         self.truncated_key = truncated_key
@@ -61,7 +61,9 @@ class SMILESReward(Transform):
                 reward = sub_tensordict.get("reward")
                 smiles = sub_tensordict.get(self.in_keys[0])
                 for i, smi in enumerate(smiles):
-                    reward[i] *= self.reward_function(self.vocabulary.decode_smiles(smi.cpu().numpy()))
+                    reward[i] *= self.reward_function(
+                        self.vocabulary.decode_smiles(smi.cpu().numpy())
+                    )
                 sub_tensordict.set("reward", reward, inplace=True)
         tensordict_save.update(tensordict, inplace=True)
         return tensordict_save
@@ -71,7 +73,7 @@ class SMILESReward(Transform):
         reward_key = parent.reward_key
         reward_spec = UnboundedContinuousTensorSpec(shape=(*parent.batch_size, 1))
         if unravel_keys(reward_key, make_tuple=True) != unravel_keys(
-                self.out_keys[0], make_tuple=True
+            self.out_keys[0], make_tuple=True
         ):
             # we must change the reward key of the parent
             reward_key = self.out_keys[0]
@@ -82,7 +84,7 @@ class SMILESReward(Transform):
         parent = self.parent
         reward_key = parent.reward_key
         if unravel_keys(reward_key, make_tuple=True) != unravel_keys(
-                self.out_keys[0], make_tuple=True
+            self.out_keys[0], make_tuple=True
         ):
             # we should move the parent reward spec to the obs
             reward_spec = parent.reward_spec.clone()

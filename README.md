@@ -1,13 +1,11 @@
-# torchrl_chem
-Language models for drug discovery using torchrl
+# TorchRL generative Chemistry
+Language models + RL for drug discovery using TorchRL
 
 
 ## Running the working code
 
     python ppo.py
 
-## To reproduce the error with ParallelEnv
+## To see the results
 
-For some reason using ParallelEnv causes the hidden states to be always zero.
-
-    python ppo_reproduce_error.py
+    python analyze.py

@@ -172,4 +172,3 @@ class DeNovoVocabulary:
         tokenizer = SMILESTokenizer()
         vocabulary = create_vocabulary(smiles_list, tokenizer)
         return DeNovoVocabulary(vocabulary, tokenizer)
-

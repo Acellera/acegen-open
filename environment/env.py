@@ -1,10 +1,10 @@
 import os
 import csv
-import gym
 import time
 import json
 import numpy as np
 from rdkit import Chem
+import gymnasium as gym
 
 
 class GenChemEnv(gym.Env):
@@ -16,7 +16,6 @@ class GenChemEnv(gym.Env):
         vocabulary,
         max_length=100,
     ):
-
         self.max_length = max_length
         self.vocabulary = vocabulary
         self.scoring_function = scoring_function
@@ -24,7 +23,9 @@ class GenChemEnv(gym.Env):
         # Scoring example
         test_smiles = "C"
         self.scoring_example = scoring_function(test_smiles)
-        self.scoring_example.update({"molecule": test_smiles, "reaction_scores": 0.0, "repeated": 0.0})
+        self.scoring_example.update(
+            {"molecule": test_smiles, "reaction_scores": 0.0, "repeated": 0.0}
+        )
 
         # Define action and observation space
         self.action_space = gym.spaces.Discrete(len(self.vocabulary))
@@ -40,7 +41,8 @@ class GenChemEnv(gym.Env):
 
         action = (
             "$"
-            if self.current_episode_length == self.max_length - 2  # account for start and end tokens
+            if self.current_episode_length
+            == self.max_length - 2  # account for start and end tokens
             else self.vocabulary.decode_token(action)
         )
 
@@ -53,19 +55,19 @@ class GenChemEnv(gym.Env):
 
         # Handle end of molecule/episode if action is $
         if action == "$":
-
             # Set done flag
             done = True
 
             # Get smile
-            smiles = self.vocabulary.remove_start_and_end_tokens(self.current_molecule_str)
+            smiles = self.vocabulary.remove_start_and_end_tokens(
+                self.current_molecule_str
+            )
             info["molecule"] = smiles
 
             # check smiles validity
             mol = Chem.MolFromSmiles(smiles)
 
             if mol is not None:
-
                 # Compute score
                 score = self.scoring_function(smiles)
 
@@ -95,9 +97,11 @@ class ResultsWriter:
         self.extra_keys = extra_keys
         already_exists = os.path.isfile(filename)
         self.f = open(filename, "a+")
-        self.logger = csv.DictWriter(self.f, fieldnames=('r', 'l', 't')+tuple(extra_keys))
+        self.logger = csv.DictWriter(
+            self.f, fieldnames=("r", "l", "t") + tuple(extra_keys)
+        )
         if not already_exists:
-            header = '# {} \n'.format(json.dumps(header))
+            header = "# {} \n".format(json.dumps(header))
             self.f.write(header)
             self.f.flush()
             self.logger.writeheader()
@@ -110,17 +114,15 @@ class ResultsWriter:
 
 
 class Monitor(gym.Wrapper):
-
-    def __init__(self, env, log_dir, info_keywords=("molecule", )):
+    def __init__(self, env, log_dir, info_keywords=("molecule",)):
         super(Monitor, self).__init__(env)
         self.f = None
         self.tstart = time.time()
         os.makedirs(log_dir, exist_ok=True)
         filename = os.path.join(log_dir, f"monitor_{os.getpid()}_{id(self)}.csv")
         self.results_writer = ResultsWriter(
-            filename,
-            header={"t_start": time.time()},
-            extra_keys=info_keywords)
+            filename, header={"t_start": time.time()}, extra_keys=info_keywords
+        )
         self.info_keywords = info_keywords
         self.rewards = None
 
@@ -142,7 +144,11 @@ class Monitor(gym.Wrapper):
         if done:
             eprew = 0.0 + sum(self.rewards)
             eplen = 1.0 + len(self.rewards)
-            epinfo = {"r": round(eprew, 6), "l": eplen, "t": round(time.time() - self.tstart, 6)}
+            epinfo = {
+                "r": round(eprew, 6),
+                "l": eplen,
+                "t": round(time.time() - self.tstart, 6),
+            }
             for k in self.info_keywords:
                 epinfo[k] = info[k]
             self.results_writer.write_row(epinfo)
@@ -151,4 +157,3 @@ class Monitor(gym.Wrapper):
         super(Monitor, self).close()
         if self.f is not None:
             self.f.close()
-
