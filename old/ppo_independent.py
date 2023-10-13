@@ -22,14 +22,14 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-from environment.env import GenChemEnv, Monitor
+from environment import GenChemEnv, Monitor
 from utils import create_model
 from scoring import WrapperScoringClass
 
 # from writer import TensorDictMaxValueWriter
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path="..", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
     seed = 101
 

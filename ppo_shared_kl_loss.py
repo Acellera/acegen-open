@@ -26,7 +26,7 @@ from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
 from environment import GenChemEnv, Monitor, DeNovoVocabulary
 from utils import (
-    create_shared_model,
+    create_ppo_models,
     penalise_repeated_smiles,
     create_batch_from_replay_smiles,
 )
@@ -58,7 +58,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     (actor_inference, actor_training, critic_inference, critic_training, rhs_transform
-     ) = create_shared_model(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+     ) = create_ppo_models(vocabulary=vocabulary, output_size=action_spec.shape[-1])
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
@@ -259,7 +259,7 @@ def main(cfg: "DictConfig"):
                 ) + replay_loss_sum * (num_replay_smiles / total_smiles)
 
                 # Backward pass
-                loss.backward()
+                loss_sum.backward()
                 torch.nn.utils.clip_grad_norm_(
                     loss_module.parameters(), max_norm=cfg.max_grad_norm
                 )
@@ -284,3 +284,4 @@ def main(cfg: "DictConfig"):
 
 if __name__ == "__main__":
     main()
+

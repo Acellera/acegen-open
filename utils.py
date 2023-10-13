@@ -35,47 +35,7 @@ class Embed(torch.nn.Module):
         return out
 
 
-def create_model(vocabulary, output_size, net_name="actor", out_key="logits"):
-    embedding_module = TensorDictModule(
-        Embed(len(vocabulary), 256),
-        in_keys=["observation"],
-        out_keys=["embed"],
-    )
-    lstm_module = LSTMModule(
-        input_size=256,
-        hidden_size=512,
-        num_layers=3,
-        in_keys=[
-            "embed",
-            f"recurrent_state_h_{net_name}",
-            f"recurrent_state_c_{net_name}",
-        ],
-        out_keys=[
-            "features",
-            ("next", f"recurrent_state_h_{net_name}"),
-            ("next", f"recurrent_state_c_{net_name}"),
-        ],
-    )
-    mlp = TensorDictModule(
-        MLP(
-            in_features=512,
-            out_features=output_size,
-            num_cells=[],
-        ),
-        in_keys=["features"],
-        out_keys=[out_key],
-    )
-
-    model_inference = TensorDictSequential(embedding_module, lstm_module, mlp)
-    model_training = TensorDictSequential(
-        embedding_module, lstm_module.set_recurrent_mode(True), mlp
-    )
-    transform = lstm_module.make_tensordict_primer()
-
-    return model_inference, model_training, transform
-
-
-def create_shared_model(vocabulary, output_size, out_key="logits"):
+def create_ppo_models(vocabulary, output_size, out_key="logits"):
     embedding_module = TensorDictModule(
         Embed(len(vocabulary), 256),
         in_keys=["observation"],
