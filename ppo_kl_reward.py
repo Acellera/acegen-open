@@ -63,7 +63,6 @@ def main(cfg: "DictConfig"):
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
-    prior = deepcopy(actor_training)
 
     # Environment
     ####################################################################################################################
@@ -85,7 +84,7 @@ def main(cfg: "DictConfig"):
     def create_env_fn(num_workers=cfg.num_env_workers):
         """Create a vector of parallel environments."""
         env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
-        env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
+        # env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
         return env
 
     # Collector
