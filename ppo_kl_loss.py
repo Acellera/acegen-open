@@ -1,10 +1,12 @@
 import tqdm
+import yaml
 import hydra
 import torch
 import random
 import numpy as np
 from copy import deepcopy
 from pathlib import Path
+from omegaconf import OmegaConf
 
 from torch.distributions.kl import kl_divergence
 from tensordict import TensorDict
@@ -37,6 +39,11 @@ from wip.writer import TensorDictMaxValueWriter
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
+
+    # Save config
+    with open(Path(cfg.log_dir) / "config.yaml", 'w') as yaml_file:
+        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+        yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
     # Set seeds
     seed = cfg.seed
