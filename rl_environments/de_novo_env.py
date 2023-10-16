@@ -16,13 +16,6 @@ class DeNovoEnv(gym.Env):
         self.vocabulary = vocabulary
         self.scoring_function = scoring_function
 
-        # Scoring example
-        test_smiles = "C"
-        self.scoring_example = scoring_function(test_smiles)
-        self.scoring_example.update(
-            {"molecule": test_smiles, "reaction_scores": 0.0, "repeated": 0.0}
-        )
-
         # Define action and observation space
         self.action_space = gym.spaces.Discrete(len(self.vocabulary))
         self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
@@ -52,21 +45,21 @@ class DeNovoEnv(gym.Env):
             # Set done flag
             done = True
 
-            # Get SMILES
-            smiles = self.vocabulary.remove_start_and_end_tokens(
-                self.current_molecule_str
-            )
-            info["molecule"] = smiles
-
-            # check smiles validity
-            mol = Chem.MolFromSmiles(smiles)
-
-            if mol is not None:
-                # Compute score
-                score = self.scoring_function(smiles)
-
-                # Get reward or score
-                reward = score["reward"]
+            # # Get SMILES
+            # smiles = self.vocabulary.remove_start_and_end_tokens(
+            #     self.current_molecule_str
+            # )
+            # info["molecule"] = smiles
+            #
+            # # check smiles validity
+            # mol = Chem.MolFromSmiles(smiles)
+            #
+            # if mol is not None:
+            #     # Compute score
+            #     # score = self.scoring_function([smiles], flt=True)
+            #
+            #     # Get reward or score
+            #     reward = 0.0
 
         # Define next observation
         next_obs = self.vocabulary.encode_token(action).astype(np.int64)
@@ -81,7 +74,7 @@ class DeNovoEnv(gym.Env):
         self.current_molecule_str = "^"
         self.current_episode_length = 1
         obs = self.vocabulary.encode_token("^").astype(np.int64)
-        info = {k: 0.0 for k, v in self.scoring_example.items()}
+        info = {}
 
         return obs, info
 

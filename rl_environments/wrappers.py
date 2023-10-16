@@ -58,9 +58,9 @@ class Monitor(gym.Wrapper):
             eprew = 0.0 + sum(self.rewards)
             eplen = 1.0 + len(self.rewards)
             epinfo = {
-                "r": round(eprew, 6),
+                "r": eprew,
                 "l": eplen,
-                "t": round(time.time() - self.tstart, 6),
+                "t": time.time() - self.tstart,
             }
             for k in self.info_keywords:
                 epinfo[k] = info[k]

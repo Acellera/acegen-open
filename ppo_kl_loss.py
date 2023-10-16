@@ -8,6 +8,7 @@ import numpy as np
 from copy import deepcopy
 from pathlib import Path
 from omegaconf import OmegaConf
+from molscore.manager import MolScore
 
 from torch.distributions.kl import kl_divergence
 from tensordict import TensorDict
@@ -36,6 +37,7 @@ from utils import (
 )
 from scoring.drd2_qsar import DRD2ReinventWrapper
 from wip.writer import TensorDictMaxValueWriter
+from wip.reward_transform import SMILESReward
 
 # TODO: replay batch masks work?
 # TODO: try split trajectories in main batch?
@@ -63,10 +65,11 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    scoring = DRD2ReinventWrapper()
+    scoring = MolScore(model_name="ppo", task_config="/home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json").score
+    # scoring = DRD2ReinventWrapper().get_final_score
     ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
-    env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
+    env_kwargs = {"scoring_function": scoring, "vocabulary": vocabulary}
     test_env = GymWrapper(DeNovoEnv(**env_kwargs))
     action_spec = test_env.action_spec
 
@@ -101,6 +104,8 @@ def main(cfg: "DictConfig"):
         env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
         # env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
         return env
+
+    rew_transform = SMILESReward(reward_function=scoring, vocabulary=vocabulary)
 
     # Collector
     ####################################################################################################################
@@ -200,6 +205,9 @@ def main(cfg: "DictConfig"):
         total_done += data.get(("next", "terminated")).sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
+
+        # Compute rewards in a batch
+        data = rew_transform(data)
 
         # Register smiles lengths and real rewards
         episode_rewards = data["next", "reward"][data["next", "terminated"]]
