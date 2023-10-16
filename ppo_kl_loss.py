@@ -2,7 +2,6 @@ import os
 import tqdm
 import yaml
 import hydra
-import torch
 import random
 import numpy as np
 from copy import deepcopy
@@ -10,8 +9,13 @@ from pathlib import Path
 from omegaconf import OmegaConf
 from molscore.manager import MolScore
 
+import multiprocessing as mp
+mp.set_start_method("fork")
+
+import torch
 from torch.distributions.kl import kl_divergence
 from tensordict import TensorDict
+
 from torchrl.envs import (
     CatFrames,
     SerialEnv,
@@ -29,7 +33,7 @@ from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import generate_exp_name, get_logger
 
-from rl_environments import DeNovoEnv, Monitor, DeNovoVocabulary
+from rl_environments import DeNovoEnv, DeNovoVocabulary
 from utils import (
     create_ppo_models,
     penalise_repeated_smiles,
@@ -55,11 +59,11 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
+    # # Set seeds
+    # seed = cfg.seed
+    # random.seed(int(seed))
+    # np.random.seed(int(seed))
+    # torch.manual_seed(int(seed))
 
     # Get available device
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
