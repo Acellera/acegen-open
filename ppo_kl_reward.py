@@ -4,9 +4,11 @@ import yaml
 import hydra
 import torch
 import random
+import logging
 import numpy as np
 from pathlib import Path
 from omegaconf import OmegaConf
+from molscore.manager import MolScore
 
 from tensordict import TensorDict
 from torchrl.envs import (
@@ -27,14 +29,17 @@ from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import generate_exp_name, get_logger
 
-from rl_environments import DeNovoEnv, Monitor, DeNovoVocabulary
+from rl_environments import DeNovoEnv, DeNovoVocabulary
 from utils import (
     create_ppo_models,
     penalise_repeated_smiles,
     create_batch_from_replay_smiles,
 )
-from scoring.drd2_qsar import DRD2ReinventWrapper
 from wip.writer import TensorDictMaxValueWriter
+from wip.reward_transform import SMILESReward
+
+
+logging.basicConfig(level=logging.WARNING)
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -56,10 +61,9 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    scoring = DRD2ReinventWrapper()
     ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
-    env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
+    env_kwargs = {"vocabulary": vocabulary}
     test_env = GymWrapper(DeNovoEnv(**env_kwargs))
     action_spec = test_env.action_spec
 
@@ -71,14 +75,13 @@ def main(cfg: "DictConfig"):
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
-    prior = actor_inference.clone()
 
     # Environment
     ####################################################################################################################
 
     def create_base_env():
         """Create a single RL rl_environments."""
-        env = Monitor(DeNovoEnv(**env_kwargs), log_dir=cfg.log_dir)
+        env = DeNovoEnv(**env_kwargs)
         env = GymWrapper(env, categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
@@ -96,6 +99,9 @@ def main(cfg: "DictConfig"):
         env = TransformedEnv(env)
         env.append_transform(KLRewardTransform(actor_inference, coef=cfg.kl_coef, out_keys="reward-kl"))
         return env
+
+    scoring = MolScore(model_name="ppo", task_config=cfg.molscore).score
+    rew_transform = SMILESReward(reward_function=scoring, vocabulary=vocabulary)
 
     # Collector
     ####################################################################################################################
@@ -192,6 +198,9 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
+        # Compute all rewards in a single call
+        rew_transform = rew_transform(data)
+
         # Register smiles lengths and real rewards
         episode_rewards = data["next", "reward"][data["next", "terminated"]]
         episode_length = data["next", "step_count"][data["next", "terminated"]]
@@ -249,7 +258,8 @@ def main(cfg: "DictConfig"):
 
                 # Compute loss for the replay buffer batch
                 replay_data = top_smiles_buffer.sample()
-                cat_replay_data, split_replay_batch = create_batch_from_replay_smiles(replay_data, device, reward_key="penalised_reward")
+                cat_replay_data, split_replay_batch = create_batch_from_replay_smiles(
+                    replay_data, device, reward_key="penalised_reward")
                 replay_batch = cat_replay_data
                 with torch.no_grad():
                     replay_batch = actor_training(replay_batch)
@@ -259,7 +269,9 @@ def main(cfg: "DictConfig"):
                 rb_loss = loss_module(replay_batch)
                 replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
                 replay_losses[j, i] = rb_loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
-                replay_losses[j, i].set("replay_mean_reward", cat_replay_data["next"]["penalised_reward"][cat_replay_data["next"]["done"]].mean().item())
+                replay_losses[j, i].set(
+                    "replay_mean_reward", cat_replay_data["next"][
+                        "penalised_reward"][cat_replay_data["next"]["done"]].mean().item())
 
                 # Weighted sum of the losses
                 num_batch = batch.numel()

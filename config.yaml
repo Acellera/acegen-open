@@ -7,6 +7,7 @@ seed: 101
 
 # Environment configuration
 num_env_workers: 32
+molscore: "/home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json"
 
 # Collector configuration
 total_frames: 10_000_000

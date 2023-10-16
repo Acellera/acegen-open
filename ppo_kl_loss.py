@@ -3,6 +3,7 @@ import tqdm
 import yaml
 import hydra
 import random
+import logging
 import numpy as np
 from copy import deepcopy
 from pathlib import Path
@@ -42,8 +43,9 @@ from wip.reward_transform import SMILESReward
 # TODO: replay batch masks work?
 # TODO: try split trajectories in main batch?
 # TODO: is ratio of replay batch to main batch correct?
-# TODO: log replay mean rewards
 # TODO: make config file better
+
+logging.basicConfig(level=logging.WARNING)
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -103,7 +105,7 @@ def main(cfg: "DictConfig"):
         env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
         return env
 
-    scoring = MolScore(model_name="ppo", task_config="/home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json").score
+    scoring = MolScore(model_name="ppo", task_config=cfg.molscore).score
     rew_transform = SMILESReward(reward_function=scoring, vocabulary=vocabulary)
 
     # Collector
@@ -205,7 +207,7 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Compute rewards in a batch
+        # Compute all rewards in a single call
         data = rew_transform(data)
 
         # Register smiles lengths and real rewards
