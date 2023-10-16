@@ -9,7 +9,7 @@ seed: 101
 num_env_workers: 32
 
 # Collector configuration
-total_frames: 2_000_000
+total_frames: 10_000_000
 frames_per_batch: 3840
 
 # PPO configuration

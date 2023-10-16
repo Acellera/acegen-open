@@ -59,11 +59,11 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    # # Set seeds
-    # seed = cfg.seed
-    # random.seed(int(seed))
-    # np.random.seed(int(seed))
-    # torch.manual_seed(int(seed))
+    # Set seeds
+    seed = cfg.seed
+    random.seed(int(seed))
+    np.random.seed(int(seed))
+    torch.manual_seed(int(seed))
 
     # Get available device
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
@@ -90,7 +90,6 @@ def main(cfg: "DictConfig"):
 
     def create_base_env():
         """Create a single RL rl_environments."""
-        # env = Monitor(DeNovoEnv(**env_kwargs), log_dir=cfg.log_dir)
         env = DeNovoEnv(**env_kwargs)
         env = GymWrapper(env, categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
@@ -104,8 +103,8 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn(num_workers=cfg.num_env_workers):
         """Create a vector of parallel environments."""
-        env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
-        # env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
+        # env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
+        env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
         return env
 
     scoring = MolScore(model_name="ppo", task_config="/home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json").score
