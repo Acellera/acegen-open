@@ -31,7 +31,8 @@ class Embed(torch.nn.Module):
         out = self._embedding(inputs)
         if len(batch) > 1:
             out = out.unflatten(0, batch)
-        out = out.squeeze()  # This is an ugly hack, should not be necessary
+        out = out.squeeze(-1)  # If time dimension is 1, remove it. Ugly hack, should not be necessary
+        out = out.squeeze(-2)  # If time dimension is 1, remove it. Ugly hack, should not be necessary
         return out
 
 
@@ -203,5 +204,5 @@ def create_batch_from_replay_smiles(replay_data, device):
     cat_data = torch.cat(td_list, dim=-1)
     split_data = split_trajectories(cat_data)
 
-    return split_data
+    return cat_data, split_data
 

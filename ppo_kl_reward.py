@@ -249,7 +249,8 @@ def main(cfg: "DictConfig"):
 
                 # Compute loss for the replay buffer batch
                 replay_data = top_smiles_buffer.sample()
-                replay_batch = create_batch_from_replay_smiles(replay_data, device)
+                cat_replay_data, split_replay_batch = create_batch_from_replay_smiles(replay_data, device)
+                replay_batch = cat_replay_data
                 with torch.no_grad():
                     replay_batch = actor_training(replay_batch)
                     replay_batch.pop(("next", "recurrent_state_c"))
@@ -258,6 +259,7 @@ def main(cfg: "DictConfig"):
                 rb_loss = loss_module(replay_batch)
                 replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
                 replay_losses[j, i] = rb_loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+                replay_losses[j, i].set("replay_mean_reward", cat_replay_data["next"]["penalised_reward"][cat_replay_data["next"]["done"]].mean().item())
 
                 # Weighted sum of the losses
                 num_batch_smiles = batch.get("next").get("terminated").sum()
