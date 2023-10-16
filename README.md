@@ -14,9 +14,11 @@ The configuration file is `config.yml`. It contains the parameters for the train
 
 ## Running the training script
 
+To run the training script with kl divergence as a loss term, run
+
     python ppo_kl_loss.py
 
-or 
+To run the training script with kl divergence as a reward term, run
 
     python ppo_kl_reward.py
 

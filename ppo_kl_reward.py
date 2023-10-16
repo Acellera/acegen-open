@@ -20,12 +20,12 @@ from torchrl.envs import (
     UnsqueezeTransform,
 )
 from torchrl.envs.libs.gym import GymWrapper
-from torchrl.record.loggers import get_logger
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives.value.advantages import GAE
 from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from torchrl.record.loggers import generate_exp_name, get_logger
 
 from rl_environments import DeNovoEnv, Monitor, DeNovoVocabulary
 from utils import (
@@ -171,7 +171,7 @@ def main(cfg: "DictConfig"):
     logger = None
     if cfg.logger_backend:
         logger = get_logger(
-            cfg.logger_backend, logger_name="ppo", experiment_name=cfg.experiment_name
+            cfg.logger_backend, logger_name="ppo", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
         )
 
     # Training loop
@@ -251,7 +251,9 @@ def main(cfg: "DictConfig"):
                 replay_data = top_smiles_buffer.sample()
                 replay_batch = create_batch_from_replay_smiles(replay_data, device)
                 with torch.no_grad():
-                    replay_batch = actor_inference(replay_batch)
+                    replay_batch = actor_training(replay_batch)
+                    replay_batch.pop(("next", "recurrent_state_c"))
+                    replay_batch.pop(("next", "recurrent_state_h"))
                     replay_batch = adv_module(replay_batch)
                 rb_loss = loss_module(replay_batch)
                 replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
