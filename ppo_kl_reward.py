@@ -148,7 +148,7 @@ def main(cfg: "DictConfig"):
         sampler=SamplerWithoutReplacement(),
         prefetch=2,
         batch_size=10,
-        writer=TensorDictMaxValueWriter(rank_key="reward"),
+        writer=TensorDictMaxValueWriter(rank_key="penalised_reward"),
     )
 
     diversity_buffer = TensorDictReplayBuffer(
@@ -229,7 +229,7 @@ def main(cfg: "DictConfig"):
         next_data = data.get("next")
         terminated = next_data.get("terminated").squeeze(-1)
         terminated_smiles = next_data.get_sub_tensordict(idx=terminated).select(
-            "SMILES", "SMILES2", "reward", "penalised_reward", "step_count")
+            "SMILES", "SMILES2", "penalised_reward", "step_count")
         top_smiles_buffer.extend(terminated_smiles)
 
         for j in range(cfg.ppo_epochs):
@@ -249,7 +249,7 @@ def main(cfg: "DictConfig"):
 
                 # Compute loss for the replay buffer batch
                 replay_data = top_smiles_buffer.sample()
-                cat_replay_data, split_replay_batch = create_batch_from_replay_smiles(replay_data, device)
+                cat_replay_data, split_replay_batch = create_batch_from_replay_smiles(replay_data, device, reward_key="penalised_reward")
                 replay_batch = cat_replay_data
                 with torch.no_grad():
                     replay_batch = actor_training(replay_batch)
@@ -262,12 +262,11 @@ def main(cfg: "DictConfig"):
                 replay_losses[j, i].set("replay_mean_reward", cat_replay_data["next"]["penalised_reward"][cat_replay_data["next"]["done"]].mean().item())
 
                 # Weighted sum of the losses
-                num_batch_smiles = batch.get("next").get("terminated").sum()
-                num_replay_smiles = replay_batch.get("next").get("terminated").sum()
-                total_smiles = num_batch_smiles + num_replay_smiles
+                num_batch = batch.numel()
+                num_replay = replay_batch.numel()
+                total_smiles = num_batch + num_replay
                 augmented_loss_sum = loss_sum * (
-                    num_batch_smiles / total_smiles
-                ) + replay_loss_sum * (num_replay_smiles / total_smiles)
+                        num_batch / total_smiles) + replay_loss_sum * (num_replay / total_smiles)
 
                 # Backward pass
                 augmented_loss_sum.backward()

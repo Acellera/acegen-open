@@ -151,7 +151,7 @@ def penalise_repeated_smiles(
     return repeated_smiles
 
 
-def create_batch_from_replay_smiles(replay_data, device):
+def create_batch_from_replay_smiles(replay_data, device, reward_key="reward"):
     """Create a TensorDict data batch from replay data."""
 
     td_list = []
@@ -160,7 +160,7 @@ def create_batch_from_replay_smiles(replay_data, device):
         observation = smiles["SMILES2"][smiles["SMILES2"] != 0].reshape(1, -1)
         tensor_shape = (1, observation.shape[-1], 1)
         reward = torch.zeros(tensor_shape, device=device)
-        reward[0, -1] = smiles["reward"]
+        reward[0, -1] = smiles[reward_key]
         done = torch.zeros(tensor_shape, device=device, dtype=torch.bool)
         terminated = done.clone()
         sample_log_prob = reward.clone().reshape(1, -1)
@@ -188,7 +188,7 @@ def create_batch_from_replay_smiles(replay_data, device):
                         {
                             "observation": next_observation,
                             "terminated": next_terminated,
-                            "penalised_reward": reward,
+                            reward_key: reward,
                             "is_init": next_is_init,
                             "done": next_done,
                         },
