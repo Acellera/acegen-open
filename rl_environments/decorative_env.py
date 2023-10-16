@@ -9,7 +9,6 @@ class DecorativeEnv(gym.Env):
 
     def __init__(
         self,
-        scoring_function,
         vocabulary,
         scaffold,
         max_length=100,
@@ -18,22 +17,18 @@ class DecorativeEnv(gym.Env):
         self.encoded_scaffold = vocabulary.encode_scaffold(scaffold)
         self.max_length = max_length
         self.vocabulary = vocabulary
-        self.scoring_function = scoring_function
 
         self._bond_maker = BondMaker()
         self._conversion = Conversions()
         self._attachment_points = AttachmentPoints()
 
-        # Scoring example
-        test_smiles = "C"
-        self.scoring_example = scoring_function(test_smiles)
-        self.scoring_example.update(
-            {"molecule": test_smiles, "reaction_scores": 0.0, "repeated": 0.0}
-        )
-
         # Define action and observation space
         self.action_space = gym.spaces.Discrete(len(self.vocabulary.decoration_vocabulary))
         self.observation_space = gym.spaces.Discrete(len(self.vocabulary.decoration_vocabulary))
+
+        # Start and end tokens
+        self.start_token = self.vocabulary.encode_token("^").astype(np.int64)
+        self.end_token = self.vocabulary.encode_token("$").astype(np.int64)
 
     def step(self, action):
         """Execute one time step within the rl_environments"""
@@ -42,21 +37,18 @@ class DecorativeEnv(gym.Env):
         self.current_episode_length += 1
 
         action = (
-            "$"
+            self.end_token
             if self.current_episode_length
-            == self.max_length - 2  # account for start and end tokens
-            else self.vocabulary.decode_token(action)
+               == self.max_length - 2  # account for start and end tokens
+            else action
         )
-
-        # Update current SMILES
-        self.current_molecule_str += action
 
         reward = 0.0
         done = False
         info = {"scaffold": self.scaffold}
 
         # Handle end of molecule/episode if action is $
-        if action == "$":
+        if action == self.end_token:
             # Set done flag
             done = True
 
@@ -67,15 +59,8 @@ class DecorativeEnv(gym.Env):
             )
             info["molecule"] = smiles
 
-            if mol is not None:
-                # Compute score
-                score = self.scoring_function(smiles)
-
-                # Get reward or score
-                reward = score["reward"]
-
         # Define next observation
-        next_obs = self.vocabulary.encode_token(action).astype(np.int64)
+        next_obs = self.action_space
         truncated = False
         return next_obs, reward, done, truncated, info
 
@@ -84,11 +69,9 @@ class DecorativeEnv(gym.Env):
         Reset the state of the rl_environments to an initial state.
         Return padded base molecule to match length `obs_length`.
         """
-        self.current_molecule_str = "^"
         self.current_episode_length = 1
-        obs = self.vocabulary.encode_token("^").astype(np.int64)
-        info = {k: 0.0 for k, v in self.scoring_example.items()}
-        info["scaffold"] = self.scaffold
+        obs = self.start_token
+        info = {"scaffold": self.scaffold}
 
         return obs, info
 

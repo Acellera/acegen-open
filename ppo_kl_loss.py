@@ -65,11 +65,9 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    scoring = MolScore(model_name="ppo", task_config="/home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json").score
-    # scoring = DRD2ReinventWrapper().get_final_score
     ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
-    env_kwargs = {"scoring_function": scoring, "vocabulary": vocabulary}
+    env_kwargs = {"vocabulary": vocabulary}
     test_env = GymWrapper(DeNovoEnv(**env_kwargs))
     action_spec = test_env.action_spec
 
@@ -88,7 +86,8 @@ def main(cfg: "DictConfig"):
 
     def create_base_env():
         """Create a single RL rl_environments."""
-        env = Monitor(DeNovoEnv(**env_kwargs), log_dir=cfg.log_dir)
+        # env = Monitor(DeNovoEnv(**env_kwargs), log_dir=cfg.log_dir)
+        env = DeNovoEnv(**env_kwargs)
         env = GymWrapper(env, categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
@@ -105,6 +104,7 @@ def main(cfg: "DictConfig"):
         # env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
         return env
 
+    scoring = MolScore(model_name="ppo", task_config="/home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json").score
     rew_transform = SMILESReward(reward_function=scoring, vocabulary=vocabulary)
 
     # Collector
