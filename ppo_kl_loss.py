@@ -39,7 +39,6 @@ from utils import (
     penalise_repeated_smiles,
     create_batch_from_replay_smiles,
 )
-from scoring.drd2_qsar import DRD2ReinventWrapper
 from wip.writer import TensorDictMaxValueWriter
 from wip.reward_transform import SMILESReward
 
@@ -103,8 +102,8 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn(num_workers=cfg.num_env_workers):
         """Create a vector of parallel environments."""
-        # env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
-        env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
+        env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
+        # env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
         return env
 
     scoring = MolScore(model_name="ppo", task_config="/home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json").score
