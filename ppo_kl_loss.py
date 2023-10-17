@@ -49,8 +49,12 @@ logging.basicConfig(level=logging.WARNING)
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
+    try:
+        os.makedirs(cfg.log_dir)
+    except FileExistsError:
+        raise Exception(f"Log directory {cfg.log_dir} already exists")
+
     # Save config
-    os.makedirs(cfg.log_dir)
     with open(Path(cfg.log_dir) / "config.yaml", 'w') as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
@@ -65,7 +69,7 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
+    ckpt = torch.load(Path(__file__).resolve().parent / "vocabulary" / "priors" / "vocabulary.prior")
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
     env_kwargs = {
         "start_token": vocabulary.encode_token("^"),
@@ -79,7 +83,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = get_model_factory[cfg.model](vocabulary_size=action_spec.shape[-1])
+     ) = get_model_factory(cfg.model)(vocabulary_size=action_spec.shape[-1])
 
     # TODO: check inputs and outputs of models are correct
 
