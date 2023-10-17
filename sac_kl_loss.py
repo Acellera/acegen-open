@@ -195,6 +195,18 @@ def main(cfg: "DictConfig"):
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
 
+    # TODO: need to pop out current hidden states from batch
+    exclude_keys = [
+        ("recurrent_state_c_actor"),
+        ("recurrent_state_h_actor"),
+        ("recurrent_state_c_critic"),
+        ("recurrent_state_h_critic"),
+        ("next", "recurrent_state_c_actor"),
+        ("next", "recurrent_state_h_actor"),
+        ("next", "recurrent_state_c_critic"),
+        ("next", "recurrent_state_h_critic"),
+    ]
+
     for data in collector:
         log_info = {}
         frames_in_batch = data.numel()
@@ -221,9 +233,14 @@ def main(cfg: "DictConfig"):
                 }
             )
 
-        buffer.extend(data.reshape(-1))
+        data = data.exclude(*exclude_keys).reshape(-1)
+        buffer.extend(data)
 
-        import ipdb; ipdb.set_trace()
+        batch = buffer.sample()
+        with torch.no_grad():
+            # Burn in
+            import ipdb; ipdb.set_trace()
+            batch = actor_training(batch)
 
 
 if __name__ == "__main__":
