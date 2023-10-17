@@ -16,7 +16,6 @@ from tensordict import TensorDict
 
 from torchrl.envs import (
     CatFrames,
-    SerialEnv,
     ParallelEnv,
     InitTracker,
     StepCounter,
@@ -29,21 +28,20 @@ from torchrl.objectives.value.advantages import GAE
 from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
-from torchrl.record.loggers import generate_exp_name, get_logger
+from torchrl.record.loggers import get_logger
 
-from rl_environments import DeNovoEnv, DeNovoVocabulary
-from utils import (
-    create_ppo_models,
-    penalise_repeated_smiles,
-    create_batch_from_replay_smiles,
-)
+from models import get_model_factory
+from rl_environments import DeNovoEnv
+from vocabulary import DeNovoVocabulary
+from utils import penalise_repeated_smiles, create_batch_from_replay_smiles
 from wip.writer import TensorDictMaxValueWriter
-from wip.reward_transform import SMILESReward
+from transforms.reward_transform import SMILESReward
 
 # TODO: replay batch masks work?
 # TODO: try split trajectories in main batch?
 # TODO: is ratio of replay batch to main batch correct?
 # TODO: make config file better
+# TODO: model returns also vocabulary
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -69,15 +67,22 @@ def main(cfg: "DictConfig"):
     # Create test rl_environments to get action specs
     ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "vocabulary.prior")
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
-    env_kwargs = {"vocabulary": vocabulary}
+    env_kwargs = {
+        "start_token": vocabulary.encode_token("^"),
+        "end_token": vocabulary.encode_token("$"),
+        "length_vocabulary": len(vocabulary),
+    }
     test_env = GymWrapper(DeNovoEnv(**env_kwargs))
     action_spec = test_env.action_spec
 
     # Models
     ####################################################################################################################
 
-    (actor_inference, actor_training, critic_inference, critic_training, rhs_transform
-     ) = create_ppo_models(vocabulary=vocabulary, output_size=action_spec.shape[-1])
+    (actor_inference, actor_training, critic_inference, critic_training, *transforms
+     ) = get_model_factory[cfg.model](vocabulary_size=action_spec.shape[-1])
+
+    # TODO: check inputs and outputs of models are correct
+
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
@@ -94,9 +99,10 @@ def main(cfg: "DictConfig"):
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
         env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
-        env.append_transform(rhs_transform.clone())
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
+        for transform in transforms:
+            env.append_transform(transform.clone())
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):

@@ -1,4 +1,3 @@
-import numpy as np
 import gymnasium as gym
 
 
@@ -7,19 +6,18 @@ class DeNovoEnv(gym.Env):
 
     def __init__(
         self,
-        vocabulary,
+        start_token,
+        end_token,
+        length_vocabulary,
         max_length=100,
     ):
+        self.start_token = start_token
+        self.end_token = end_token
         self.max_length = max_length
-        self.vocabulary = vocabulary
 
         # Define action and observation space
-        self.action_space = gym.spaces.Discrete(len(self.vocabulary))
-        self.observation_space = gym.spaces.Discrete(len(self.vocabulary))
-
-        # Start and end tokens
-        self.start_token = self.vocabulary.encode_token("^").astype(np.int64)
-        self.end_token = self.vocabulary.encode_token("$").astype(np.int64)
+        self.action_space = gym.spaces.Discrete(length_vocabulary)
+        self.observation_space = gym.spaces.Discrete(length_vocabulary)
 
     def step(self, action):
         """Execute one time step within the rl_environments"""

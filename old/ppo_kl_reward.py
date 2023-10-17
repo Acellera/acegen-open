@@ -14,7 +14,6 @@ from tensordict import TensorDict
 from torchrl.envs import (
     CatFrames,
     SerialEnv,
-    ParallelEnv,
     InitTracker,
     StepCounter,
     TransformedEnv,
@@ -27,7 +26,7 @@ from torchrl.objectives.value.advantages import GAE
 from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
-from torchrl.record.loggers import generate_exp_name, get_logger
+from torchrl.record.loggers import get_logger
 
 from rl_environments import DeNovoEnv, DeNovoVocabulary
 from utils import (
@@ -36,13 +35,13 @@ from utils import (
     create_batch_from_replay_smiles,
 )
 from wip.writer import TensorDictMaxValueWriter
-from wip.reward_transform import SMILESReward
+from transforms.reward_transform import SMILESReward
 
 
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path="..", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
