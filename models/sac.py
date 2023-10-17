@@ -74,7 +74,7 @@ def create_net(vocabulary_size, net_name="actor"):
             default_interaction_type=ExplorationType.RANDOM,
         )
     else:
-        mlp = ValueOperator(
+        mlp = ValueOperator(  # TODO: I think will be deprecated
             module=mlp,
             in_keys=["logits"],
             out_keys=["action_value"],

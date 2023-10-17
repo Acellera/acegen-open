@@ -11,8 +11,8 @@ class DeNovoEnv(gym.Env):
         length_vocabulary,
         max_length=100,
     ):
-        self.start_token = start_token
-        self.end_token = end_token
+        self.start_token = int(start_token)
+        self.end_token = int(end_token)
         self.max_length = max_length
 
         # Define action and observation space
@@ -25,7 +25,7 @@ class DeNovoEnv(gym.Env):
         # Get next action
         self.current_episode_length += 1
 
-        action = (
+        action = int(
             self.end_token
             if self.current_episode_length
             == self.max_length - 2  # account for start and end tokens

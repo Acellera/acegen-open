@@ -26,7 +26,7 @@ from torchrl.envs import (
 from torchrl.envs.libs.gym import GymWrapper
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
-from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
+from torchrl.data import LazyMemmapStorage, LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
 
@@ -98,6 +98,7 @@ def main(cfg: "DictConfig"):
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
         env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
+        env.append_transform(CatFrames(N=10, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["burn_in"]))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
@@ -128,15 +129,6 @@ def main(cfg: "DictConfig"):
     # Loss modules
     ####################################################################################################################
 
-    adv_module = GAE(
-        gamma=cfg.gamma,
-        lmbda=cfg.lmbda,
-        value_network=critic_training,
-        average_gae=False,
-        shifted=True,
-    )
-    adv_module.set_keys(reward="penalised_reward")
-    adv_module = adv_module.to(device)
     loss_module = DiscreteSACLoss(
         actor_network=actor_training,
         action_space=test_env.action_spec,
@@ -146,17 +138,18 @@ def main(cfg: "DictConfig"):
         target_entropy_weight=cfg.target_entropy_weight,
         loss_function="smooth_l1",
     )
+    loss_module.make_value_estimator(gamma=cfg.gamma)
     loss_module = loss_module.to(device)
     loss_module.set_keys(reward="penalised_reward")
+    target_net_updater = SoftUpdate(loss_module, eps=cfg.target_update_polyak)
 
     # Buffers
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_env_workers, device=device),
-        sampler=SamplerWithoutReplacement(),
+        storage=LazyMemmapStorage(cfg.replay_buffer_size, device=device),
         batch_size=cfg.mini_batch_size,
-        prefetch=2,
+        prefetch=3,
     )
 
     top_smiles_buffer = TensorDictReplayBuffer(
@@ -189,6 +182,48 @@ def main(cfg: "DictConfig"):
         logger = get_logger(
             cfg.logger_backend, logger_name="ppo", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
         )
+
+    # Training loop
+    ####################################################################################################################
+
+    total_done = 0
+    collected_frames = 0
+    repeated_smiles = 0
+    pbar = tqdm.tqdm(total=cfg.total_frames)
+    losses = TensorDict({}, batch_size=[cfg.num_loss_updates])
+
+    kl_coef = cfg.kl_coef
+    max_grad_norm = cfg.max_grad_norm
+
+    for data in collector:
+        log_info = {}
+        frames_in_batch = data.numel()
+        total_done += data.get(("next", "terminated")).sum()
+        collected_frames += frames_in_batch
+        pbar.update(data.numel())
+
+        # Compute all rewards in a single call
+        data = rew_transform(data)
+
+        # Register smiles lengths and real rewards
+        episode_rewards = data["next", "reward"][data["next", "terminated"]]
+        episode_length = data["next", "step_count"][data["next", "terminated"]]
+        if len(episode_rewards) > 0:
+            log_info.update(
+                {
+                    "train/total_smiles": total_done,
+                    "train/repeated_smiles": repeated_smiles,
+                    "train/reward": episode_rewards.mean().item(),
+                    "train/min_reward": episode_rewards.min().item(),
+                    "train/max_reward": episode_rewards.max().item(),
+                    "train/episode_length": episode_length.sum().item()
+                    / len(episode_length),
+                }
+            )
+
+        buffer.extend(data.reshape(-1))
+
+        import ipdb; ipdb.set_trace()
 
 
 if __name__ == "__main__":
