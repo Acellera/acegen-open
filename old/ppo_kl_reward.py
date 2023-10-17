@@ -46,7 +46,7 @@ def main(cfg: "DictConfig"):
 
     # Save config
     os.makedirs(cfg.log_dir)
-    with open(Path(cfg.log_dir) / "config.yaml", 'w') as yaml_file:
+    with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 

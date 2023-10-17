@@ -46,7 +46,7 @@ from transforms.reward_transform import SMILESReward
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path=".", config_name="ppo_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     try:
@@ -55,7 +55,7 @@ def main(cfg: "DictConfig"):
         raise Exception(f"Log directory {cfg.log_dir} already exists")
 
     # Save config
-    with open(Path(cfg.log_dir) / "config.yaml", 'w') as yaml_file:
+    with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
@@ -280,36 +280,36 @@ def main(cfg: "DictConfig"):
                 loss_sum += kl_div * kl_coef
                 losses[j, i] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
 
-                # Compute loss for the replay buffer batch
-                replay_data = top_smiles_buffer.sample()
-                cat_replay_data, split_replay_batch = create_batch_from_replay_smiles(replay_data, device, reward_key="penalised_reward")
-                replay_batch = cat_replay_data
-                with torch.no_grad():
-                    replay_batch = actor_training(replay_batch)
-                    replay_batch.pop(("next", "recurrent_state_c"))
-                    replay_batch.pop(("next", "recurrent_state_h"))
-                    replay_batch = adv_module(replay_batch)
-                rb_loss = loss_module(replay_batch)
-                replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
-                kl_div = kl_divergence(actor_training.get_dist(replay_batch), prior.get_dist(replay_batch))
-                mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-                kl_div = kl_div[~mask].mean()
-                replay_loss_sum += kl_div * kl_coef
-                replay_losses[j, i] = rb_loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
-                replay_losses[j, i] = TensorDict({
-                    "kl_div": kl_div.detach().item(),
-                    "replay_reward": cat_replay_data["next"]["penalised_reward"][cat_replay_data["next"]["done"]].mean().item(),
-                }, batch_size=[])
-
-                # Weighted sum of the losses
-                num_batch = batch.numel()
-                num_replay = replay_batch.numel()
-                total_smiles = num_batch + num_replay
-                augmented_loss_sum = loss_sum * (
-                        num_batch / total_smiles) + replay_loss_sum * (num_replay / total_smiles)
+                # # Compute loss for the replay buffer batch
+                # replay_data = top_smiles_buffer.sample()
+                # cat_replay_data, split_replay_batch = create_batch_from_replay_smiles(replay_data, device, reward_key="penalised_reward")
+                # replay_batch = cat_replay_data
+                # with torch.no_grad():
+                #     replay_batch = actor_training(replay_batch)
+                #     replay_batch.pop(("next", "recurrent_state_c"))
+                #     replay_batch.pop(("next", "recurrent_state_h"))
+                #     replay_batch = adv_module(replay_batch)
+                # rb_loss = loss_module(replay_batch)
+                # replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
+                # kl_div = kl_divergence(actor_training.get_dist(replay_batch), prior.get_dist(replay_batch))
+                # mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+                # kl_div = kl_div[~mask].mean()
+                # replay_loss_sum += kl_div * kl_coef
+                # replay_losses[j, i] = rb_loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+                # replay_losses[j, i] = TensorDict({
+                #     "kl_div": kl_div.detach().item(),
+                #     "replay_reward": cat_replay_data["next"]["penalised_reward"][cat_replay_data["next"]["done"]].mean().item(),
+                # }, batch_size=[])
+                #
+                # # Weighted sum of the losses
+                # num_batch = batch.numel()
+                # num_replay = replay_batch.numel()
+                # total_smiles = num_batch + num_replay
+                # augmented_loss_sum = loss_sum * (
+                #         num_batch / total_smiles) + replay_loss_sum * (num_replay / total_smiles)
 
                 # Backward pass
-                augmented_loss_sum.backward()
+                loss_sum.backward()
                 torch.nn.utils.clip_grad_norm_(
                     loss_module.parameters(), max_norm=max_grad_norm
                 )
