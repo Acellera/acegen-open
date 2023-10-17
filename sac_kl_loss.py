@@ -148,7 +148,7 @@ def main(cfg: "DictConfig"):
 
     buffer = TensorDictReplayBuffer(
         storage=LazyMemmapStorage(cfg.replay_buffer_size, device=device),
-        batch_size=cfg.mini_batch_size,
+        batch_size=cfg.batch_size,
         prefetch=3,
     )
 
