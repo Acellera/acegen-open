@@ -76,8 +76,6 @@ def main(cfg: "DictConfig"):
         "end_token": vocabulary.encode_token("$"),
         "length_vocabulary": len(vocabulary),
     }
-    test_env = GymWrapper(DeNovoEnv(**env_kwargs))
-    action_spec = test_env.action_spec
 
     # Models
     ####################################################################################################################
@@ -85,9 +83,7 @@ def main(cfg: "DictConfig"):
     create_model = get_model_factory(cfg.model)
     ckpt = torch.load(Path(__file__).resolve().parent / "models" / "priors" / "zinc_actor_critic.prior")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_model(vocabulary_size=action_spec.shape[-1], ckpt_path=ckpt)
-
-    # TODO: check inputs and outputs of models are correct
+     ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt)
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -119,6 +115,8 @@ def main(cfg: "DictConfig"):
 
     scoring = MolScore(model_name="ppo", task_config=cfg.molscore).score
     rew_transform = SMILESReward(reward_function=scoring, vocabulary=vocabulary)
+
+    # TODO: check model-environment compatibility
 
     # Collector
     ####################################################################################################################

@@ -36,7 +36,7 @@ class Embed(torch.nn.Module):
         return out
 
 
-def create_shared_ppo_models(vocabulary_size, ckpt_path=None):
+def create_shared_ppo_models(vocabulary_size, ckpt=None):
     """Create a shared PPO model using architecture and weights from the
     "REINVENT 2.0 – an AI tool for de novo drug design" paper.
 
@@ -53,9 +53,7 @@ def create_shared_ppo_models(vocabulary_size, ckpt_path=None):
     ```
     """
 
-    if ckpt_path is not None:
-        ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))
-    else:
+    if ckpt is None:
         ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor_critic.prior")
 
     embedding_module = TensorDictModule(
