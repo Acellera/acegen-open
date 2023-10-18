@@ -9,7 +9,6 @@ from torchrl.modules import (
     MLP,
     ActorValueOperator,
     ProbabilisticActor,
-    TensorDictModule,
 )
 
 
