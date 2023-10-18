@@ -33,7 +33,7 @@ from torchrl.record.loggers import get_logger
 from models import get_model_factory
 from rl_environments import DeNovoEnv
 from vocabulary import DeNovoVocabulary
-from utils import create_batch_from_replay_smiles
+from utils import penalise_repeated_smiles, create_batch_from_replay_smiles
 from wip.writer import TensorDictMaxValueWriter
 from transforms import SMILESReward, PenaliseRepeatedSMILES
 
@@ -245,7 +245,14 @@ def main(cfg: "DictConfig"):
             )
 
         # Penalise repeated smiles and register penalised rewards
-        data = penalty_transform(data)
+        # data = penalty_transform(data)
+        repeated_smiles = penalise_repeated_smiles(
+            data,
+            diversity_buffer,
+            repeated_smiles,
+            in_keys="reward",
+            out_keys="penalised_reward",
+        )
         episode_rewards = data["next", "penalised_reward"][data["next", "terminated"]]
         log_info.update(
             {
