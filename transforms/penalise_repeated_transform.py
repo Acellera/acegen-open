@@ -1,6 +1,6 @@
 from tensordict import TensorDictBase
-from torchrl.envs.transforms.transforms import Transform
 from torchrl.data import TensorDictReplayBuffer
+from torchrl.envs.transforms.transforms import Transform
 
 
 class PenaliseRepeatedSMILES(Transform):
@@ -50,7 +50,7 @@ class PenaliseRepeatedSMILES(Transform):
         terminated = td_next.get("terminated").squeeze(-1)
         sub_td = td_next.get_sub_tensordict(idx=terminated)
 
-        reward = sub_td.get(self.in_keys)
+        reward = sub_td.get(*self.in_keys)
         num_unique_smiles = len(self.diversity_buffer)
         finished_smiles = sub_td.get(self.duplicate_key)
         finished_smiles_td = sub_td.select(self.duplicate_key)
@@ -62,7 +62,7 @@ class PenaliseRepeatedSMILES(Transform):
         elif num_finished_smiles > 0:
             for i, smi in enumerate(finished_smiles):
                 td_smiles = self.diversity_buffer._storage._storage
-                unique_smiles = td_smiles.get("_data").get(self.duplicate_key)[0:num_unique_smiles]
+                unique_smiles = td_smiles.get("_data", self.duplicate_key)[:num_unique_smiles]
                 repeated = (smi == unique_smiles).all(dim=-1).any()
                 if repeated:
                     reward[i] = reward[i] * self.penalty
@@ -71,5 +71,5 @@ class PenaliseRepeatedSMILES(Transform):
                     self.diversity_buffer.extend(finished_smiles_td[i: i + 1])
                     num_unique_smiles += 1
 
-        sub_td.set(self.out_keys, reward, inplace=True)
+        sub_td.set(*self.out_keys, reward, inplace=True)
         return tensordict
