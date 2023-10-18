@@ -36,7 +36,7 @@ class Embed(torch.nn.Module):
         return out
 
 
-def create_shared_ppo_models(vocabulary_size):
+def create_shared_ppo_models(vocabulary_size, ckpt_path=None):
     """Create a shared PPO model using architecture and weights from the
     "REINVENT 2.0 – an AI tool for de novo drug design" paper.
 
@@ -52,6 +52,11 @@ def create_shared_ppo_models(vocabulary_size):
     shared_model = create_shared_ppo_model(10)
     ```
     """
+
+    if ckpt_path is not None:
+        ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))
+    else:
+        ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor_critic.prior")
 
     embedding_module = TensorDictModule(
         Embed(vocabulary_size, 256),
@@ -117,8 +122,40 @@ def create_shared_ppo_models(vocabulary_size):
     critic_training = actor_critic_training.get_value_operator()
     transform = lstm_module.make_tensordict_primer()
 
-    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "actor_critic.prior")
     actor_inference.load_state_dict(ckpt)
     actor_training.load_state_dict(ckpt)
 
     return actor_inference, actor_training, critic_inference, critic_training, transform
+
+
+def adapt_ppo_ckpt(ckpt_path):
+    """Adapt the PPO ckpt from the AceGen ckpt format."""
+
+    keys_mapping = {
+        'policy_net.memory_net._embedding.weight': "module.0.module.0.module._embedding.weight",
+        'policy_net.memory_net._rnn.weight_ih_l0': "module.0.module.1.lstm.weight_ih_l0",
+        'policy_net.memory_net._rnn.weight_hh_l0': "module.0.module.1.lstm.weight_hh_l0",
+        'policy_net.memory_net._rnn.bias_ih_l0': "module.0.module.1.lstm.bias_ih_l0",
+        'policy_net.memory_net._rnn.bias_hh_l0': "module.0.module.1.lstm.bias_hh_l0",
+        'policy_net.memory_net._rnn.weight_ih_l1': "module.0.module.1.lstm.weight_ih_l1",
+        'policy_net.memory_net._rnn.weight_hh_l1': "module.0.module.1.lstm.weight_hh_l1",
+        'policy_net.memory_net._rnn.bias_ih_l1': "module.0.module.1.lstm.bias_ih_l1",
+        'policy_net.memory_net._rnn.bias_hh_l1': "module.0.module.1.lstm.bias_hh_l1",
+        'policy_net.memory_net._rnn.weight_ih_l2': "module.0.module.1.lstm.weight_ih_l2",
+        'policy_net.memory_net._rnn.weight_hh_l2': "module.0.module.1.lstm.weight_hh_l2",
+        'policy_net.memory_net._rnn.bias_ih_l2': "module.0.module.1.lstm.bias_ih_l2",
+        'policy_net.memory_net._rnn.bias_hh_l2': "module.0.module.1.lstm.bias_hh_l2",
+        'policy_net.dist.linear.weight': "module.1.module.0.weight",
+        'policy_net.dist.linear.bias': "module.1.module.0.bias",
+    }
+
+    ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))
+    weights = ckpt["network_weights"]
+    vocabulary = ckpt["vocabulary"]
+    weights.pop("value_net1.predictor.weight")
+    weights.pop("value_net1.predictor.bias")
+    new_ckpt = {}
+    for k, v in weights.items():
+        new_ckpt[keys_mapping[k]] = v
+
+    return new_ckpt, vocabulary

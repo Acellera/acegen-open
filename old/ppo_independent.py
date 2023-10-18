@@ -52,7 +52,7 @@ def main(cfg: "DictConfig"):
 
     scoring = WrapperScoringClass()
     vocabulary = torch.load(
-        Path(__file__).resolve().parent / "priors" / "vocabulary.prior"
+        Path(__file__).resolve().parent / "priors" / "chembl_vocabulary.prior"
     )
     env_kwargs = {"scoring_function": scoring.get_final_score, "vocabulary": vocabulary}
 
@@ -66,10 +66,10 @@ def main(cfg: "DictConfig"):
         vocabulary=vocabulary, output_size=action_spec.shape[-1]
     )
     policy_inference.load_state_dict(
-        torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior")
+        torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor.prior")
     )
     policy_training.load_state_dict(
-        torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior")
+        torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor.prior")
     )
     policy_inference = ProbabilisticActor(
         module=policy_inference,
@@ -93,10 +93,10 @@ def main(cfg: "DictConfig"):
         vocabulary=vocabulary, output_size=1, net_name="critic", out_key="state_value"
     )
     critic_inference.load_state_dict(
-        torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior")
+        torch.load(Path(__file__).resolve().parent / "priors" / "chembl_critic.prior")
     )
     critic_training.load_state_dict(
-        torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior")
+        torch.load(Path(__file__).resolve().parent / "priors" / "chembl_critic.prior")
     )
     critic_inference = critic_inference.to(device)
     critic_training = critic_training.to(device)

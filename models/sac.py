@@ -89,12 +89,12 @@ def create_net(vocabulary_size, net_name="actor"):
 def create_sac_models(vocabulary_size):
 
     actor_inference, actor_training, actor_transform = create_net(vocabulary_size, net_name="actor")
-    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "actor.prior")
+    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor.prior")
     actor_inference.load_state_dict(ckpt)
     actor_training.load_state_dict(ckpt)
 
     critic_inference, critic_training, critic_transform = create_net(vocabulary_size, net_name="critic")
-    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "critic.prior")
+    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "chembl_critic.prior")
     critic_inference.load_state_dict(ckpt)
     critic_training.load_state_dict(ckpt)
 

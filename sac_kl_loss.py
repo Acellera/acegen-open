@@ -64,7 +64,7 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = torch.load(Path(__file__).resolve().parent / "vocabulary" / "priors" / "vocabulary.prior")
+    ckpt = torch.load(Path(__file__).resolve().parent / "vocabulary" / "priors" / "chembl_vocabulary.prior")
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
     env_kwargs = {
         "start_token": vocabulary.encode_token("^"),

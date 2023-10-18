@@ -69,7 +69,7 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = torch.load(Path(__file__).resolve().parent / "vocabulary" / "priors" / "vocabulary.prior")
+    ckpt = torch.load(Path(__file__).resolve().parent / "vocabulary" / "priors" / "zinc_vocabulary.prior")
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
     env_kwargs = {
         "start_token": vocabulary.encode_token("^"),
@@ -82,8 +82,10 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
+    create_model = get_model_factory(cfg.model)
+    ckpt = torch.load(Path(__file__).resolve().parent / "models" / "priors" / "zinc_actor_critic.prior")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = get_model_factory(cfg.model)(vocabulary_size=action_spec.shape[-1])
+     ) = create_model(vocabulary_size=action_spec.shape[-1], ckpt_path=ckpt)
 
     # TODO: check inputs and outputs of models are correct
 

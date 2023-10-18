@@ -57,3 +57,5 @@ def create_batch_from_replay_smiles(replay_data, device, reward_key="reward"):
     split_data = split_trajectories(cat_data)
 
     return cat_data, split_data
+
+
