@@ -44,15 +44,15 @@ logging.basicConfig(level=logging.WARNING)
 @hydra.main(config_path=".", config_name="sac_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
-    try:
-        os.makedirs(cfg.log_dir)
-    except FileExistsError:
-        raise Exception(f"Log directory {cfg.log_dir} already exists")
-
-    # Save config
-    with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
-        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-        yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+    # try:
+    #     os.makedirs(cfg.log_dir)
+    # except FileExistsError:
+    #     raise Exception(f"Log directory {cfg.log_dir} already exists")
+    #
+    # # Save config
+    # with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
+    #     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+    #     yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
     # Set seeds
     seed = cfg.seed
@@ -98,11 +98,12 @@ def main(cfg: "DictConfig"):
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
         env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
-        env.append_transform(CatFrames(N=10, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["burn_in"]))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
             env.append_transform(transform.clone())
+        env.append_transform(CatFrames(N=10, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["observation_burn_in"]))
+        env.append_transform(CatFrames(N=10, dim=-1, padding="zeros", in_keys=["is_init"], out_keys=["is_init_burn_in"]))
         return env
 
     def create_env_fn(num_workers=cfg.num_env_workers):
@@ -197,10 +198,10 @@ def main(cfg: "DictConfig"):
 
     # TODO: need to pop out current hidden states from batch
     exclude_keys = [
-        ("recurrent_state_c_actor"),
-        ("recurrent_state_h_actor"),
-        ("recurrent_state_c_critic"),
-        ("recurrent_state_h_critic"),
+        "recurrent_state_c_actor",
+        "recurrent_state_h_actor",
+        "recurrent_state_c_critic",
+        "recurrent_state_h_critic",
         ("next", "recurrent_state_c_actor"),
         ("next", "recurrent_state_h_actor"),
         ("next", "recurrent_state_c_critic"),
@@ -233,14 +234,30 @@ def main(cfg: "DictConfig"):
                 }
             )
 
+        # data = data.exclude(*exclude_keys).reshape(-1)
         data = data.exclude(*exclude_keys).reshape(-1)
         buffer.extend(data)
 
         batch = buffer.sample()
-        with torch.no_grad():
-            # Burn in
-            import ipdb; ipdb.set_trace()
-            batch = actor_training(batch)
+        loss_td = loss_module(batch)
+
+        # # Burn in
+        # with torch.no_grad():
+        #     burn_in_batch = TensorDict({
+        #         "observation": batch["observation_burn_in"].unsqueeze(-1),
+        #         "is_init": batch["is_init_burn_in"].unsqueeze(-1),
+        #         },
+        #         device=device,
+        #         batch_size=batch["observation_burn_in"].shape)
+        #     import ipdb; ipdb.set_trace()
+        #     burn_in_batch = actor_training(burn_in_batch)
+        #     burn_in_batch = critic_training(burn_in_batch)
+        #
+        # import ipdb; ipdb.set_trace()
+        # batch.set("recurrent_state_c_actor", burn_in_batch[:, -1].get(("next", "recurrent_state_c_actor")))
+        # batch.set("recurrent_state_h_actor", burn_in_batch[:, -1].get(("next", "recurrent_state_h_actor")))
+
+        import ipdb; ipdb.set_trace()
 
 
 if __name__ == "__main__":

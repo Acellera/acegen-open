@@ -33,9 +33,9 @@ from torchrl.record.loggers import get_logger
 from models import get_model_factory
 from rl_environments import DeNovoEnv
 from vocabulary import DeNovoVocabulary
-from utils import penalise_repeated_smiles, create_batch_from_replay_smiles
+from utils import create_batch_from_replay_smiles
 from wip.writer import TensorDictMaxValueWriter
-from transforms.reward_transform import SMILESReward
+from transforms import SMILESReward, PenaliseRepeatedSMILES
 
 # TODO: replay batch masks work?
 # TODO: try split trajectories in main batch?
@@ -176,6 +176,14 @@ def main(cfg: "DictConfig"):
         storage=LazyTensorStorage(100_000, device=device),
     )
 
+    penalty_transform = PenaliseRepeatedSMILES(
+        diversity_buffer=diversity_buffer,
+        duplicate_key="SMILES",
+        in_key="reward",
+        out_key="penalised_reward",
+        penalty=0.5,
+    )
+
     # Optimizer
     ####################################################################################################################
 
@@ -237,13 +245,7 @@ def main(cfg: "DictConfig"):
             )
 
         # Penalise repeated smiles and register penalised rewards
-        repeated_smiles = penalise_repeated_smiles(
-            data,
-            diversity_buffer,
-            repeated_smiles,
-            in_keys="reward",
-            out_keys="penalised_reward",
-        )
+        data = penalty_transform(data)
         episode_rewards = data["next", "penalised_reward"][data["next", "terminated"]]
         log_info.update(
             {

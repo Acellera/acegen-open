@@ -26,7 +26,7 @@ weight_decay: 1e-4
 gamma: 0.99
 target_update_polyak: 0.95
 target_entropy_weight: 0.5
-batch_size: 256
+batch_size: 2
 kl_coef: 0.01
 max_grad_norm: 1.0
 num_loss_updates: 1
