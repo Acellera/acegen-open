@@ -6,11 +6,11 @@ class DeNovoEnv(gym.Env):
 
     def __init__(
         self,
-        start_token,
-        end_token,
-        length_vocabulary,
-        max_length=100,
-    ):
+        start_token: int,
+        end_token: int,
+        length_vocabulary: int,
+        max_length: int = 100,
+    ) -> None:
         self.start_token = int(start_token)
         self.end_token = int(end_token)
         self.max_length = max_length
