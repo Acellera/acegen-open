@@ -6,7 +6,7 @@ logger_backend: null
 seed: 101
 
 # Environment configuration
-num_env_workers: 32
+num_envs: 64
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 
 # Model

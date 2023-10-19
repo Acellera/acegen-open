@@ -36,8 +36,7 @@ class Embed(torch.nn.Module):
         return out
 
 
-
-def create_shared_ppo_models(vocabulary_size, ckpt=None):
+def create_shared_ppo_models(vocabulary_size, batch_size, ckpt=None):
     """Create a shared PPO model using architecture and weights from the
     "REINVENT 2.0 – an AI tool for de novo drug design" paper.
 
@@ -126,12 +125,12 @@ def create_shared_ppo_models(vocabulary_size, ckpt=None):
     primers = {
         ('recurrent_state_h',):
             UnboundedContinuousTensorSpec(
-                shape=torch.Size([32, 3, 512]),
+                shape=torch.Size([batch_size, 3, 512]),
                 dtype=torch.float32,
             ),
         ('recurrent_state_c',):
             UnboundedContinuousTensorSpec(
-                shape=torch.Size([32, 3, 512]),
+                shape=torch.Size([batch_size, 3, 512]),
                 dtype=torch.float32),
     }
     transform = TensorDictPrimer(primers)

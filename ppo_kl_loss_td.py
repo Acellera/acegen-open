@@ -69,7 +69,7 @@ def main(cfg: "DictConfig"):
         "end_token": vocabulary.encode_token("$"),
         "length_vocabulary": len(vocabulary),
         "device": device,
-        "batch_size": cfg.num_env_workers,
+        "batch_size": cfg.num_envs,
     }
 
     # Models
@@ -78,7 +78,7 @@ def main(cfg: "DictConfig"):
     create_model = get_model_factory(cfg.model)
     ckpt = torch.load(Path(__file__).resolve().parent / "models" / "priors" / "zinc_actor_critic.prior")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt)
+     ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -146,7 +146,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_env_workers, device=device),
+        storage=LazyTensorStorage(cfg.num_envs, device=device),
         sampler=SamplerWithoutReplacement(),
         batch_size=cfg.mini_batch_size,
         prefetch=2,
@@ -190,7 +190,7 @@ def main(cfg: "DictConfig"):
     collected_frames = 0
     repeated_smiles = 0
     pbar = tqdm.tqdm(total=cfg.total_frames)
-    num_mini_batches = cfg.num_env_workers // cfg.mini_batch_size
+    num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
     replay_losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
