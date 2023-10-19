@@ -28,7 +28,6 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from models import get_model_factory
 from rl_environments.de_novo_env_td import DeNovoEnv
@@ -81,20 +80,6 @@ def main(cfg: "DictConfig"):
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
      ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt)
 
-    primers = {
-        ('recurrent_state_h',):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([32, 3, 512]),
-                device=device,
-                dtype=torch.float32,
-            ),
-        ('recurrent_state_c',):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([32, 3, 512]),
-                device=device,
-                dtype=torch.float32),
-    }
-
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
@@ -112,7 +97,8 @@ def main(cfg: "DictConfig"):
         env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        env.append_transform(TensorDictPrimer(primers=primers))
+        for transform in transforms:
+            env.append_transform(transform)
         return env
 
     scoring = MolScore(model_name="ppo", task_config=cfg.molscore).score
@@ -142,7 +128,7 @@ def main(cfg: "DictConfig"):
         average_gae=False,
         shifted=True,
     )
-    adv_module.set_keys(reward="penalised_reward")
+    # adv_module.set_keys(reward="penalised_reward")
     adv_module = adv_module.to(device)
     loss_module = ClipPPOLoss(
         actor_training,
@@ -154,7 +140,7 @@ def main(cfg: "DictConfig"):
         normalize_advantage=True,
     )
     loss_module = loss_module.to(device)
-    loss_module.set_keys(reward="penalised_reward")
+    # loss_module.set_keys(reward="penalised_reward")
 
     # Buffers
     ####################################################################################################################
@@ -248,14 +234,14 @@ def main(cfg: "DictConfig"):
         #     in_keys="reward",
         #     out_keys="penalised_reward",
         # )
-        episode_rewards = data["next", "penalised_reward"][data["next", "terminated"]]
-        log_info.update(
-            {
-                "train/penalised_reward": episode_rewards.mean().item(),
-                "train/penalised_min_reward": episode_rewards.min().item(),
-                "train/penalised_max_reward": episode_rewards.max().item(),
-            }
-        )
+        # episode_rewards = data["next", "penalised_reward"][data["next", "terminated"]]
+        # log_info.update(
+        #     {
+        #         "train/penalised_reward": episode_rewards.mean().item(),
+        #         "train/penalised_min_reward": episode_rewards.min().item(),
+        #         "train/penalised_max_reward": episode_rewards.max().item(),
+        #     }
+        # )
 
         for j in range(ppo_epochs):
 

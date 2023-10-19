@@ -8,8 +8,8 @@ from torchrl.modules import (
     ActorValueOperator,
     ProbabilisticActor,
 )
-from torchrl.envs import ExplorationType
-
+from torchrl.envs import ExplorationType, TensorDictPrimer
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 class Embed(torch.nn.Module):
     """Implements a simple embedding layer."""
@@ -34,6 +34,7 @@ class Embed(torch.nn.Module):
             -2
         )  # If time dimension is 1, remove it. Ugly hack, should not be necessary
         return out
+
 
 
 def create_shared_ppo_models(vocabulary_size, ckpt=None):
@@ -118,10 +119,22 @@ def create_shared_ppo_models(vocabulary_size, ckpt=None):
     critic_inference = actor_critic_inference.get_value_operator()
     actor_training = actor_critic_training.get_policy_operator()
     critic_training = actor_critic_training.get_value_operator()
-    transform = lstm_module.make_tensordict_primer()
 
     actor_inference.load_state_dict(ckpt)
     actor_training.load_state_dict(ckpt)
+
+    primers = {
+        ('recurrent_state_h',):
+            UnboundedContinuousTensorSpec(
+                shape=torch.Size([32, 3, 512]),
+                dtype=torch.float32,
+            ),
+        ('recurrent_state_c',):
+            UnboundedContinuousTensorSpec(
+                shape=torch.Size([32, 3, 512]),
+                dtype=torch.float32),
+    }
+    transform = TensorDictPrimer(primers)
 
     return actor_inference, actor_training, critic_inference, critic_training, transform
 
