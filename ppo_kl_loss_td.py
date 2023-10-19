@@ -16,7 +16,6 @@ from tensordict import TensorDict
 
 from torchrl.envs import (
     CatFrames,
-    ParallelEnv,
     InitTracker,
     StepCounter,
     TransformedEnv,
@@ -43,15 +42,15 @@ logging.basicConfig(level=logging.WARNING)
 @hydra.main(config_path=".", config_name="ppo_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
-    try:
-        os.makedirs(cfg.log_dir)
-    except FileExistsError:
-        raise Exception(f"Log directory {cfg.log_dir} already exists")
-
-    # Save config
-    with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
-        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-        yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+    # try:
+    #     os.makedirs(cfg.log_dir)
+    # except FileExistsError:
+    #     raise Exception(f"Log directory {cfg.log_dir} already exists")
+    #
+    # # Save config
+    # with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
+    #     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+    #     yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
     # Set seeds
     seed = cfg.seed
