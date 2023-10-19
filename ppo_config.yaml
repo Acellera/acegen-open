@@ -18,8 +18,8 @@ frames_per_batch: 3840
 
 # PPO configuration
 lr: 0.0001
-eps: 1.0e-08
-weight_decay: 1.0e-08
+eps: 1.0e-04
+weight_decay: 1.0e-04
 gamma: 0.99
 lmbda: 0.95
 critic_coef: 0.25

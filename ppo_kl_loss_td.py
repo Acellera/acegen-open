@@ -93,7 +93,7 @@ def main(cfg: "DictConfig"):
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
-        env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
+        # env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
@@ -164,7 +164,7 @@ def main(cfg: "DictConfig"):
 
     penalty_transform = PenaliseRepeatedSMILES(
         diversity_buffer=diversity_buffer2,
-        duplicate_key="SMILES",
+        check_duplicate_key="SMILES",
         in_key="reward",
         out_key="penalised_reward",
         penalty=0.5,
