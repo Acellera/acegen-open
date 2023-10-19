@@ -71,7 +71,6 @@ class DeNovoEnv(EnvBase):
         torch.manual_seed(seed)
 
 
-if __name__ == "__main__":
 
 
 
