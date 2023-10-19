@@ -30,7 +30,7 @@ from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
 
 from models import get_model_factory
-from rl_environments.de_novo_env_td import DeNovoEnv
+from rl_environments import DeNovoEnv
 from vocabulary import DeNovoVocabulary
 from utils import create_batch_from_replay_smiles
 from wip.writer import TensorDictMaxValueWriter
