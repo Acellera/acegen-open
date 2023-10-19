@@ -62,8 +62,9 @@ class PenaliseRepeatedSMILES(Transform):
         elif num_finished_smiles > 0:
             for i, smi in enumerate(finished_smiles):
                 td_smiles = self.diversity_buffer._storage._storage
-                unique_smiles = td_smiles.get("_data", self.duplicate_key)[:num_unique_smiles]
+                unique_smiles = td_smiles.get(("_data", self.duplicate_key))[:num_unique_smiles]
                 repeated = (smi == unique_smiles).all(dim=-1).any()
+                import ipdb; ipdb.set_trace()
                 if repeated:
                     reward[i] = reward[i] * self.penalty
                     self._repeated_smiles += 1

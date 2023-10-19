@@ -1,1 +1,1 @@
-from .de_novo_env import DeNovoEnv
+from .de_novo_env_td import DeNovoEnv

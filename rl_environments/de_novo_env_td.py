@@ -2,13 +2,13 @@ from typing import Optional
 
 import torch
 from tensordict.tensordict import TensorDict, TensorDictBase
+from torchrl.envs import EnvBase
+from torchrl.data.utils import DEVICE_TYPING
 from torchrl.data import (
     CompositeSpec,
     DiscreteTensorSpec,
     UnboundedContinuousTensorSpec,
 )
-from torchrl.envs import EnvBase
-from torchrl.data.utils import DEVICE_TYPING
 
 
 class DeNovoEnv(EnvBase):
