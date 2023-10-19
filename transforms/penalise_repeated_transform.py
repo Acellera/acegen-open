@@ -57,17 +57,19 @@ class PenaliseRepeatedSMILES(Transform):
         finished_smiles = sub_td.get(self.check_duplicate_key)
         finished_smiles_td = sub_td.select(self.check_duplicate_key)
 
+        # Penalise repeated smiles and add unique smiles to the diversity buffer
+        # TODO: This is a very slow way to do this. Can it be done in batches.
         for i, smi in enumerate(finished_smiles):
             td_smiles = self.diversity_buffer._storage._storage
-            import ipdb; ipdb.set_trace()
-            unique_smiles = td_smiles.get(("_data", self.check_duplicate_key))[:num_unique_smiles]
-            repeated = (smi == unique_smiles).all(dim=-1).any()
-            if repeated:
-                reward[i] = reward[i] * self.penalty
-                self._repeated_smiles += 1
-            elif reward[i] > 0:
-                self.diversity_buffer.add(finished_smiles_td[i])
-                num_unique_smiles += 1
+            if td_smiles:
+                unique_smiles = td_smiles.get(("_data", self.check_duplicate_key))[:num_unique_smiles]
+                repeated = (smi == unique_smiles).all(dim=-1).any()
+                if repeated:
+                    reward[i] = reward[i] * self.penalty
+                    self._repeated_smiles += 1
+                elif reward[i] > 0:
+                    self.diversity_buffer.add(finished_smiles_td[i])
+                    num_unique_smiles += 1
 
         sub_td.set(*self.out_keys, reward, inplace=True)
         return tensordict
