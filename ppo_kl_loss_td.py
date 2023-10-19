@@ -20,14 +20,15 @@ from torchrl.envs import (
     StepCounter,
     TransformedEnv,
     UnsqueezeTransform,
+    TensorDictPrimer,
 )
-from torchrl.envs.libs.gym import GymWrapper
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives.value.advantages import GAE
 from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from models import get_model_factory
 from rl_environments.de_novo_env_td import DeNovoEnv
@@ -42,15 +43,15 @@ logging.basicConfig(level=logging.WARNING)
 @hydra.main(config_path=".", config_name="ppo_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
-    # try:
-    #     os.makedirs(cfg.log_dir)
-    # except FileExistsError:
-    #     raise Exception(f"Log directory {cfg.log_dir} already exists")
-    #
-    # # Save config
-    # with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
-    #     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-    #     yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+    try:
+        os.makedirs(cfg.log_dir)
+    except FileExistsError:
+        raise Exception(f"Log directory {cfg.log_dir} already exists")
+
+    # Save config
+    with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
+        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+        yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
     # Set seeds
     seed = cfg.seed
@@ -80,6 +81,20 @@ def main(cfg: "DictConfig"):
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
      ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt)
 
+    primers = {
+        ('recurrent_state_h',):
+            UnboundedContinuousTensorSpec(
+                shape=torch.Size([32, 3, 512]),
+                device=device,
+                dtype=torch.float32,
+            ),
+        ('recurrent_state_c',):
+            UnboundedContinuousTensorSpec(
+                shape=torch.Size([32, 3, 512]),
+                device=device,
+                dtype=torch.float32),
+    }
+
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
@@ -91,18 +106,14 @@ def main(cfg: "DictConfig"):
     def create_env_fn():
         """Create a single RL rl_environments."""
         env = DeNovoEnv(**env_kwargs)
-        env = GymWrapper(env, categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
         env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        for transform in transforms:
-            env.append_transform(transform.clone())
+        env.append_transform(TensorDictPrimer(primers=primers))
         return env
-
-    import ipdb; ipdb.set_trace()
 
     scoring = MolScore(model_name="ppo", task_config=cfg.molscore).score
     rew_transform = SMILESReward(reward_function=scoring, vocabulary=vocabulary)
@@ -155,14 +166,6 @@ def main(cfg: "DictConfig"):
         prefetch=2,
     )
 
-    top_smiles_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(100, device=device),
-        sampler=SamplerWithoutReplacement(),
-        prefetch=2,
-        batch_size=10,
-        writer=TensorDictMaxValueWriter(rank_key="penalised_reward"),
-    )
-
     diversity_buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(100_000, device=device),
     )
@@ -210,6 +213,7 @@ def main(cfg: "DictConfig"):
     max_grad_norm = cfg.max_grad_norm
 
     for data in collector:
+
         log_info = {}
         frames_in_batch = data.numel()
         total_done += data.get(("next", "terminated")).sum()
@@ -237,13 +241,13 @@ def main(cfg: "DictConfig"):
 
         # Penalise repeated smiles and register penalised rewards
         # data = penalty_transform(data)
-        repeated_smiles = penalise_repeated_smiles(
-            data,
-            diversity_buffer,
-            repeated_smiles,
-            in_keys="reward",
-            out_keys="penalised_reward",
-        )
+        # repeated_smiles = penalise_repeated_smiles(
+        #     data,
+        #     diversity_buffer,
+        #     repeated_smiles,
+        #     in_keys="reward",
+        #     out_keys="penalised_reward",
+        # )
         episode_rewards = data["next", "penalised_reward"][data["next", "terminated"]]
         log_info.update(
             {
@@ -252,13 +256,6 @@ def main(cfg: "DictConfig"):
                 "train/penalised_max_reward": episode_rewards.max().item(),
             }
         )
-
-        # Add data to the replay buffer
-        next_data = data.get("next")
-        terminated = next_data.get("terminated").squeeze(-1)
-        terminated_smiles = next_data.get_sub_tensordict(idx=terminated).select(
-            "SMILES", "SMILES2", "penalised_reward", "step_count")
-        top_smiles_buffer.extend(terminated_smiles)
 
         for j in range(ppo_epochs):
 
@@ -279,34 +276,6 @@ def main(cfg: "DictConfig"):
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
                 losses[j, i] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
-
-                # # Compute loss for the replay buffer batch
-                # replay_data = top_smiles_buffer.sample()
-                # cat_replay_data, split_replay_batch = create_batch_from_replay_smiles(replay_data, device, reward_key="penalised_reward")
-                # replay_batch = cat_replay_data
-                # with torch.no_grad():
-                #     replay_batch = actor_training(replay_batch)
-                #     replay_batch.pop(("next", "recurrent_state_c"))
-                #     replay_batch.pop(("next", "recurrent_state_h"))
-                #     replay_batch = adv_module(replay_batch)
-                # rb_loss = loss_module(replay_batch)
-                # replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
-                # kl_div = kl_divergence(actor_training.get_dist(replay_batch), prior.get_dist(replay_batch))
-                # mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-                # kl_div = kl_div[~mask].mean()
-                # replay_loss_sum += kl_div * kl_coef
-                # replay_losses[j, i] = rb_loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
-                # replay_losses[j, i] = TensorDict({
-                #     "kl_div": kl_div.detach().item(),
-                #     "replay_reward": cat_replay_data["next"]["penalised_reward"][cat_replay_data["next"]["done"]].mean().item(),
-                # }, batch_size=[])
-                #
-                # # Weighted sum of the losses
-                # num_batch = batch.numel()
-                # num_replay = replay_batch.numel()
-                # total_smiles = num_batch + num_replay
-                # augmented_loss_sum = loss_sum * (
-                #         num_batch / total_smiles) + replay_loss_sum * (num_replay / total_smiles)
 
                 # Backward pass
                 loss_sum.backward()
