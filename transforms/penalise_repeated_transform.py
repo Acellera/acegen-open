@@ -1,3 +1,4 @@
+import torch
 from tensordict import TensorDictBase
 from torchrl.data import TensorDictReplayBuffer
 from torchrl.envs.transforms.transforms import Transform
@@ -16,7 +17,7 @@ class PenaliseRepeatedSMILES(Transform):
 
         Args:
             diversity_buffer: A TensorDictReplayBuffer instance.
-            duplicate_key: The key in the tensordict that contains the smiles.
+            check_duplicate_key: The key in the tensordict that contains the smiles.
             in_key: The key in the tensordict that contains the reward.
             out_key: The key in the tensordict to store the penalised reward.
             penalty: The penalty to apply to the reward.
@@ -51,25 +52,27 @@ class PenaliseRepeatedSMILES(Transform):
         terminated = td_next.get("terminated").squeeze(-1)
         sub_td = td_next.get_sub_tensordict(idx=terminated)
 
-        # Get the reward and smiles
+        # Get the reward and current smiles
         reward = sub_td.get(*self.in_keys)
-        num_unique_smiles = len(self.diversity_buffer)
         finished_smiles = sub_td.get(self.check_duplicate_key)
-        finished_smiles_td = sub_td.select(self.check_duplicate_key)
 
-        # Penalise repeated smiles and add unique smiles to the diversity buffer
-        # TODO: This is a very slow way to do this. Can it be done in batches.
-        for i, smi in enumerate(finished_smiles):
-            td_smiles = self.diversity_buffer._storage._storage
-            if td_smiles:
-                unique_smiles = td_smiles.get(("_data", self.check_duplicate_key))[:num_unique_smiles]
-                repeated = (smi == unique_smiles).all(dim=-1).any()
-                if repeated:
-                    reward[i] = reward[i] * self.penalty
-                    self._repeated_smiles += 1
-                elif reward[i] > 0:
-                    self.diversity_buffer.add(finished_smiles_td[i])
-                    num_unique_smiles += 1
+        # Get smiles found so far
+        unique_finished_smiles = torch.unique(finished_smiles, dim=0)
+        td_smiles = self.diversity_buffer._storage._storage
 
+        # Identify repeated smiles
+        repeated = torch.zeros(unique_finished_smiles.shape[0], dtype=torch.bool)
+        if td_smiles is not None:
+            unique_smiles = td_smiles.get(("_data", self.check_duplicate_key))[:len(self.diversity_buffer)]
+            for i, smi in enumerate(unique_finished_smiles):
+                repeated[i] = (smi != unique_smiles).all(dim=-1).any()
+
+        # Apply penalty
+        reward[repeated] = reward[repeated] * self.penalty
         sub_td.set(*self.out_keys, reward, inplace=True)
+
+        # Add unique smiles to the diversity buffer
+        if (~repeated).any():
+            self.diversity_buffer.extend(sub_td.select(self.check_duplicate_key)[~to_penalise])
+
         return tensordict

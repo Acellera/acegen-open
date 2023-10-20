@@ -8,14 +8,14 @@ seed: 101
 # Environment configuration
 num_envs: 64
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
-penalize_repetition: True
+penalize_repetition: False
 repetition_penalty: 0.5
 
 # Model
 model: ppo
 
 # Collector configuration
-total_frames: 20_000_000
+total_frames: 1_000_000
 frames_per_batch: 3840
 
 # PPO configuration

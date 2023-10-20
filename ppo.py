@@ -93,7 +93,7 @@ def main(cfg: "DictConfig"):
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
-        # env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
+        env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
@@ -103,7 +103,7 @@ def main(cfg: "DictConfig"):
     # TODO: redirect molscore logging to log dir
 
     scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
-    scoring.configs["output_dir"] = save_dir
+    scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
     rew_transform = SMILESReward(reward_function=scoring_function, vocabulary=vocabulary)
 
