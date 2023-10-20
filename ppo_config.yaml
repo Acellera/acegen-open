@@ -6,7 +6,7 @@ logger_backend: null
 seed: 101
 
 # Environment configuration
-num_env_workers: 32
+num_envs: 64
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 
 # Model
@@ -18,14 +18,16 @@ frames_per_batch: 3840
 
 # PPO configuration
 lr: 0.0001
-eps: 1e-04
-weight_decay: 1e-4
-gamma: 0.999
+eps: 1.0e-04
+weight_decay: 1.0e-04
+gamma: 0.99
 lmbda: 0.95
 critic_coef: 0.25
-entropy_coef: 0.01
-kl_coef: 0.01
+entropy_coef: 0.1
+kl_coef: 0.25
 mini_batch_size: 8
-ppo_epochs: 2
+ppo_epochs: 3
 max_grad_norm: 1.0
 ppo_clip: 0.2
+
+

@@ -1,58 +1,109 @@
-import gymnasium as gym
+from typing import Optional
+
+import torch
+from tensordict.tensordict import TensorDict, TensorDictBase
+from torchrl.envs import EnvBase
+from torchrl.data.utils import DEVICE_TYPING
+from torchrl.data import (
+    CompositeSpec,
+    DiscreteTensorSpec,
+    UnboundedContinuousTensorSpec,
+)
 
 
-class DeNovoEnv(gym.Env):
-    """Custom Environment for Generative Chemistry RL."""
-
+class DeNovoEnv(EnvBase):
     def __init__(
         self,
-        start_token,
-        end_token,
-        length_vocabulary,
-        max_length=100,
+        start_token: int,
+        end_token: int,
+        length_vocabulary: int,
+        max_length: int = 100,
+        device: DEVICE_TYPING = None,
+        batch_size: int = 1,
     ):
-        self.start_token = int(start_token)
-        self.end_token = int(end_token)
-        self.max_length = max_length
-
-        # Define action and observation space
-        self.action_space = gym.spaces.Discrete(length_vocabulary)
-        self.observation_space = gym.spaces.Discrete(length_vocabulary)
-
-    def step(self, action):
-        """Execute one time step within the rl_environments"""
-
-        # Get next action
-        self.current_episode_length += 1
-
-        action = int(
-            self.end_token
-            if self.current_episode_length
-            == self.max_length - 2  # account for start and end tokens
-            else action
+        super().__init__(
+            device=device,
+            batch_size=[batch_size],  # TODO: PR to change this
+            run_type_checks=False,  # TODO: review
+            dtype=None,  # TODO: review
+            allow_done_after_reset=False,  # TODO: review
         )
 
-        reward = 0.0
-        done = False
-        info = {}
+        self.start_token = int(start_token)
+        self.end_token = int(end_token)
+        self.length_vocabulary = length_vocabulary
+        self.max_length = max_length
+        self.num_envs = batch_size
 
-        # Handle end of molecule/episode if action is $
-        if action == self.end_token:
-            done = True
+        self._reset_tensordict = TensorDict(
+            {
+                "observation": torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
+                * self.start_token,
+            },
+            device=self.device,
+            batch_size=self.batch_size,
+        )
 
-        # Define next observation
-        next_obs = action
-        truncated = False
-        return next_obs, reward, done, truncated, info
+        self._set_specs()
 
-    def reset(self):
-        """
-        Reset the state of the rl_environments to an initial state.
-        Return padded base molecule to match length `obs_length`.
-        """
-        self.current_episode_length = 1
-        obs = self.start_token
-        info = {}
+    def _reset(self, tensordict: TensorDictBase, **kwargs) -> TensorDictBase:
+        if tensordict is not None:
+            next_tensordict = tensordict.clone()
+            next_tensordict.update(self._reset_tensordict.clone())
+        else:
+            next_tensordict = self._reset_tensordict.clone()
+        return next_tensordict
 
-        return obs, info
+    def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
+        next_tensordict = tensordict.get("next").clone()
+        actions = tensordict.get("action")
+        next_tensordict.update(
+            {
+                "done": (actions == self.end_token).to(torch.bool),
+                "terminated": (actions == self.end_token).to(torch.bool),
+                "reward": torch.zeros(self.num_envs, device=self.device),
+                "observation": actions.to(torch.int32),
+            },
+        )
+        return next_tensordict
 
+    def _set_seed(self, seed: Optional[int] = -1) -> None:
+        torch.manual_seed(seed)
+
+    def _set_specs(self) -> None:
+        self.observation_spec = (
+            CompositeSpec(
+                {
+                    "observation": DiscreteTensorSpec(self.length_vocabulary),
+                }
+            )
+            .expand(self.num_envs)
+            .to(self.device)
+        )
+        self.observation_spec = (
+            CompositeSpec(
+                {
+                    "observation": DiscreteTensorSpec(self.length_vocabulary),
+                }
+            )
+            .expand(self.num_envs)
+            .to(self.device)
+        )
+        self.action_spec = (
+            CompositeSpec(
+                {
+                    "action": DiscreteTensorSpec(self.length_vocabulary),
+                }
+            )
+            .expand(self.num_envs)
+            .to(self.device)
+        )
+        self.reward_spec = (
+            CompositeSpec({"reward": UnboundedContinuousTensorSpec((1,))})
+            .expand(self.num_envs)
+            .to(self.device)
+        )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}, start_token={self.start_token}," \
+               f" end_token={self.end_token} batch_size={self.batch_size})"
