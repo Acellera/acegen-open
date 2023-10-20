@@ -4,7 +4,6 @@ import yaml
 import hydra
 import random
 import logging
-import datetime
 import numpy as np
 from copy import deepcopy
 from pathlib import Path
@@ -17,14 +16,16 @@ from tensordict import TensorDict
 
 from torchrl.envs import (
     CatFrames,
+    ParallelEnv,
     InitTracker,
     StepCounter,
     TransformedEnv,
     UnsqueezeTransform,
 )
-from torchrl.objectives import ClipPPOLoss
-from torchrl.objectives.value.advantages import GAE
+from torchrl.envs.libs.gym import GymWrapper
 from torchrl.collectors import SyncDataCollector
+from torchrl.objectives.value.advantages import GAE
+from torchrl.objectives import ClipPPOLoss
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
@@ -32,22 +33,21 @@ from torchrl.record.loggers import get_logger
 from models import get_model_factory
 from rl_environments import DeNovoEnv
 from vocabulary import DeNovoVocabulary
-from utils import create_batch_from_replay_smiles
-from wip.writer import TensorDictMaxValueWriter
-from transforms import SMILESReward, PenaliseRepeatedSMILES
+from transforms import SMILESReward
 
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path=".", config_name="ppo_config", version_base="1.2")
+@hydra.main(config_path="..", config_name="ppo_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
+    try:
+        os.makedirs(cfg.log_dir)
+    except FileExistsError:
+        raise Exception(f"Log directory {cfg.log_dir} already exists")
+
     # Save config
-    current_time = datetime.datetime.now()
-    timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-    save_dir = f"{cfg.log_dir}_{timestamp_str}"
-    os.makedirs(save_dir)
-    with open(Path(save_dir) / "ppo_config.yaml", 'w') as yaml_file:
+    with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
@@ -67,8 +67,6 @@ def main(cfg: "DictConfig"):
         "start_token": vocabulary.encode_token("^"),
         "end_token": vocabulary.encode_token("$"),
         "length_vocabulary": len(vocabulary),
-        "batch_size": cfg.num_envs,
-        "device": device,
     }
 
     # Models
@@ -77,7 +75,7 @@ def main(cfg: "DictConfig"):
     create_model = get_model_factory(cfg.model)
     ckpt = torch.load(Path(__file__).resolve().parent / "models" / "priors" / "zinc_actor_critic.prior")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
+     ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt)
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -87,38 +85,37 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    def create_env_fn():
+    def create_base_env():
         """Create a single RL rl_environments."""
         env = DeNovoEnv(**env_kwargs)
+        env = GymWrapper(env, categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
-        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
-        env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
-        # env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
+        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
+        env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
         for transform in transforms:
-            env.append_transform(transform)
+            env.append_transform(transform.clone())
         return env
 
-    # TODO: redirect molscore logging to log dir
+    def create_env_fn(num_workers=cfg.num_env_workers):
+        """Create a vector of parallel environments."""
+        env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
+        return env
 
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
-    scoring.configs["output_dir"] = save_dir
-    scoring_function = scoring.score
-    rew_transform = SMILESReward(reward_function=scoring_function, vocabulary=vocabulary)
-
-    # TODO: here check model-environment compatibility
+    scoring = MolScore(model_name="ppo", task_config=cfg.molscore).score
+    rew_transform = SMILESReward(reward_function=scoring, vocabulary=vocabulary)
 
     # Collector
     ####################################################################################################################
 
     collector = SyncDataCollector(
-        policy=actor_inference,
         create_env_fn=create_env_fn,
+        policy=actor_inference,
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
-        storing_device=device,
         device=device,
+        storing_device=device,
     )
 
     # Loss modules
@@ -131,7 +128,6 @@ def main(cfg: "DictConfig"):
         average_gae=False,
         shifted=True,
     )
-    # adv_module.set_keys(reward="penalised_reward")
     adv_module = adv_module.to(device)
     loss_module = ClipPPOLoss(
         actor_training,
@@ -143,31 +139,15 @@ def main(cfg: "DictConfig"):
         normalize_advantage=True,
     )
     loss_module = loss_module.to(device)
-    # loss_module.set_keys(reward="penalised_reward")
 
     # Buffers
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_envs, device=device),
+        storage=LazyTensorStorage(cfg.num_env_workers, device=device),
         sampler=SamplerWithoutReplacement(),
         batch_size=cfg.mini_batch_size,
         prefetch=2,
-    )
-
-    diversity_buffer1 = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(100_000, device=device),
-    )
-    diversity_buffer2 = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(100_000, device=device),
-    )
-
-    penalty_transform = PenaliseRepeatedSMILES(
-        diversity_buffer=diversity_buffer2,
-        check_duplicate_key="SMILES",
-        in_key="reward",
-        out_key="penalised_reward",
-        penalty=0.5,
     )
 
     # Optimizer
@@ -176,8 +156,8 @@ def main(cfg: "DictConfig"):
     optim = torch.optim.Adam(
         loss_module.parameters(),
         lr=cfg.lr,
-        eps=cfg.eps,
         weight_decay=cfg.weight_decay,
+        eps=cfg.eps,
     )
 
     # Logger
@@ -193,18 +173,18 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     total_done = 0
-    repeated_smiles = 0
     collected_frames = 0
-    kl_coef = cfg.kl_coef
-    ppo_epochs = cfg.ppo_epochs
-    max_grad_norm = cfg.max_grad_norm
+    repeated_smiles = 0
     pbar = tqdm.tqdm(total=cfg.total_frames)
-    num_mini_batches = cfg.num_envs // cfg.mini_batch_size
+    num_mini_batches = cfg.num_env_workers // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
     replay_losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
-    for data in collector:
+    kl_coef = cfg.kl_coef
+    ppo_epochs = cfg.ppo_epochs
+    max_grad_norm = cfg.max_grad_norm
 
+    for data in collector:
         log_info = {}
         frames_in_batch = data.numel()
         total_done += data.get(("next", "terminated")).sum()
@@ -229,19 +209,6 @@ def main(cfg: "DictConfig"):
                     / len(episode_length),
                 }
             )
-
-        # Penalise repeated smiles and register penalised rewards
-        data = penalty_transform(data)
-        unique_smiles = total_done - repeated_smiles
-
-        episode_rewards = data["next", "penalised_reward"][data["next", "terminated"]]
-        log_info.update(
-            {
-                "train/penalised_reward": episode_rewards.mean().item(),
-                "train/penalised_min_reward": episode_rewards.min().item(),
-                "train/penalised_max_reward": episode_rewards.max().item(),
-            }
-        )
 
         for j in range(ppo_epochs):
 
