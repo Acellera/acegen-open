@@ -27,14 +27,23 @@ class SMILESReward(Transform):
         self.reward_function = reward_function
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+
+        # Get steps where trajectories end
         td_next = tensordict.get("next")
         terminated = td_next.get("terminated").squeeze(-1)
         sub_tensordict = td_next.get_sub_tensordict(terminated)
+
+        # Get reward and smiles
         reward = sub_tensordict.get("reward")
         smiles = sub_tensordict.get(self.in_keys[0])
+
+        # Get smiles as strings
         smiles_list = []
         for i, smi in enumerate(smiles):
             smiles_list.append(self.vocabulary.decode_smiles(smi.cpu().numpy()))
+
+        # Calculate reward
         reward[:, 0].copy_(torch.tensor(self.reward_function(smiles_list)))
         sub_tensordict.set("reward", reward, inplace=True)
+
         return tensordict
