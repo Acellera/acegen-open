@@ -266,7 +266,8 @@ def main(cfg: "DictConfig"):
                     replay_batch.pop(("next", "recurrent_state_h"))
                     replay_batch = adv_module(replay_batch)
                 rb_loss = loss_module(replay_batch)
-                replay_loss_sum = rb_loss["loss_critic"] + rb_loss["loss_objective"] + rb_loss["loss_entropy"]
+
+
                 replay_losses[j, i] = rb_loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
                 replay_losses[j, i].set(
                     "replay_mean_reward", cat_replay_data["next"][

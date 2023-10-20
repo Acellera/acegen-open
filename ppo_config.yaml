@@ -8,6 +8,8 @@ seed: 101
 # Environment configuration
 num_envs: 64
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
+penalize_repetition: True
+repetition_penalty: 0.5
 
 # Model
 model: ppo
@@ -29,5 +31,8 @@ mini_batch_size: 8
 ppo_epochs: 3
 max_grad_norm: 1.0
 ppo_clip: 0.2
+experience_replay: False
+experience_replay_buffer_size: 1000000
+experience_replay_batch_size: 10
 
 
