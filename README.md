@@ -1,4 +1,4 @@
-# TorchRL generative Chemistry
+# AceGen generative Chemistry
 Language models + RL for drug discovery using TorchRL
 
 ## Conda environment
