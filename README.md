@@ -6,7 +6,7 @@ Language models + RL for drug discovery using TorchRL
 To create the conda / mamba environment, run
 
     conda/mamba env create -f environment.yml
-    conda activate torchrl_chem
+    conda activate acegen
 
 ## Configuration file
     
