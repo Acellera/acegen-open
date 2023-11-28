@@ -61,7 +61,6 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    import ipdb; ipdb.set_trace()
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
     vocabulary = SMILESVocabulary(ckpt)
     env_kwargs = {
