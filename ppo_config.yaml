@@ -2,37 +2,33 @@
 experiment_name: torchrl_chem
 agent_name: ppo
 log_dir: logs_ppo
-logger_backend: null
+logger_backend: wandb
 seed: 101
 
 # Environment configuration
-num_envs: 64
+num_envs: 16
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 penalize_repetition: False
-repetition_penalty: 0.5
+repetition_penalty: 0.75
 
 # Model
 model: ppo
 
 # Collector configuration
 total_frames: 1_000_000
-frames_per_batch: 3840
+frames_per_batch: 1600
 
 # PPO configuration
-lr: 0.0001
-eps: 1.0e-04
-weight_decay: 1.0e-04
-gamma: 0.99
+lr: 0.0005
+eps: 1.0e-08
+weight_decay: 1.0e-08
+gamma: 0.999
 lmbda: 0.95
-critic_coef: 0.25
-entropy_coef: 0.1
-kl_coef: 0.25
-mini_batch_size: 8
-ppo_epochs: 3
+critic_coef: 0.5
+entropy_coef: 0.01
+kl_coef: 0.09
+mini_batch_size: 4
+ppo_epochs: 4
 max_grad_norm: 1.0
-ppo_clip: 0.2
-experience_replay: False
-experience_replay_buffer_size: 1000000
-experience_replay_batch_size: 10
-
-
+ppo_clip: 0.1
+experience_replay: True

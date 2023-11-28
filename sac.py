@@ -1,9 +1,12 @@
 import os
 import tqdm
 import yaml
+import json
 import hydra
+import shutil
 import random
 import logging
+import datetime
 import numpy as np
 from copy import deepcopy
 from pathlib import Path
@@ -11,31 +14,28 @@ from omegaconf import OmegaConf
 from molscore.manager import MolScore
 
 import torch
-from torch.distributions.kl import kl_divergence
 from tensordict import TensorDict
 
 from torchrl.envs import (
-    SerialEnv,
     CatFrames,
-    ParallelEnv,
     InitTracker,
     StepCounter,
     TransformedEnv,
     UnsqueezeTransform,
+    RandomCropTensorDict,
 )
-from torchrl.envs.libs.gym import GymWrapper
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
 from torchrl.data import LazyMemmapStorage, LazyTensorStorage, TensorDictReplayBuffer
-from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from torchrl.data.replay_buffers.samplers import RandomSampler
 from torchrl.record.loggers import get_logger
 
 from models import get_model_factory
 from rl_environments import DeNovoEnv
 from vocabulary import DeNovoVocabulary
-from utils import penalise_repeated_smiles, create_batch_from_replay_smiles
-from wip.writer import TensorDictMaxValueWriter
+from old.writer import TensorDictMaxValueWriter
 from transforms.reward_transform import SMILESReward
+from transforms.burnin_transform import BurnInTransform
 
 
 logging.basicConfig(level=logging.WARNING)
@@ -44,15 +44,14 @@ logging.basicConfig(level=logging.WARNING)
 @hydra.main(config_path=".", config_name="sac_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
-    # try:
-    #     os.makedirs(cfg.log_dir)
-    # except FileExistsError:
-    #     raise Exception(f"Log directory {cfg.log_dir} already exists")
-    #
-    # # Save config
-    # with open(Path(cfg.log_dir) / "ppo_config.yaml", 'w') as yaml_file:
-    #     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-    #     yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+    # Save config
+    current_time = datetime.datetime.now()
+    timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
+    save_dir = f"{cfg.log_dir}_{timestamp_str}"
+    os.makedirs(save_dir)
+    with open(Path(save_dir) / "sac_config.yaml", 'w') as yaml_file:
+        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+        yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
     # Set seeds
     seed = cfg.seed
@@ -70,15 +69,15 @@ def main(cfg: "DictConfig"):
         "start_token": vocabulary.encode_token("^"),
         "end_token": vocabulary.encode_token("$"),
         "length_vocabulary": len(vocabulary),
+        "batch_size": cfg.num_envs,
+        "device": device,
     }
-    test_env = GymWrapper(DeNovoEnv(**env_kwargs))
-    action_spec = test_env.action_spec
 
     # Models
     ####################################################################################################################
 
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = get_model_factory(cfg.model)(vocabulary_size=action_spec.shape[-1])
+     ) = get_model_factory(cfg.model)(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs)
 
     # TODO: check inputs and outputs of models are correct
 
@@ -90,30 +89,33 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    def create_base_env():
+    def create_env_fn():
         """Create a single RL rl_environments."""
         env = DeNovoEnv(**env_kwargs)
-        env = GymWrapper(env, categorical_action_encoding=True, device=device)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
-        env.append_transform(CatFrames(N=100, dim=-1, padding="same", in_keys=["observation"], out_keys=["SMILES"]))
-        env.append_transform(CatFrames(N=100, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["SMILES2"]))
+        env.append_transform(
+            CatFrames(
+                N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
-            env.append_transform(transform.clone())
-        env.append_transform(CatFrames(N=10, dim=-1, padding="zeros", in_keys=["observation"], out_keys=["observation_burn_in"]))
-        env.append_transform(CatFrames(N=10, dim=-1, padding="zeros", in_keys=["is_init"], out_keys=["is_init_burn_in"]))
+            env.append_transform(transform)
         return env
 
-    def create_env_fn(num_workers=cfg.num_env_workers):
-        """Create a vector of parallel environments."""
-        env = SerialEnv(create_env_fn=create_base_env, num_workers=num_workers)
-        # env = ParallelEnv(create_env_fn=create_base_env, num_workers=num_workers)
-        return env
+    # Save molscore output. Also redirect output to save_dir
+    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+    data = json.load(open(cfg.molscore, 'r'))
+    data['output_dir'] = save_dir
+    json.dump(data, open(cfg.molscore, 'w'), indent=4)
 
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore).score
-    rew_transform = SMILESReward(reward_function=scoring, vocabulary=vocabulary)
+    # Create scoring function
+    scoring = MolScore(model_name="sac", task_config=cfg.molscore)
+    scoring.configs["save_dir"] = save_dir
+    scoring_function = scoring.score
+
+    # Create reward transform
+    rew_transform = SMILESReward(reward_function=scoring_function, vocabulary=vocabulary)
 
     # Collector
     ####################################################################################################################
@@ -132,7 +134,6 @@ def main(cfg: "DictConfig"):
 
     loss_module = DiscreteSACLoss(
         actor_network=actor_training,
-        action_space=test_env.action_spec,
         qvalue_network=critic_training,
         num_actions=len(vocabulary),
         num_qvalue_nets=2,
@@ -141,29 +142,22 @@ def main(cfg: "DictConfig"):
     )
     loss_module.make_value_estimator(gamma=cfg.gamma)
     loss_module = loss_module.to(device)
-    loss_module.set_keys(reward="penalised_reward")
     target_net_updater = SoftUpdate(loss_module, eps=cfg.target_update_polyak)
 
     # Buffers
     ####################################################################################################################
 
+    crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
+    burn_in = BurnInTransform(lstm_module=actor_training, burn_in=cfg.burn_in)
     buffer = TensorDictReplayBuffer(
-        storage=LazyMemmapStorage(cfg.replay_buffer_size, device=device),
+        storage=LazyMemmapStorage(cfg.replay_buffer_size),
         batch_size=cfg.batch_size,
         prefetch=3,
+        sampler=RandomSampler(),
     )
+    buffer.append_transform(crop_seq)
+    buffer.append_transform(burn_in)
 
-    top_smiles_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(100, device=device),
-        sampler=SamplerWithoutReplacement(),
-        prefetch=2,
-        batch_size=10,
-        writer=TensorDictMaxValueWriter(rank_key="penalised_reward"),
-    )
-
-    diversity_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(100_000, device=device),
-    )
 
     # Optimizer
     ####################################################################################################################
@@ -196,19 +190,8 @@ def main(cfg: "DictConfig"):
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
 
-    # TODO: need to pop out current hidden states from batch
-    exclude_keys = [
-        "recurrent_state_c_actor",
-        "recurrent_state_h_actor",
-        "recurrent_state_c_critic",
-        "recurrent_state_h_critic",
-        ("next", "recurrent_state_c_actor"),
-        ("next", "recurrent_state_h_actor"),
-        ("next", "recurrent_state_c_critic"),
-        ("next", "recurrent_state_h_critic"),
-    ]
-
     for data in collector:
+
         log_info = {}
         frames_in_batch = data.numel()
         total_done += data.get(("next", "terminated")).sum()
@@ -235,10 +218,12 @@ def main(cfg: "DictConfig"):
             )
 
         # data = data.exclude(*exclude_keys).reshape(-1)
-        data = data.exclude(*exclude_keys).reshape(-1)
+        # data = data.exclude(*exclude_keys)
         buffer.extend(data)
 
         batch = buffer.sample()
+        batch = batch.to(device)
+        import ipdb; ipdb.set_trace()
         loss_td = loss_module(batch)
 
         # # Burn in

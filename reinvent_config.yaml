@@ -1,0 +1,25 @@
+# Logging configuration
+experiment_name: torchrl_chem
+agent_name: reinvent
+log_dir: logs_reinvent
+logger_backend: null
+seed: 101
+
+# Environment configuration
+num_envs: 64
+molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
+
+# Model
+model: reinvent
+
+# Collector configuration
+total_frames: 12800
+frames_per_batch: 64
+
+
+# Reinforce configuration
+lr: 0.0005
+eps: 1.0e-08
+weight_decay: 0.0
+sigma: 500
+experience_replay: True

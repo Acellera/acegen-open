@@ -34,7 +34,7 @@ from utils import (
     penalise_repeated_smiles,
     create_batch_from_replay_smiles,
 )
-from wip.writer import TensorDictMaxValueWriter
+from old.writer import TensorDictMaxValueWriter
 from transforms.reward_transform import SMILESReward
 
 

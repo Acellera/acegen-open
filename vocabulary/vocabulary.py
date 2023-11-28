@@ -85,7 +85,7 @@ class SMILESTokenizer:
     REGEXPS = {
         "brackets": re.compile(r"(\[[^\]]*\])"),
         "2_ring_nums": re.compile(r"(%\d{2})"),
-        "brcl": re.compile(r"(Br|Cl)"),
+        "brcl": re.compile(r"(Br|Cl)")
     }
     REGEXP_ORDER = ["brackets", "2_ring_nums", "brcl"]
 
@@ -96,6 +96,7 @@ class SMILESTokenizer:
             if not regexps:
                 return list(data)
             regexp = self.REGEXPS[regexps[0]]
+            data = re.sub(r'<pad>', '', data)
             splitted = regexp.split(data)
             tokens = []
             for i, split in enumerate(splitted):
@@ -113,11 +114,12 @@ class SMILESTokenizer:
     def untokenize(self, tokens):
         """Untokenizes a SMILES string."""
         smi = ""
-        for token in tokens:
+        for i, token in enumerate(tokens):
             if token == "$":
                 break
-            if token != "^":
-                smi += token
+            if token == "^" and i == 0:
+                continue
+            smi += token
         return smi
 
 
@@ -137,14 +139,16 @@ class DeNovoVocabulary:
         self.vocabulary = vocabulary
         self.tokenizer = tokenizer
 
-    def encode_smiles(self, smile, with_begin_and_end=True):
+    def encode(self, smile, with_begin_and_end=True):
         """Encodes a SMILE from str to np.array."""
         return self.vocabulary.encode(
             self.tokenizer.tokenize(smile, with_begin_and_end)
         )
 
-    def decode_smiles(self, encoded_smile):
+    def decode(self, encoded_smile, ignore=[]):
         """Decodes a SMILE from np.array to str."""
+        for token in ignore:
+            encoded_smile = encoded_smile[encoded_smile != token]
         return self.tokenizer.untokenize(self.vocabulary.decode(encoded_smile))
 
     def encode_token(self, token):

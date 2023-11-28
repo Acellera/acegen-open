@@ -1,32 +1,35 @@
 # Logging configuration
 experiment_name: torchrl_chem
-agent_name: sac
-log_dir: logs_sac
+agent_name: dqn
+log_dir: logs_dqn
 logger_backend: null
 seed: 101
 
 # Environment configuration
-num_envs: 2
+num_envs: 1
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 
 # Model
-model: sac
+model: dqn
 
 # Collector configuration
 total_frames: 1_000_000
-frames_per_batch: 2000
+frames_per_batch: 100
 
 # Replay buffer configuration
 replay_buffer_size: 100_000
 
-# Discrete SAC configuration
+# DQN configuration
 lr: 0.0001
 eps: 1e-08
+initial_frames: 0
 weight_decay: 1e-8
 gamma: 0.99
 target_update_polyak: 0.95
-target_entropy_weight: 0.5
-batch_size: 2
+batch_size: 32
+sampled_sequence_length: 20
+burn_in: 10
 kl_coef: 0.01
 max_grad_norm: 1.0
-num_loss_updates: 1
+num_loss_updates: 10
+value_network_update_interval: 100

@@ -1,1 +1,2 @@
-from .de_novo_env import DeNovoEnv
+from .multi_step_env import MultiStepDeNovoEnv
+from .single_step_env import SingleStepDeNovoEnv

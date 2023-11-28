@@ -33,8 +33,8 @@ from torchrl.record.loggers import get_logger
 from models import get_model_factory
 from rl_environments import DeNovoEnv
 from vocabulary import DeNovoVocabulary
-from utils import penalise_repeated_smiles, create_batch_from_replay_smiles
-from wip.writer import TensorDictMaxValueWriter
+from utils import penalise_repeated_smiles
+from old.writer import TensorDictMaxValueWriter
 from transforms import SMILESReward, PenaliseRepeatedSMILES
 
 # TODO: replay batch masks work?

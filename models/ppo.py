@@ -4,12 +4,14 @@ from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.modules import (
     MLP,
     LSTMModule,
+    GRUModule,
     ValueOperator,
     ActorValueOperator,
     ProbabilisticActor,
 )
 from torchrl.envs import ExplorationType, TensorDictPrimer
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+
 
 class Embed(torch.nn.Module):
     """Implements a simple embedding layer."""
@@ -54,22 +56,22 @@ def create_shared_ppo_models(vocabulary_size, batch_size, ckpt=None):
     """
 
     if ckpt is None:
-        ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor_critic.prior")
+        ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "reinvent.prior")
 
     embedding_module = TensorDictModule(
-        Embed(vocabulary_size, 256),
+        Embed(vocabulary_size, 128),
         in_keys=["observation"],
         out_keys=["embed"],
     )
-    lstm_module = LSTMModule(
-        input_size=256,
+    lstm_module = GRUModule(
+        dropout=0.0,
+        input_size=128,
         hidden_size=512,
         num_layers=3,
-        in_keys=["embed", "recurrent_state_h", "recurrent_state_c"],
+        in_keys=["embed", "recurrent_state", "is_init"],
         out_keys=[
             "features",
-            ("next", "recurrent_state_h"),
-            ("next", "recurrent_state_c"),
+            ("next", "recurrent_state"),
         ],
     )
     actor_model = TensorDictModule(
@@ -94,7 +96,7 @@ def create_shared_ppo_models(vocabulary_size, batch_size, ckpt=None):
         MLP(
             in_features=512,
             out_features=1,
-            num_cells=[],
+            num_cells=[256, 256],
         ),
         in_keys=["features"],
     )
@@ -119,53 +121,45 @@ def create_shared_ppo_models(vocabulary_size, batch_size, ckpt=None):
     actor_training = actor_critic_training.get_policy_operator()
     critic_training = actor_critic_training.get_value_operator()
 
+    ckpt = adapt_ppo_ckpt(ckpt)
     actor_inference.load_state_dict(ckpt)
     actor_training.load_state_dict(ckpt)
 
     primers = {
-        ('recurrent_state_h',):
+        ('recurrent_state',):
             UnboundedContinuousTensorSpec(
                 shape=torch.Size([batch_size, 3, 512]),
                 dtype=torch.float32,
             ),
-        ('recurrent_state_c',):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([batch_size, 3, 512]),
-                dtype=torch.float32),
     }
     transform = TensorDictPrimer(primers)
 
     return actor_inference, actor_training, critic_inference, critic_training, transform
 
 
-def adapt_ppo_ckpt(ckpt_path):
+def adapt_ppo_ckpt(ckpt):
     """Adapt the PPO ckpt from the AceGen ckpt format."""
 
     keys_mapping = {
-        'policy_net.memory_net._embedding.weight': "module.0.module.0.module._embedding.weight",
-        'policy_net.memory_net._rnn.weight_ih_l0': "module.0.module.1.lstm.weight_ih_l0",
-        'policy_net.memory_net._rnn.weight_hh_l0': "module.0.module.1.lstm.weight_hh_l0",
-        'policy_net.memory_net._rnn.bias_ih_l0': "module.0.module.1.lstm.bias_ih_l0",
-        'policy_net.memory_net._rnn.bias_hh_l0': "module.0.module.1.lstm.bias_hh_l0",
-        'policy_net.memory_net._rnn.weight_ih_l1': "module.0.module.1.lstm.weight_ih_l1",
-        'policy_net.memory_net._rnn.weight_hh_l1': "module.0.module.1.lstm.weight_hh_l1",
-        'policy_net.memory_net._rnn.bias_ih_l1': "module.0.module.1.lstm.bias_ih_l1",
-        'policy_net.memory_net._rnn.bias_hh_l1': "module.0.module.1.lstm.bias_hh_l1",
-        'policy_net.memory_net._rnn.weight_ih_l2': "module.0.module.1.lstm.weight_ih_l2",
-        'policy_net.memory_net._rnn.weight_hh_l2': "module.0.module.1.lstm.weight_hh_l2",
-        'policy_net.memory_net._rnn.bias_ih_l2': "module.0.module.1.lstm.bias_ih_l2",
-        'policy_net.memory_net._rnn.bias_hh_l2': "module.0.module.1.lstm.bias_hh_l2",
-        'policy_net.dist.linear.weight': "module.1.module.0.weight",
-        'policy_net.dist.linear.bias': "module.1.module.0.bias",
+        'embedding.weight': "module.0.module.0.module._embedding.weight",
+        'gru_1.weight_ih': "module.0.module.1.gru.weight_ih_l0",
+        'gru_1.weight_hh': "module.0.module.1.gru.weight_hh_l0",
+        'gru_1.bias_ih': "module.0.module.1.gru.bias_ih_l0",
+        'gru_1.bias_hh': "module.0.module.1.gru.bias_hh_l0",
+        'gru_2.weight_ih': "module.0.module.1.gru.weight_ih_l1",
+        'gru_2.weight_hh': "module.0.module.1.gru.weight_hh_l1",
+        'gru_2.bias_ih': "module.0.module.1.gru.bias_ih_l1",
+        'gru_2.bias_hh': "module.0.module.1.gru.bias_hh_l1",
+        'gru_3.weight_ih': "module.0.module.1.gru.weight_ih_l2",
+        'gru_3.weight_hh': "module.0.module.1.gru.weight_hh_l2",
+        'gru_3.bias_ih': "module.0.module.1.gru.bias_ih_l2",
+        'gru_3.bias_hh': "module.0.module.1.gru.bias_hh_l2",
+        'linear.weight': "module.1.module.0.weight",
+        'linear.bias': "module.1.module.0.bias",
     }
 
-    ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))
-    weights = ckpt["network_weights"]
-    vocabulary = ckpt["vocabulary"]
-    weights.pop("value_net1.predictor.weight")
-    weights.pop("value_net1.predictor.bias")
     new_ckpt = {}
-    for k, v in weights.items():
+    for k, v in ckpt.items():
         new_ckpt[keys_mapping[k]] = v
 
-    return new_ckpt, vocabulary
+    return new_ckpt
