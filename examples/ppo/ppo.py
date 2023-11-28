@@ -39,7 +39,7 @@ from utils import Experience, create_batch_from_replay_smiles, create_shared_ppo
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path="../..", config_name="ppo_config", version_base="1.2")
+@hydra.main(config_path=".", config_name="ppo_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -61,7 +61,8 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = resources.files("acegen").resolve() / "priors" / "reinvent_vocabulary.txt"
+    import ipdb; ipdb.set_trace()
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
     vocabulary = SMILESVocabulary(ckpt)
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
@@ -74,7 +75,7 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    ckpt = torch.load(resources.files("acegen").resolve() / "priors" / "reinvent.ckpt")
+    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
      ) = create_shared_ppo_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
 

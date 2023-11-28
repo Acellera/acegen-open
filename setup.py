@@ -21,16 +21,16 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],
-    include_package_data=True,
-    package_data={"priors": [
-        "chembl_actor.prior",
-        "chembl_actor_critic.prior",
-        "chembl_critic.prior",
-        "chembl_vocabulary.txt",
-        "reinvent_vocabulary.txt",
-        "zinc_actor_critic.prior",
-        "zinc_vocabulary.prior",
-    ]},
+    # include_package_data=True,
+    # package_data={"acegen": [
+    #     "priors/chembl_actor.prior",
+    #     "priors/chembl_actor_critic.prior",
+    #     "priors/chembl_critic.prior",
+    #     "priors/chembl_vocabulary.txt",
+    #     "priors/reinvent_vocabulary.txt",
+    #     "priors/zinc_actor_critic.prior",
+    #     "priors/zinc_vocabulary.prior",
+    # ]},
     install_requires=[
         # List your dependencies here
     ],
