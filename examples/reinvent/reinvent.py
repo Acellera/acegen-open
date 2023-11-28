@@ -16,8 +16,7 @@ import torch
 from torchrl.record.loggers import get_logger
 
 from utils import Experience, create_reinvent_model
-from acegen.rl_environments import SingleStepDeNovoEnv
-from acegen.vocabulary import SMILESVocabulary
+from acegen import SMILESVocabulary, SingleStepDeNovoEnv
 
 logging.basicConfig(level=logging.WARNING)
 
