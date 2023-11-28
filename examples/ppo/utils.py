@@ -206,8 +206,7 @@ class Experience(object):
             scores = [x[1] for x in sample]
             prior_likelihood = [x[2] for x in sample]
         if decode_smiles:
-            tokenized = [self.voc.tokenize(smile) for smile in smiles]
-            encoded = [torch.tensor(self.voc.encode(tokenized_i), dtype=torch.int32) for tokenized_i in tokenized]
+            encoded = [torch.tensor(self.voc.encode(smile), dtype=torch.int32) for smile in smiles]
             smiles = collate_fn(encoded)
         return smiles, torch.tensor(scores), torch.tensor(prior_likelihood)
 

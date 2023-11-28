@@ -12,7 +12,7 @@ To create the conda / mamba environment, run
 
 To install AceGen, run
 
-    cd acegen
+    cd acegen-open
     python setup.py install
 
 ## Install MolScore
