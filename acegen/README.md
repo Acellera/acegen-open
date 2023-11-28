@@ -1,21 +1,9 @@
-# TorchRL generative Chemistry
-Language models + RL for drug discovery using TorchRL
+# AceGen-Open 
 
-## Conda environment
+## RL environments
 
-To create the conda / mamba environment, run
+## Transforms
 
-    conda/mamba env create -f environment.yml
-    conda activate torchrl_chem
+## Vocabularies
 
-## Export PYTHONPATH
 
-## Configuration file
-    
-The configuration file is `ppo_config.yml`. It contains the parameters for the training.
-
-## Running the training script
-
-To run the training script with kl divergence as a loss term, run
-
-    python ppo.py

@@ -12,6 +12,7 @@ from copy import deepcopy
 from pathlib import Path
 from omegaconf import OmegaConf
 from molscore.manager import MolScore
+from importlib import resources
 
 import torch
 from torch.distributions.kl import kl_divergence
@@ -29,13 +30,12 @@ from torchrl.objectives.value.advantages import GAE
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
-from experience_replay import Experience
 from torchrl.record.loggers import get_logger
 
+import acegen
 from examples.models import get_model_factory
-from acegen.rl_environments import MultiStepDeNovoEnv as DeNovoEnv
-from acegen.vocabulary.vocabulary2 import Vocabulary
-from acegen.transforms import SMILESReward, PenaliseRepeatedSMILES
+from acegen import SMILESVocabulary, MultiStepDeNovoEnv as DeNovoEnv, SMILESReward, PenaliseRepeatedSMILES
+from utils import Experience, create_batch_from_replay_smiles
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -62,8 +62,8 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = Path(__file__).resolve().parent / "vocabulary" / "priors" / "reinvent_vocabulary.txt"
-    vocabulary = Vocabulary(ckpt)
+    ckpt = resources.files("acegen").resolve() / "priors" / "reinvent_vocabulary.txt"
+    vocabulary = SMILESVocabulary(ckpt)
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
         "end_token": vocabulary.vocab["EOS"],
@@ -76,7 +76,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     create_model = get_model_factory(cfg.model)
-    ckpt = torch.load(Path(__file__).resolve().parent / "models" / "priors" / "reinvent.ckpt")
+    ckpt = torch.load(resources.files("acegen").resolve() / "priors" / "reinvent.ckpt")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
      ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
 
@@ -270,7 +270,7 @@ def main(cfg: "DictConfig"):
                 for _ in range(2):
                     row = random.randint(0, cfg.num_envs - 1)
                     exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(5, decode_smiles=False)
-                    replay_batch = create_batch_from_replay_smiles2(exp_seqs, exp_reward, device, vocabulary=vocabulary)
+                    replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
                     data[row] = replay_batch[0, 0:100]
 
             with torch.no_grad():
@@ -283,7 +283,7 @@ def main(cfg: "DictConfig"):
                 # Compute loss for the current mini-batch
                 batch = buffer.sample()
 
-                # batch = batch.reshape(-1)  # TODO: seems to help
+                # batch = batch.reshape(-1)
 
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
