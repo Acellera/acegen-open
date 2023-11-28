@@ -6,6 +6,7 @@ import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
 from torchrl.modules import (
+    GRUModule,
     LSTMModule,
     MLP,
     ActorValueOperator,
@@ -34,29 +35,31 @@ class Embed(torch.nn.Module):
         out = self._embedding(inputs)
         if len(batch) > 1:
             out = out.unflatten(0, batch)
-        out = out.squeeze()  # This is an ugly hack, should not be necessary
+        out = out.squeeze(
+            -1
+        )  # If time dimension is 1, remove it. Ugly hack, should not be necessary
+        out = out.squeeze(
+            -2
+        )  # If time dimension is 1, remove it. Ugly hack, should not be necessary
         return out
 
 
 def create_net(vocabulary_size, batch_size, net_name="actor"):
     embedding_module = TensorDictModule(
-        Embed(vocabulary_size, 256),
+        Embed(vocabulary_size, 128),
         in_keys=["observation"],
         out_keys=["embed"],
     )
-    lstm_module = LSTMModule(
-        input_size=256,
+
+    gru_module = GRUModule(
+        dropout=0.0,
+        input_size=128,
         hidden_size=512,
         num_layers=3,
-        in_keys=[
-            "embed",
-            f"recurrent_state_h_{net_name}",
-            f"recurrent_state_c_{net_name}",
-        ],
+        in_keys=["embed", f"recurrent_state_{net_name}", "is_init"],
         out_keys=[
             "features",
-            ("next", f"recurrent_state_h_{net_name}"),
-            ("next", f"recurrent_state_c_{net_name}"),
+            ("next", f"recurrent_state_{net_name}"),
         ],
     )
     mlp = TensorDictModule(
@@ -69,8 +72,8 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
         out_keys=["logits"] if net_name == "actor" else ["action_value"],
     )
 
-    model_inference = TensorDictSequential(embedding_module, lstm_module, mlp)
-    model_training = TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp)
+    model_inference = TensorDictSequential(embedding_module, gru_module, mlp)
+    model_training = TensorDictSequential(embedding_module, gru_module.set_recurrent_mode(True), mlp)
 
     if net_name == "actor":
         model_inference = ProbabilisticActor(
@@ -104,56 +107,26 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
         )
 
     primers = {
-        ('recurrent_state_h',):
+        (f"recurrent_state_{net_name}",):
             UnboundedContinuousTensorSpec(
                 shape=torch.Size([batch_size, 3, 512]),
                 dtype=torch.float32,
             ),
-        ('recurrent_state_c',):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([batch_size, 3, 512]),
-                dtype=torch.float32),
     }
     transform = TensorDictPrimer(primers)
 
     return model_inference, model_training, transform
 
 
-def create_net2(vocabulary_size, batch_size, net_name="actor"):
-    if net_name == "actor":
-        embedding_module = TensorDictModule(
-            Embed(vocabulary_size, vocabulary_size),
-            in_keys=["observation"],
-            out_keys=["logits"],
-        )
-        model = ProbabilisticActor(
-            module=embedding_module,
-            in_keys=["logits"],
-            out_keys=["action"],
-            distribution_class=OneHotCategorical,
-            return_log_prob=True,
-            default_interaction_type=ExplorationType.RANDOM,
-        )
-    else:
-        model = TensorDictModule(
-            Embed(vocabulary_size, vocabulary_size),
-            in_keys=["observation"],
-            out_keys=["action_value"],
-        )
-
-    return model, model, None
-
-
-
 def create_sac_models(vocabulary_size, batch_size):
 
-    actor_inference, actor_training, actor_transform = create_net2(vocabulary_size, batch_size, net_name="actor")
+    actor_inference, actor_training, actor_transform = create_net(vocabulary_size, batch_size, net_name="actor")
     # ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor.prior")
     # ckpt = adapt_sac_ckpt(ckpt)
     # actor_inference.load_state_dict(ckpt)
     # actor_training.load_state_dict(ckpt)
 
-    critic_inference, critic_training, critic_transform = create_net2(vocabulary_size, batch_size, net_name="critic")
+    critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size, net_name="critic")
     # ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor.prior")
     # ckpt = adapt_sac_ckpt(ckpt)
     # critic_inference.load_state_dict(ckpt)

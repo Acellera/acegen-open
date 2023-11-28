@@ -26,22 +26,21 @@ from torchrl.envs import (
 )
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
-from torchrl.data import LazyMemmapStorage, LazyTensorStorage, TensorDictReplayBuffer
+from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import RandomSampler
 from torchrl.record.loggers import get_logger
 
-from models import get_model_factory
-from rl_environments import MultiStepDeNovoEnv as DeNovoEnv
-from vocabulary.vocabulary2 import Vocabulary
-from old.writer import TensorDictMaxValueWriter
-from transforms.reward_transform import SMILESReward
-from transforms.burnin_transform import BurnInTransform
+from examples.models import get_model_factory
+from acegen.rl_environments import MultiStepDeNovoEnv as DeNovoEnv
+from acegen.vocabulary.vocabulary2 import Vocabulary
+from acegen.transforms.reward_transform import SMILESReward
+from acegen.transforms.burnin_transform import BurnInTransform
 
 
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path=".", config_name="sac_config", version_base="1.2")
+@hydra.main(config_path="../..", config_name="sac_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -126,7 +125,7 @@ def main(cfg: "DictConfig"):
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
         device=device,
-        storing_device=device,
+        storing_device="cpu",
     )
 
     # Loss modules
@@ -148,9 +147,10 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
-    burn_in = BurnInTransform(lstm_module=actor_training, burn_in=cfg.burn_in)
+    burn_in = BurnInTransform(rnn_modules=(actor_training, critic_training), burn_in=cfg.burn_in)
     buffer = TensorDictReplayBuffer(
-        storage=LazyMemmapStorage(cfg.replay_buffer_size),
+        # storage=LazyMemmapStorage(cfg.replay_buffer_size),
+        storage=LazyTensorStorage(1000),
         batch_size=cfg.batch_size,
         prefetch=3,
         sampler=RandomSampler(),
@@ -207,39 +207,25 @@ def main(cfg: "DictConfig"):
             log_info.update(
                 {
                     "train/total_smiles": total_done,
-                    "train/repeated_smiles": repeated_smiles,
                     "train/reward": episode_rewards.mean().item(),
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
                     "train/episode_length": episode_length.sum().item()
-                    / len(episode_length),
+                                            / len(episode_length),
                 }
             )
 
-        # data = data.exclude(*exclude_keys).reshape(-1)
-        # data = data.exclude(*exclude_keys)
+        data = data.exclude(
+            "recurrent_state_actor", ("next", "recurrent_state_actor"))
+        buffer.extend(data.cpu())
+
         import ipdb; ipdb.set_trace()
-        buffer.extend(data)
         batch = buffer.sample()
         batch = batch.to(device)
         import ipdb; ipdb.set_trace()
         loss_td = loss_module(batch)
 
         # # Burn in
-        # with torch.no_grad():
-        #     burn_in_batch = TensorDict({
-        #         "observation": batch["observation_burn_in"].unsqueeze(-1),
-        #         "is_init": batch["is_init_burn_in"].unsqueeze(-1),
-        #         },
-        #         device=device,
-        #         batch_size=batch["observation_burn_in"].shape)
-        #     import ipdb; ipdb.set_trace()
-        #     burn_in_batch = actor_training(burn_in_batch)
-        #     burn_in_batch = critic_training(burn_in_batch)
-        #
-        # import ipdb; ipdb.set_trace()
-        # batch.set("recurrent_state_c_actor", burn_in_batch[:, -1].get(("next", "recurrent_state_c_actor")))
-        # batch.set("recurrent_state_h_actor", burn_in_batch[:, -1].get(("next", "recurrent_state_h_actor")))
 
         import ipdb; ipdb.set_trace()
 

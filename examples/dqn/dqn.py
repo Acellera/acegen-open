@@ -1,5 +1,4 @@
 import os
-import sys
 
 import tqdm
 import yaml
@@ -15,7 +14,6 @@ from omegaconf import OmegaConf
 from molscore.manager import MolScore
 
 import torch
-from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torchrl.envs import (
     CatFrames,
@@ -26,26 +24,23 @@ from torchrl.envs import (
     RandomCropTensorDict,
 )
 from torchrl.data.replay_buffers import RandomSampler
-from torchrl.envs import ExplorationType, set_exploration_type
-from torchrl.modules import EGreedyModule
 from torchrl.collectors import SyncDataCollector
-from torchrl.objectives import DQNLoss, SoftUpdate, HardUpdate
-from torchrl.data import LazyMemmapStorage, LazyTensorStorage, TensorDictReplayBuffer
-from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from torchrl.objectives import DQNLoss, SoftUpdate
+from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.record.loggers import get_logger
 
-from models import get_model_factory
-from rl_environments import DeNovoEnv
-from vocabulary import DeNovoVocabulary
-from transforms.reward_transform import SMILESReward
-from transforms.burnin_transform import BurnInTransform
-from wip.sampler import CategoricalSamplingModule
+from examples.models import get_model_factory
+from acegen.rl_environments import DeNovoEnv
+from acegen.vocabulary import DeNovoVocabulary
+from acegen.transforms.reward_transform import SMILESReward
+from acegen.transforms.burnin_transform import BurnInTransform
+from examples.dqn.sampler import CategoricalSamplingModule
 
 
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path=".", config_name="dqn_config", version_base="1.2")
+@hydra.main(config_path="../..", config_name="dqn_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config

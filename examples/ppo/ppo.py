@@ -27,21 +27,20 @@ from torchrl.envs import (
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.collectors import SyncDataCollector
-from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer, TensorDictPrioritizedReplayBuffer
+from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
-from torchrl.data.replay_buffers.writers import TensorDictMaxValueWriter
+from experience_replay import Experience
 from torchrl.record.loggers import get_logger
 
-from models import get_model_factory
-from rl_environments import MultiStepDeNovoEnv
-from vocabulary.vocabulary2 import Vocabulary
-from utils import create_batch_from_replay_smiles
-from transforms import SMILESReward, PenaliseRepeatedSMILES
+from examples.models import get_model_factory
+from acegen.rl_environments import MultiStepDeNovoEnv as DeNovoEnv
+from acegen.vocabulary.vocabulary2 import Vocabulary
+from acegen.transforms import SMILESReward, PenaliseRepeatedSMILES
 
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path="..", config_name="ppo_config", version_base="1.2")
+@hydra.main(config_path="../..", config_name="ppo_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -91,7 +90,7 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn():
         """Create a single RL rl_environments."""
-        env = MultiStepDeNovoEnv(**env_kwargs)
+        env = DeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(
@@ -116,8 +115,6 @@ def main(cfg: "DictConfig"):
 
     # Create reward transform
     rew_transform = SMILESReward(reward_function=scoring_function, vocabulary=vocabulary)
-
-    # TODO: here check model-environment compatibility
 
     # Collector
     ####################################################################################################################
@@ -175,12 +172,7 @@ def main(cfg: "DictConfig"):
 
     experience_replay_buffer = None
     if cfg.experience_replay is True:
-        experience_replay_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(cfg.experience_replay_buffer_size, device=device),
-            prefetch=2,
-            batch_size=cfg.experience_replay_batch_size,
-            writer=TensorDictMaxValueWriter(rank_key="reward"),
-        )
+        experience_replay_buffer = Experience(voc=vocabulary)
 
     # Optimizer
     ####################################################################################################################
@@ -211,7 +203,6 @@ def main(cfg: "DictConfig"):
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_frames)
-    replay_frequency = cfg.experience_replay_frequency
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
     replay_losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
@@ -256,106 +247,54 @@ def main(cfg: "DictConfig"):
                 }
             )
 
-        # Add data to the replay buffer
-        if experience_replay_buffer is not None:
-            next_data = data.get("next")
-            terminated = next_data.get("terminated").squeeze(-1)
-            terminated_smiles = next_data.get_sub_tensordict(idx=terminated).select("SMILES", "reward")
-            if len(terminated_smiles) > 0:
-                experience_replay_buffer.extend(terminated_smiles.cpu())
+        # Get data to be added to the replay buffer later
+        replay_data = data.get("next").clone()
+        replay_data = replay_data.get_sub_tensordict(idx= replay_data.get("terminated").squeeze(-1))
+
+        # Then exclude unnecessary tensors
+        data = data.exclude(
+            "embed",
+            "logits",
+            "features",
+            "collector",
+            "step_count",
+            ("next", "step_count"),
+            "SMILES",
+            ("next", "SMILES"),
+        )
 
         for j in range(ppo_epochs):
 
+            if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
+                data = data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
+                for _ in range(2):
+                    row = random.randint(0, cfg.num_envs - 1)
+                    exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(5, decode_smiles=False)
+                    replay_batch = create_batch_from_replay_smiles2(exp_seqs, exp_reward, device, vocabulary=vocabulary)
+                    data[row] = replay_batch[0, 0:100]
+
             with torch.no_grad():
-
-                if cfg.augment_reward:
-                    prior_log_probs = prior(data.clone())["sample_log_prob"].unsqueeze(-1)
-                    batch_log_probs = actor_training(data.clone())["sample_log_prob"].unsqueeze(-1)
-                    kl = (batch_log_probs - prior_log_probs)
-                    reward = data.get(("next", "reward"))
-                    data.set(("next", "reward"), reward + kl * 0.002)
-
                 data = adv_module(data)
 
-            # buffer.extend(data)
-            buffer.extend(data.exclude("recurrent_state", ("next", "recurrent_state")))
+            buffer.extend(data)
 
             for i in range(num_mini_batches):
 
                 # Compute loss for the current mini-batch
                 batch = buffer.sample()
 
+                # batch = batch.reshape(-1)  # TODO: seems to help
+
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-
-                if cfg.augment_loss:
-
-                    # prior_log_probs = prior(batch.clone())["sample_log_prob"].unsqueeze(-1)
-                    # batch_log_probs = actor_training(batch.clone())["sample_log_prob"].unsqueeze(-1)
-                    # kl = (batch_log_probs - prior_log_probs).mean()
-
-                    dist_actor = actor_training.get_dist(batch.clone())
-                    dist_prior = prior.get_dist(batch.clone())
-                    kl = kl_divergence(dist_prior, dist_actor)
-                    # import ipdb; ipdb.set_trace()
-
-                    # kl = kl.abs()
-
-                    # import ipdb; ipdb.set_trace()
-                    # mask = kl < 0.5
-                    # kl[mask] = 0
-                    kl = kl.mean()
-
-                    loss_sum += kl * kl_coef
-
                 losses[j, i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
-
-                if experience_replay_buffer is not None and model_updates % replay_frequency == 0:
-                    replay_batch = experience_replay_buffer.sample()
-
-                    # Create replay batch as a TensorDict
-                    cat_replay_data = create_batch_from_replay_smiles(
-                        replay_batch,  device, vocabulary=vocabulary)
-
-                    # Compute adv for the replay batch
-                    with torch.no_grad():
-
-                        if cfg.augment_reward:
-                            prior_log_probs = prior(cat_replay_data.clone())["sample_log_prob"].unsqueeze(-1)
-                            batch_log_probs = actor_training(cat_replay_data.clone())["sample_log_prob"].unsqueeze(-1)
-                            kl = (batch_log_probs - prior_log_probs)
-                            reward = data.get(("next", "reward"))
-                            data.set(("next", "reward"), reward + kl * 0.002)
-
-                        replay_batch = adv_module(cat_replay_data)
-
-                    # Compute loss for the replay batch
-                    replay_loss = loss_module(replay_batch)
-                    replay_loss_sum = replay_loss["loss_critic"] + replay_loss["loss_objective"] + replay_loss["loss_entropy"]
-
-                    if cfg.augment_loss:
-
-                        # prior_log_probs = prior(replay_batch.clone())["sample_log_prob"].unsqueeze(-1)
-                        # batch_log_probs = actor_training(replay_batch.clone())["sample_log_prob"].unsqueeze(-1)
-                        # kl = (batch_log_probs - prior_log_probs).mean()
-
-                        dist_actor = actor_training.get_dist(batch.clone())
-                        dist_prior = prior.get_dist(batch.clone())
-                        kl = kl_divergence(dist_prior, dist_actor).mean()
-
-                        replay_loss_sum += kl * kl_coef
-
-                    # Log replay loss
-                    replay_losses[j, i] = replay_loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
-                    replay_losses[j, i] = TensorDict({
-                        "reward": cat_replay_data["next"]["reward"][cat_replay_data["next"]["done"]].mean().item(),
-                    }, batch_size=[])
-
-                    # Augment loss
-                    bs = batch.numel()
-                    rbs = replay_batch.numel()
-                    alpha = (rbs / (bs + rbs))
-                    loss_sum += (1 - alpha) * loss_sum + alpha * replay_loss_sum
+                with torch.no_grad():
+                    prior_dist = prior.get_dist(batch)
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+                mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+                kl_div = kl_div[~mask].mean()
+                loss_sum += kl_div * kl_coef
+                losses[j, i] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
 
                 loss_sum.backward()
                 torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
@@ -370,6 +309,17 @@ def main(cfg: "DictConfig"):
         for key, value in replay_losses_mean.items():
             log_info.update({f"train/replay_{key}": value.item()})
 
+        # Add data to the replay buffer
+        if experience_replay_buffer is not None:
+            smiles_list = []
+            for index, seq in enumerate(replay_data.get("SMILES")):
+                smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
+                smiles_list.append(smiles)
+            rewards = replay_data.get("reward").squeeze(-1).cpu().numpy()
+            prior_likelihood = np.zeros_like(rewards)
+            new_experience = zip(smiles_list, rewards, rewards, prior_likelihood)
+            experience_replay_buffer.add_experience(new_experience)
+
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, collected_frames)
@@ -380,4 +330,3 @@ def main(cfg: "DictConfig"):
 
 if __name__ == "__main__":
     main()
-

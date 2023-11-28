@@ -15,10 +15,10 @@ from molscore.manager import MolScore
 import torch
 from torchrl.record.loggers import get_logger
 
-from models import get_model_factory
+from examples.models import get_model_factory
 from experience_replay import Experience
-from rl_environments import SingleStepDeNovoEnv
-from vocabulary.vocabulary2 import Vocabulary
+from acegen.rl_environments import SingleStepDeNovoEnv
+from acegen.vocabulary.vocabulary2 import Vocabulary
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -33,7 +33,7 @@ def unique(arr):
     return torch.LongTensor(np.sort(idxs))
 
 
-@hydra.main(config_path=".", config_name="reinvent_config", version_base="1.2")
+@hydra.main(config_path="../..", config_name="reinvent_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config

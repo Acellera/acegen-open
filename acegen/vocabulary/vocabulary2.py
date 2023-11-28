@@ -1,18 +1,18 @@
+from typing import Protocol
 import numpy as np
 import re
 
 
-def replace_halogen(string):
-    """Regex to replace Br and Cl with single letters"""
-    br = re.compile('Br')
-    cl = re.compile('Cl')
-    string = br.sub('R', string)
-    string = cl.sub('L', string)
+class Vocabulary(Protocol):
+    """An interface for handling encoding/decoding from SMILES to an array of indices"""
+    def encode(self, smiles: list[str]) -> np.ndarray:
+        ...
 
-    return string
+    def decode(self, vocab_index: np.ndarray, ignore_indices=[]) -> list[str]:
+        ...
 
 
-class Vocabulary(object):
+class SMILESVocabulary(Vocabulary):
     """A class for handling encoding/decoding from SMILES to an array of indices"""
     def __init__(self, init_from_file=None, max_length=140):
         self.special_tokens = ['EOS', 'GO']
@@ -24,17 +24,18 @@ class Vocabulary(object):
         self.max_length = max_length
         if init_from_file: self.init_from_file(init_from_file)
 
-    def encode(self, char_list):
+    def encode(self, smiles):
         """Takes a list of characters (eg '[NH]') and encodes to array of indices"""
+        char_list = self.tokenize(smiles)
         smiles_matrix = np.zeros(len(char_list), dtype=np.float32)
         for i, char in enumerate(char_list):
             smiles_matrix[i] = self.vocab[char]
         return smiles_matrix
 
-    def decode(self, matrix, ignore_indices=[]):
+    def decode(self, encoded_smiles, ignore_indices=[]):
         """Takes an array of indices and returns the corresponding SMILES"""
         chars = []
-        for i in matrix:
+        for i in encoded_smiles:
             if i in ignore_indices:
                 continue
             if i == self.vocab['GO']:
@@ -84,3 +85,13 @@ class Vocabulary(object):
 
     def __str__(self):
         return "Vocabulary containing {} tokens: {}".format(len(self), self.chars)
+
+
+def replace_halogen(string):
+    """Regex to replace Br and Cl with single letters"""
+    br = re.compile('Br')
+    cl = re.compile('Cl')
+    string = br.sub('R', string)
+    string = cl.sub('L', string)
+
+    return string
