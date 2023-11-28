@@ -22,6 +22,7 @@ class SingleStepDeNovoEnv(EnvBase):
             max_length: int = 140,
             device: DEVICE_TYPING = None,
             batch_size: int = 1,
+            one_hot_action_encoding: bool = False,
     ):
         super().__init__(
             device=device,
@@ -36,6 +37,7 @@ class SingleStepDeNovoEnv(EnvBase):
         self.end_token = int(end_token)
         self.start_token = int(start_token)
         self.length_vocabulary = length_vocabulary
+        self.one_hot_action_encoding = one_hot_action_encoding
         self.episode_length = torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
 
         self._reset_tensordict = TensorDict(
@@ -55,8 +57,8 @@ class SingleStepDeNovoEnv(EnvBase):
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
         actions = tensordict.get("action")
-        # if actions.shape[-1] == self.length_vocabulary:  # One-hot encoding
-        #     actions = torch.argmax(actions, dim=-1)
+        if self.one_hot_action_encoding:
+            actions = torch.argmax(actions, dim=-1)
         reward = torch.zeros(self.num_envs, device=self.device)
         done = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
         next_tensordict = TensorDict(

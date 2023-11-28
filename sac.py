@@ -31,8 +31,8 @@ from torchrl.data.replay_buffers.samplers import RandomSampler
 from torchrl.record.loggers import get_logger
 
 from models import get_model_factory
-from rl_environments import DeNovoEnv
-from vocabulary import DeNovoVocabulary
+from rl_environments import MultiStepDeNovoEnv as DeNovoEnv
+from vocabulary.vocabulary2 import Vocabulary
 from old.writer import TensorDictMaxValueWriter
 from transforms.reward_transform import SMILESReward
 from transforms.burnin_transform import BurnInTransform
@@ -63,11 +63,11 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = torch.load(Path(__file__).resolve().parent / "vocabulary" / "priors" / "chembl_vocabulary.prior")
-    vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
+    ckpt = Path(__file__).resolve().parent / "vocabulary" / "priors" / "reinvent_vocabulary.txt"
+    vocabulary = Vocabulary(ckpt)
     env_kwargs = {
-        "start_token": vocabulary.encode_token("^"),
-        "end_token": vocabulary.encode_token("$"),
+        "start_token": vocabulary.vocab["GO"],
+        "end_token": vocabulary.vocab["EOS"],
         "length_vocabulary": len(vocabulary),
         "batch_size": cfg.num_envs,
         "device": device,
@@ -110,7 +110,7 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, 'w'), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="sac", task_config=cfg.molscore)
+    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
@@ -157,7 +157,6 @@ def main(cfg: "DictConfig"):
     )
     buffer.append_transform(crop_seq)
     buffer.append_transform(burn_in)
-
 
     # Optimizer
     ####################################################################################################################
@@ -219,8 +218,8 @@ def main(cfg: "DictConfig"):
 
         # data = data.exclude(*exclude_keys).reshape(-1)
         # data = data.exclude(*exclude_keys)
+        import ipdb; ipdb.set_trace()
         buffer.extend(data)
-
         batch = buffer.sample()
         batch = batch.to(device)
         import ipdb; ipdb.set_trace()
