@@ -15,8 +15,7 @@ from molscore.manager import MolScore
 import torch
 from torchrl.record.loggers import get_logger
 
-from examples.models import get_model_factory
-from utils import Experience
+from utils import Experience, create_reinvent_model
 from acegen.rl_environments import SingleStepDeNovoEnv
 from acegen.vocabulary import SMILESVocabulary
 
@@ -33,7 +32,7 @@ def unique(arr):
     return torch.LongTensor(np.sort(idxs))
 
 
-@hydra.main(config_path="../..", config_name="reinvent_config", version_base="1.2")
+@hydra.main(config_path=".", config_name="reinvent_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -82,10 +81,9 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    create_model = get_model_factory(cfg.model)
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
-    prior = create_model(vocabulary=vocabulary, ckpt_path=ckpt)
-    model = create_model(vocabulary=vocabulary, ckpt_path=ckpt)
+    prior = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
+    model = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
     prior = prior.to(device)
     model = model.to(device)
 
