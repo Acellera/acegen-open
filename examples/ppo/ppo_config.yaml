@@ -26,9 +26,10 @@ gamma: 0.999
 lmbda: 0.95
 critic_coef: 0.5
 entropy_coef: 0.01
-kl_coef: 0.09
+kl_coef: 0.1
 mini_batch_size: 4
-ppo_epochs: 4
+ppo_epochs: 6
 max_grad_norm: 1.0
 ppo_clip: 0.1
 experience_replay: True
+replay_batches: 2

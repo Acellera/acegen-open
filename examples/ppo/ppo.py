@@ -154,7 +154,7 @@ def main(cfg: "DictConfig"):
         storage=LazyTensorStorage(cfg.num_envs, device=device),
         sampler=SamplerWithoutReplacement(),
         batch_size=cfg.mini_batch_size,
-        prefetch=2,
+        prefetch=4,
     )
 
     penalty_transform = None
@@ -264,7 +264,7 @@ def main(cfg: "DictConfig"):
 
             if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
                 data = data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
-                for _ in range(2):
+                for _ in range(cfg.replay_batches):
                     row = random.randint(0, cfg.num_envs - 1)
                     exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(5, decode_smiles=False)
                     replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
@@ -316,6 +316,19 @@ def main(cfg: "DictConfig"):
             prior_likelihood = np.zeros_like(rewards)
             new_experience = zip(smiles_list, rewards, rewards, prior_likelihood)
             experience_replay_buffer.add_experience(new_experience)
+
+        # # ----- entropy annealing
+        # if len(self.oracle) > 1000:
+        #     self.sort_buffer()
+        #     new_top10 = [item[1][0] for item in list(self.mol_buffer.items())[:10]]
+        #     if new_top10 == old_top10:
+        #         kl_coef *= 1.01
+        #         loss_module.entropy_coef *= 1.01
+        #     else:
+        #         kl_coef = config["kl_coef"]
+        #         loss_module.entropy_coef.copy_(config["entropy_coef"])
+        #     print(f"entropy coef {loss_module.entropy_coef}")
+        # # -----
 
         if logger:
             for key, value in log_info.items():
