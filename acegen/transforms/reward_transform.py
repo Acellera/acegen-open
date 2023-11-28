@@ -2,7 +2,7 @@ import torch
 from typing import Callable
 from tensordict import TensorDictBase
 from torchrl.envs.transforms.transforms import Transform
-from acegen.vocabulary.vocabulary import DeNovoVocabulary
+from acegen.vocabulary.vocabulary_old import DeNovoVocabulary
 
 
 class SMILESReward(Transform):

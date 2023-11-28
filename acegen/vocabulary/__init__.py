@@ -1,1 +1,2 @@
-from .vocabulary import DeNovoVocabulary
+from .vocabulary_old import DeNovoVocabulary
+from .vocabulary import SMILESVocabulary

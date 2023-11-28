@@ -18,7 +18,7 @@ from torchrl.record.loggers import get_logger
 from examples.models import get_model_factory
 from experience_replay import Experience
 from acegen.rl_environments import SingleStepDeNovoEnv
-from acegen.vocabulary.vocabulary2 import Vocabulary
+from acegen.vocabulary.vocabulary import Vocabulary
 
 logging.basicConfig(level=logging.WARNING)
 

@@ -32,7 +32,7 @@ from torchrl.record.loggers import get_logger
 
 from examples.models import get_model_factory
 from acegen.rl_environments import MultiStepDeNovoEnv as DeNovoEnv
-from acegen.vocabulary.vocabulary2 import Vocabulary
+from acegen.vocabulary.vocabulary import Vocabulary
 from acegen.transforms.reward_transform import SMILESReward
 from acegen.transforms.burnin_transform import BurnInTransform
 

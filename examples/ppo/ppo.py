@@ -12,7 +12,6 @@ from copy import deepcopy
 from pathlib import Path
 from omegaconf import OmegaConf
 from molscore.manager import MolScore
-from importlib import resources
 
 import torch
 from torch.distributions.kl import kl_divergence
