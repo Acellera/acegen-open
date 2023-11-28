@@ -15,6 +15,14 @@ To install AceGen, run
     cd acegen
     python setup.py install
 
+## Install MolScore
+
+To install MolScore, run
+    
+    git clone https://github.com/MorganCThomas/MolScore.git
+    cd molscore
+    python setup.py install
+
 ## Run examples
 
 ### Configuration file

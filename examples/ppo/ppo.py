@@ -33,9 +33,8 @@ from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
 
 import acegen
-from examples.models import get_model_factory
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv as DeNovoEnv, SMILESReward, PenaliseRepeatedSMILES
-from utils import Experience, create_batch_from_replay_smiles
+from utils import Experience, create_batch_from_replay_smiles, create_shared_ppo_models
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -75,10 +74,9 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    create_model = get_model_factory(cfg.model)
     ckpt = torch.load(resources.files("acegen").resolve() / "priors" / "reinvent.ckpt")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_model(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
+     ) = create_shared_ppo_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
