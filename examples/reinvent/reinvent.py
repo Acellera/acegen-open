@@ -16,9 +16,9 @@ import torch
 from torchrl.record.loggers import get_logger
 
 from examples.models import get_model_factory
-from experience_replay import Experience
+from utils import Experience
 from acegen.rl_environments import SingleStepDeNovoEnv
-from acegen.vocabulary.vocabulary import Vocabulary
+from acegen.vocabulary import SMILESVocabulary
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -55,8 +55,8 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = Path(__file__).resolve().parent / "vocabulary" / "priors" / "reinvent_vocabulary.txt"
-    vocabulary = Vocabulary(ckpt)
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
+    vocabulary = SMILESVocabulary(ckpt)
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -83,7 +83,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     create_model = get_model_factory(cfg.model)
-    ckpt = Path(__file__).resolve().parent / "models" / "priors" / "reinvent.ckpt"
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
     prior = create_model(vocabulary=vocabulary, ckpt_path=ckpt)
     model = create_model(vocabulary=vocabulary, ckpt_path=ckpt)
     prior = prior.to(device)
