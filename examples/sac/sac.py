@@ -30,11 +30,8 @@ from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import RandomSampler
 from torchrl.record.loggers import get_logger
 
-from examples.models import get_model_factory
-from acegen.rl_environments import MultiStepDeNovoEnv as DeNovoEnv
-from acegen.vocabulary.vocabulary import Vocabulary
-from acegen.transforms.reward_transform import SMILESReward
-from acegen.transforms.burnin_transform import BurnInTransform
+from acegen import SMILESVocabulary, MultiStepDeNovoEnv, SMILESReward, PenaliseRepeatedSMILES, BurnInTransform
+from utils import create_sac_models
 
 
 logging.basicConfig(level=logging.WARNING)
@@ -63,7 +60,7 @@ def main(cfg: "DictConfig"):
 
     # Create test rl_environments to get action specs
     ckpt = Path(__file__).resolve().parent / "vocabulary" / "priors" / "reinvent_vocabulary.txt"
-    vocabulary = Vocabulary(ckpt)
+    vocabulary = SMILESVocabulary(ckpt)
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
         "end_token": vocabulary.vocab["EOS"],
@@ -76,7 +73,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = get_model_factory(cfg.model)(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs)
+     ) = create_sac_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs)
 
     # TODO: check inputs and outputs of models are correct
 
@@ -90,7 +87,7 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn():
         """Create a single RL rl_environments."""
-        env = DeNovoEnv(**env_kwargs)
+        env = MultiStepDeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(

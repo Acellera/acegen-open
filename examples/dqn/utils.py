@@ -72,13 +72,13 @@ def create_net(vocabulary_size, batch_size):
         out_keys=["action_value"],
     )
     model_inference = QValueActor(
-    # model_inference = DistributionalQValueActor(
+        # model_inference = DistributionalQValueActor(
         TensorDictSequential(embedding_module, lstm_module, mlp),
         spec=DiscreteTensorSpec(vocabulary_size),
         # support=torch.arange(vocabulary_size)
     )
     model_training = QValueActor(
-    # model_training = DistributionalQValueActor(
+        # model_training = DistributionalQValueActor(
         TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp),
         spec=DiscreteTensorSpec(vocabulary_size),
         # support=torch.arange(vocabulary_size)
