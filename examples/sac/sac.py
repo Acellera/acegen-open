@@ -37,7 +37,7 @@ from utils import create_sac_models
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path="../..", config_name="sac_config", version_base="1.2")
+@hydra.main(config_path=".", config_name="sac_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -59,7 +59,7 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = Path(__file__).resolve().parent / "vocabulary" / "priors" / "reinvent_vocabulary.txt"
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
     vocabulary = SMILESVocabulary(ckpt)
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
