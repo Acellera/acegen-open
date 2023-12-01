@@ -106,7 +106,7 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, 'w'), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
+    scoring = MolScore(model_name="sac", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
@@ -171,7 +171,7 @@ def main(cfg: "DictConfig"):
     logger = None
     if cfg.logger_backend:
         logger = get_logger(
-            cfg.logger_backend, logger_name="ppo", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
+            cfg.logger_backend, logger_name="sac", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
         )
 
     # Training loop
