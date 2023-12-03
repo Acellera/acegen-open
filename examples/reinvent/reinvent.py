@@ -39,7 +39,7 @@ def main(cfg: "DictConfig"):
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
     os.makedirs(save_dir)
-    with open(Path(save_dir) / "ppo_config.yaml", 'w') as yaml_file:
+    with open(Path(save_dir) / "reinvent_config.yaml", 'w') as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
@@ -63,7 +63,7 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, 'w'), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
+    scoring = MolScore(model_name="reinvent", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
@@ -115,7 +115,7 @@ def main(cfg: "DictConfig"):
     logger = None
     if cfg.logger_backend:
         logger = get_logger(
-            cfg.logger_backend, logger_name="ppo", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
+            cfg.logger_backend, logger_name="reinvent", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
         )
 
 
