@@ -24,21 +24,21 @@ from torchrl.envs import (
     TransformedEnv,
     UnsqueezeTransform,
 )
-from torchrl.objectives import ClipPPOLoss
-from torchrl.objectives.value.advantages import GAE
-from torchrl.collectors import SyncDataCollector
+from torchrl.objectives import A2CLoss
+from torchrl.objectives.value.advantages import VTrace
+from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
 
 import acegen
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv as DeNovoEnv, SMILESReward, PenaliseRepeatedSMILES
-from utils import Experience, create_batch_from_replay_smiles, create_shared_ppo_models
+from utils import Experience, create_batch_from_replay_smiles, create_shared_impala_models
 
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path=".", config_name="ppo_config", version_base="1.2")
+@hydra.main(config_path=".", config_name="impala_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -46,7 +46,7 @@ def main(cfg: "DictConfig"):
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
     os.makedirs(save_dir)
-    with open(Path(save_dir) / "ppo_config.yaml", 'w') as yaml_file:
+    with open(Path(save_dir) / "impala_config.yaml", 'w') as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
@@ -66,7 +66,7 @@ def main(cfg: "DictConfig"):
         "start_token": vocabulary.vocab["GO"],
         "end_token": vocabulary.vocab["EOS"],
         "length_vocabulary": len(vocabulary),
-        "batch_size": cfg.num_envs,
+        "batch_size": 1,
         "device": device,
     }
 
@@ -75,7 +75,7 @@ def main(cfg: "DictConfig"):
 
     ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_shared_ppo_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
+     ) = create_shared_impala_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -106,7 +106,7 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, 'w'), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
+    scoring = MolScore(model_name="impala", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
@@ -116,34 +116,35 @@ def main(cfg: "DictConfig"):
     # Collector
     ####################################################################################################################
 
-    collector = SyncDataCollector(
+    collector = MultiaSyncDataCollector(
+        create_env_fn=[create_env_fn(cfg.env.env_name, device)] * cfg.num_workers,
         policy=actor_inference,
-        create_env_fn=create_env_fn,
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
-        storing_device=device,
         device=device,
+        storing_device=device,
+        max_frames_per_traj=-1,
+        update_at_each_batch=True,
     )
 
     # Loss modules
     ####################################################################################################################
 
-    adv_module = GAE(
-        gamma=cfg.gamma,
-        lmbda=cfg.lmbda,
+    adv_module = VTrace(
+        gamma=cfg.loss.gamma,
         value_network=critic_training,
-        average_gae=False,
+        actor_network=actor_training,
+        average_adv=False,
         shifted=True,
     )
     adv_module = adv_module.to(device)
-    loss_module = ClipPPOLoss(
-        actor_training,
-        critic_training,
-        critic_coef=cfg.critic_coef,
+    loss_module = A2CLoss(
+        actor=actor_training,
+        critic=critic_training,
+        loss_critic_type=cfg.loss_critic_type,
         entropy_coef=cfg.entropy_coef,
-        clip_epsilon=cfg.ppo_clip,
-        loss_critic_type="l2",
-        normalize_advantage=True,
+        critic_coef=cfg.critic_coef,
+        # normalize_advantage=False,
     )
     loss_module = loss_module.to(device)
 
@@ -174,11 +175,20 @@ def main(cfg: "DictConfig"):
     # Optimizer
     ####################################################################################################################
 
-    optim = torch.optim.Adam(
+    # optim = torch.optim.Adam(
+    #     loss_module.parameters(),
+    #     lr=cfg.lr,
+    #     eps=cfg.eps,
+    #     weight_decay=cfg.weight_decay,
+    # )
+
+    # Create optimizer
+    optim = torch.optim.RMSprop(
         loss_module.parameters(),
         lr=cfg.lr,
-        eps=cfg.eps,
         weight_decay=cfg.weight_decay,
+        eps=cfg.eps,
+        alpha=cfg.alpha,
     )
 
     # Logger
@@ -196,12 +206,14 @@ def main(cfg: "DictConfig"):
     total_done = 0
     collected_frames = 0
     kl_coef = cfg.kl_coef
-    ppo_epochs = cfg.ppo_epochs
+    sgd_updates = cfg.sgd_updates
+    batch_size = cfg.batch_size
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_frames)
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
-    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
+    losses = TensorDict({}, batch_size=[sgd_updates])
     replay_losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
+    accumulator = []
 
     for data in collector:
 
@@ -210,6 +222,13 @@ def main(cfg: "DictConfig"):
         total_done += data.get(("next", "terminated")).sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
+
+        if len(accumulator) < batch_size:
+            accumulator.append(data)
+            if logger:
+                for key, value in log_info.items():
+                    logger.log_scalar(key, value, collected_frames)
+            continue
 
         # Compute all rewards in a single call
         data = rew_transform(data)
@@ -259,38 +278,39 @@ def main(cfg: "DictConfig"):
             ("next", "SMILES"),
         )
 
-        for j in range(ppo_epochs):
+        for j in range(sgd_updates):
+
+            # Create a single batch of trajectories
+            stacked_data = torch.stack(accumulator, dim=0).contiguous()
+            stacked_data = stacked_data.to(device, non_blocking=True)
 
             if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
-                data = data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
+                stacked_data = stacked_data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
                 for _ in range(cfg.replay_batches):
                     row = random.randint(0, cfg.num_envs - 1)
                     exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(5, decode_smiles=False)
                     replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
-                    data[row] = replay_batch[0, 0:100]
+                    stacked_data[row] = replay_batch[0, 0:100]
 
+            # Compute advantage
             with torch.no_grad():
-                data = adv_module(data)
+                stacked_data = adv_module(stacked_data)
 
-            buffer.extend(data)
+            buffer.extend(stacked_data)
 
-            for i in range(num_mini_batches):
+            for batch in buffer:
 
-                # Compute loss for the current mini-batch
-                batch = buffer.sample()
-
-                # batch = batch.reshape(-1)
-
+                batch = batch.to(device, non_blocking=True)
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-                losses[j, i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+                losses[j] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
                 mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
-                losses[j, i] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
+                losses[j] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
 
                 loss_sum.backward()
                 torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
@@ -315,23 +335,11 @@ def main(cfg: "DictConfig"):
             new_experience = zip(smiles_list, rewards, rewards, prior_likelihood)
             experience_replay_buffer.add_experience(new_experience)
 
-        # # ----- entropy annealing
-        # if len(self.oracle) > 1000:
-        #     self.sort_buffer()
-        #     new_top10 = [item[1][0] for item in list(self.mol_buffer.items())[:10]]
-        #     if new_top10 == old_top10:
-        #         kl_coef *= 1.01
-        #         loss_module.entropy_coef *= 1.01
-        #     else:
-        #         kl_coef = config["kl_coef"]
-        #         loss_module.entropy_coef.copy_(config["entropy_coef"])
-        #     print(f"entropy coef {loss_module.entropy_coef}")
-        # # -----
-
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, collected_frames)
         collector.update_policy_weights_()
+        accumulator = []
 
     collector.shutdown()
 

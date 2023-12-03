@@ -35,7 +35,7 @@ from acegen.vocabulary import DeNovoVocabulary
 from acegen.transforms.reward_transform import SMILESReward
 from acegen.transforms.burnin_transform import BurnInTransform
 from examples.dqn.sampler import CategoricalSamplingModule
-
+from utils import create_dqn_models
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -76,7 +76,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     (model_inference, model_training, initial_state_dict, *transforms
-     ) = get_model_factory(cfg.model)(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs)
+     ) = create_dqn_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs)
 
     model_training = model_training.to(device)
     model_inference = model_inference.to(device)
