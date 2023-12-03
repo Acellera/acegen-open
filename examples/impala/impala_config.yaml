@@ -1,7 +1,7 @@
 # Logging configuration
 experiment_name: torchrl_chem
-agent_name: ppo
-log_dir: logs_ppo
+agent_name: impala
+log_dir: logs_impala
 logger_backend: wandb
 seed: 101
 
@@ -16,7 +16,7 @@ total_frames: 1_000_000
 frames_per_batch: 100
 num_workers: 8
 
-# PPO configuration
+# IMPALA configuration
 lr: 0.0005
 eps: 1.0e-08
 weight_decay: 1.0e-08
@@ -27,7 +27,7 @@ entropy_coef: 0.01
 kl_coef: 0.1
 batch_size: 4
 max_grad_norm: 1.0
-experience_replay: True
+experience_replay: False
 replay_batches: 2
 sgd_updates: 1
 loss_critic_type: l2

@@ -117,7 +117,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     collector = MultiaSyncDataCollector(
-        create_env_fn=[create_env_fn(cfg.env_name, device)] * cfg.num_workers,
+        create_env_fn=[create_env_fn()] * cfg.num_workers,
         policy=actor_inference,
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
@@ -131,7 +131,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     adv_module = VTrace(
-        gamma=cfg.loss.gamma,
+        gamma=cfg.gamma,
         value_network=critic_training,
         actor_network=actor_training,
         average_adv=False,
@@ -154,7 +154,7 @@ def main(cfg: "DictConfig"):
     buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(cfg.batch_size, device=device),
         sampler=SamplerWithoutReplacement(),
-        batch_size=cfg.mini_batch_size,
+        batch_size=cfg.batch_size,
         prefetch=4,
     )
 
@@ -229,6 +229,10 @@ def main(cfg: "DictConfig"):
                     logger.log_scalar(key, value, collected_frames)
             continue
 
+        # Create a single batch of trajectories
+        stacked_data = torch.cat(accumulator, dim=0).contiguous()
+        data = stacked_data.to(device, non_blocking=True)
+
         # Compute all rewards in a single call
         data = rew_transform(data)
 
@@ -279,23 +283,19 @@ def main(cfg: "DictConfig"):
 
         for j in range(sgd_updates):
 
-            # Create a single batch of trajectories
-            stacked_data = torch.stack(accumulator, dim=0).contiguous()
-            stacked_data = stacked_data.to(device, non_blocking=True)
-
             if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
-                stacked_data = stacked_data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
+                data = data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
                 for _ in range(cfg.replay_batches):
                     row = random.randint(0, cfg.batch_size - 1)
                     exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(5, decode_smiles=False)
                     replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
-                    stacked_data[row] = replay_batch[0, 0:100]
+                    data[row] = replay_batch[0, 0:100]
 
             # Compute advantage
             with torch.no_grad():
-                stacked_data = adv_module(stacked_data)
+                data = adv_module(data)
 
-            buffer.extend(stacked_data)
+            buffer.extend(data)
 
             for batch in buffer:
 
