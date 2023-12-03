@@ -13,7 +13,7 @@ repetition_penalty: 0.75
 
 # Collector configuration
 total_frames: 1_000_000
-frames_per_batch: 1600
+frames_per_batch: 100
 num_workers: 8
 
 # PPO configuration

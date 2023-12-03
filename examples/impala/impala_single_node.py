@@ -75,7 +75,7 @@ def main(cfg: "DictConfig"):
 
     ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_shared_impala_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
+     ) = create_shared_impala_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=1)
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -117,7 +117,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     collector = MultiaSyncDataCollector(
-        create_env_fn=[create_env_fn(cfg.env.env_name, device)] * cfg.num_workers,
+        create_env_fn=[create_env_fn(cfg.env_name, device)] * cfg.num_workers,
         policy=actor_inference,
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
@@ -152,7 +152,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_envs, device=device),
+        storage=LazyTensorStorage(cfg.batch_size, device=device),
         sampler=SamplerWithoutReplacement(),
         batch_size=cfg.mini_batch_size,
         prefetch=4,
@@ -197,7 +197,7 @@ def main(cfg: "DictConfig"):
     logger = None
     if cfg.logger_backend:
         logger = get_logger(
-            cfg.logger_backend, logger_name="ppo", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
+            cfg.logger_backend, logger_name="impala", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
         )
 
     # Training loop
@@ -210,9 +210,8 @@ def main(cfg: "DictConfig"):
     batch_size = cfg.batch_size
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_frames)
-    num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[sgd_updates])
-    replay_losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
+    replay_losses = TensorDict({}, batch_size=[sgd_updates])
     accumulator = []
 
     for data in collector:
@@ -287,7 +286,7 @@ def main(cfg: "DictConfig"):
             if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
                 stacked_data = stacked_data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
                 for _ in range(cfg.replay_batches):
-                    row = random.randint(0, cfg.num_envs - 1)
+                    row = random.randint(0, cfg.batch_size - 1)
                     exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(5, decode_smiles=False)
                     replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
                     stacked_data[row] = replay_batch[0, 0:100]
