@@ -38,7 +38,7 @@ from utils import Experience, create_batch_from_replay_smiles, create_shared_imp
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path=".", config_name="impala_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config

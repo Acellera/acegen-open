@@ -1,0 +1,35 @@
+# Logging configuration
+experiment_name: torchrl_chem
+agent_name: impala
+log_dir: logs_impala
+logger_backend: wandb
+seed: 101
+
+# Environment configuration
+molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
+penalize_repetition: False
+repetition_penalty: 0.5
+
+# Collector configuration
+total_frames: 1_000_000
+frames_per_batch: 60
+num_workers: 12
+
+# Optimizer
+lr: 0.0005
+eps: 1.0e-08
+weight_decay: 0.0
+
+
+# IMPALA configuration
+gamma: 0.999
+critic_coef: 0.5
+entropy_coef: 0.01
+kl_coef: 0.01
+batch_size: 16
+max_grad_norm: 1.0
+experience_replay: True
+replay_batches: 2
+replay_frequency: 8
+sgd_updates: 4
+loss_critic_type: l2
