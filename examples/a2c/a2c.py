@@ -132,7 +132,7 @@ def main(cfg: "DictConfig"):
         gamma=cfg.gamma,
         lmbda=cfg.lmbda,
         value_network=critic_training,
-        average_gae=False,
+        average_gae=True,
         shifted=True,
     )
     adv_module = adv_module.to(device)
@@ -141,9 +141,7 @@ def main(cfg: "DictConfig"):
         critic=critic_training,
         critic_coef=cfg.critic_coef,
         entropy_coef=cfg.entropy_coef,
-        clip_epsilon=cfg.ppo_clip,
         loss_critic_type="l2",
-        normalize_advantage=True,
     )
     loss_module = loss_module.to(device)
 
@@ -151,9 +149,9 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.batch_size, device=device),
+        storage=LazyTensorStorage(cfg.num_envs, device=device),
         sampler=SamplerWithoutReplacement(),
-        batch_size=cfg.batch_size,
+        batch_size=cfg.mini_batch_size,
         prefetch=4,
     )
 
@@ -197,7 +195,6 @@ def main(cfg: "DictConfig"):
     num_updates = 0
     collected_frames = 0
     kl_coef = cfg.kl_coef
-    sgd_updates = cfg.sgd_updates
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_frames)
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
@@ -263,7 +260,7 @@ def main(cfg: "DictConfig"):
         if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
             data = data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
             for _ in range(cfg.replay_batches):
-                row = random.randint(0, cfg.batch_size - 1)
+                row = random.randint(0, cfg.num_envs - 1)
                 exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(10, decode_smiles=False)
                 replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
                 data[row] = replay_batch[0, 0:int(steps_per_env)]
