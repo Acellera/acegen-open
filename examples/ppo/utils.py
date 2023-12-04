@@ -27,7 +27,7 @@ class Embed(torch.nn.Module):
         super().__init__()
         self.input_size = input_size
         self.embedding_size = embedding_size
-        self._embedding = torch.nn.Embedding(input_size, embedding_size)
+        self._embedding = torch.nn.Embedding(input_size, embedding_size, _freeze=False)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         *batch, L = inputs.shape

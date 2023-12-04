@@ -19,6 +19,8 @@ from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 from torchrl.data import DiscreteTensorSpec
 
 
+# RuntimeError: vmap: index_put_(self, *extra_args) is not possible because there exists a Tensor `other` in extra_args that has more elements than `self`. This happened due to `other` being vmapped over but `self` not being vmapped over in a vmap. Please try to use out-of-place operators instead of index_put_. If said operator is being called inside the PyTorch framework, please file a bug report instead.
+
 class Embed(torch.nn.Module):
     """Implements a simple embedding layer."""
 
@@ -26,21 +28,10 @@ class Embed(torch.nn.Module):
         super().__init__()
         self.input_size = input_size
         self.embedding_size = embedding_size
-        self._embedding = torch.nn.Embedding(input_size, embedding_size)
+        self._embedding = torch.nn.Linear(input_size, embedding_size, bias=False)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        *batch, L = inputs.shape
-        if len(batch) > 1:
-            inputs = inputs.flatten(0, len(batch) - 1)
-        out = self._embedding(inputs)
-        if len(batch) > 1:
-            out = out.unflatten(0, batch)
-        out = out.squeeze(
-            -1
-        )  # If time dimension is 1, remove it. Ugly hack, should not be necessary
-        out = out.squeeze(
-            -2
-        )  # If time dimension is 1, remove it. Ugly hack, should not be necessary
+        out = self._embedding(inputs.float())
         return out
 
 

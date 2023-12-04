@@ -33,10 +33,6 @@ from torchrl.record.loggers import get_logger
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv, SMILESReward, PenaliseRepeatedSMILES, BurnInTransform
 from utils import create_sac_models
 
-
-logging.basicConfig(level=logging.WARNING)
-
-
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
@@ -81,7 +77,6 @@ def main(cfg: "DictConfig"):
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
-    prior = deepcopy(actor_training)
 
     # Environment
     ####################################################################################################################
@@ -90,10 +85,10 @@ def main(cfg: "DictConfig"):
         """Create a single RL rl_environments."""
         env = MultiStepDeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
-        env.append_transform(
-            CatFrames(
-                N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
+        # env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
+        # env.append_transform(
+        #     CatFrames(
+        #         N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
@@ -126,24 +121,22 @@ def main(cfg: "DictConfig"):
         storing_device="cpu",
     )
 
-    # Loss modules
-    ####################################################################################################################
+    # Loss
+    ##################
 
     loss_module = DiscreteSACLoss(
         actor_network=actor_training,
         qvalue_network=critic_training,
         num_actions=len(vocabulary),
         num_qvalue_nets=2,
-        target_entropy_weight=cfg.target_entropy_weight,
         loss_function="smooth_l1",
         action_space="one-hot",
     )
-    loss_module.make_value_estimator(gamma=cfg.gamma)
-    loss_module = loss_module.to(device)
+    loss_module.make_value_estimator(gamma=0.99)
     target_net_updater = SoftUpdate(loss_module, eps=cfg.target_update_polyak)
 
-    # Buffers
-    ####################################################################################################################
+    # Buffer
+    ##################
 
     crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
     burn_in = BurnInTransform(rnn_modules=(actor_training, critic_training), burn_in=cfg.burn_in)
@@ -153,8 +146,6 @@ def main(cfg: "DictConfig"):
         prefetch=3,
         sampler=RandomSampler(),
     )
-    # buffer.append_transform(crop_seq)
-    # buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################
@@ -176,7 +167,7 @@ def main(cfg: "DictConfig"):
         )
 
     # Training loop
-    ####################################################################################################################
+    ##################
 
     total_done = 0
     collected_frames = 0
@@ -186,10 +177,10 @@ def main(cfg: "DictConfig"):
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
 
-    for data in collector:
+    for data in tqdm.tqdm(collector):
 
         # Compute all rewards in a single call
-        data = rew_transform(data)
+        # data = rew_transform(data)
 
         log_info = {}
         frames_in_batch = data.numel()
@@ -212,19 +203,27 @@ def main(cfg: "DictConfig"):
                 }
             )
 
-        import ipdb; ipdb.set_trace()
+        # data = data.exclude(
+        #     "recurrent_state_actor", ("next", "recurrent_state_actor"),
+        #     "recurrent_state_critic", ("next", "recurrent_state_critic"),
+        # )
+
         buffer.extend(data.cpu())
-
         batch = buffer.sample()
-        batch = batch.to(device)
-        import ipdb; ipdb.set_trace()
-        loss_td = loss_module(batch)
 
-        # # Burn in
+        batch = crop_seq(batch)
+        batch = burn_in(batch)
 
-        import ipdb; ipdb.set_trace()
+        loss = loss_module(batch.cuda())
+
+        target_net_updater.step()
+
+        if collected_frames > 200:
+            break
+
+    collector.shutdown()
+    print("Success!")
 
 
 if __name__ == "__main__":
     main()
-

@@ -21,6 +21,7 @@ class MultiStepDeNovoEnv(EnvBase):
             device: DEVICE_TYPING = None,
             batch_size: int = 1,
             one_hot_action_encoding: bool = False,
+            one_hot_obs_encoding: bool = False,
     ):
         super().__init__(
             device=device,
@@ -32,13 +33,19 @@ class MultiStepDeNovoEnv(EnvBase):
         self.end_token = int(end_token)
         self.start_token = int(start_token)
         self.length_vocabulary = length_vocabulary
+        self.one_hot_obs_encoding = one_hot_obs_encoding
         self.one_hot_action_encoding = one_hot_action_encoding
         self.episode_length = torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
 
+        if self.one_hot_obs_encoding:
+            start_obs = torch.zeros(batch_size, length_vocabulary, device=self.device, dtype=torch.int32)
+            start_obs[:, self.start_token - 1] = 1
+        else:
+            start_obs = torch.ones(self.num_envs, device=self.device, dtype=torch.int32) * self.start_token
+
         self._reset_tensordict = TensorDict(
             {
-                "observation": torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
-                * self.start_token,
+                "observation": start_obs
             },
             device=self.device,
             batch_size=self.batch_size,
@@ -66,7 +73,8 @@ class MultiStepDeNovoEnv(EnvBase):
                 "done": done,
                 "terminated": done.clone(),
                 "reward": torch.zeros(self.num_envs, device=self.device),
-                "observation": actions.clone().to(torch.int32),
+                "observation": tensordict.get("action").clone() if self.one_hot_obs_encoding else
+                actions.clone().to(torch.int32),
             },
             device=self.device,
             batch_size=self.batch_size,

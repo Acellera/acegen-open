@@ -133,7 +133,6 @@ def main():
         batch = buffer.sample()
         loss = loss_module(batch.cuda())
 
-
     collector.shutdown()
     print("Success!")
 
