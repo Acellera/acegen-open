@@ -26,7 +26,7 @@ from torchrl.envs import (
 )
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
-from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
+from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import RandomSampler
 from torchrl.record.loggers import get_logger
 
@@ -147,8 +147,7 @@ def main(cfg: "DictConfig"):
     crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
     burn_in = BurnInTransform(rnn_modules=(actor_training, critic_training), burn_in=cfg.burn_in)
     buffer = TensorDictReplayBuffer(
-        # storage=LazyMemmapStorage(cfg.replay_buffer_size),
-        storage=LazyTensorStorage(1000),
+        storage=LazyMemmapStorage(cfg.replay_buffer_size),
         batch_size=cfg.batch_size,
         prefetch=3,
         sampler=RandomSampler(),
