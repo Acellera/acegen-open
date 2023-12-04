@@ -188,16 +188,16 @@ def main(cfg: "DictConfig"):
 
     for data in collector:
 
+        # Compute all rewards in a single call
+        data = rew_transform(data)
+
         log_info = {}
         frames_in_batch = data.numel()
         total_done += data.get(("next", "terminated")).sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Compute all rewards in a single call
-        data = rew_transform(data)
-
-        # Register smiles lengths and real rewards
+    # Register smiles lengths and real rewards
         episode_rewards = data["next", "reward"][data["next", "terminated"]]
         episode_length = data["next", "step_count"][data["next", "terminated"]]
         if len(episode_rewards) > 0:
@@ -216,7 +216,6 @@ def main(cfg: "DictConfig"):
             "recurrent_state_actor", ("next", "recurrent_state_actor"))
         buffer.extend(data.cpu())
 
-        import ipdb; ipdb.set_trace()
         batch = buffer.sample()
         batch = batch.to(device)
         import ipdb; ipdb.set_trace()

@@ -133,7 +133,7 @@ def create_sac_models(vocabulary_size, batch_size):
     # critic_inference.load_state_dict(ckpt)
     # critic_training.load_state_dict(ckpt)
 
-    return actor_inference, actor_training, critic_inference, critic_training # , actor_transform, critic_transform
+    return actor_inference, actor_training, critic_inference, critic_training, actor_transform, critic_transform
 
 
 def adapt_sac_ckpt(ckpt):

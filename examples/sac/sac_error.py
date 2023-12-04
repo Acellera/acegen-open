@@ -2,8 +2,9 @@ import torch
 import tqdm
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs.libs.gym import GymEnv
+from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.modules.distributions import OneHotCategorical
-from torchrl.modules import ProbabilisticActor, LSTMModule, MLP
+from torchrl.modules import ProbabilisticActor, GRUModule, MLP
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives import DiscreteSACLoss
 from torchrl.envs import (
@@ -17,7 +18,7 @@ from torchrl.envs import (
 
 def create_model(input_size, output_size, hidden_size=256, num_layers=3, out_key="logits"):
 
-    lstm_module = LSTMModule(
+    lstm_module = GRUModule(
         input_size=input_size,
         hidden_size=hidden_size,
         num_layers=num_layers,
@@ -42,7 +43,7 @@ def create_model(input_size, output_size, hidden_size=256, num_layers=3, out_key
 
 
 def create_rhs_transform(input_size, hidden_size=256, num_layers=3):
-    lstm_module = LSTMModule(
+    lstm_module = GRUModule(
         input_size=input_size,
         hidden_size=hidden_size,
         num_layers=num_layers,
@@ -103,6 +104,14 @@ def main():
         split_trajs=False,
     )
 
+    # Buffer
+    ##################
+
+    buffer = TensorDictReplayBuffer(
+        storage=LazyMemmapStorage(100),
+        batch_size=8,
+    )
+
     # Loss
     ##################
 
@@ -120,7 +129,10 @@ def main():
     ##################
 
     for data in tqdm.tqdm(collector):
-        data = loss_module(data)
+        buffer.extend(data.reshape(-1).cpu())
+        batch = buffer.sample()
+        loss = loss_module(batch.cuda())
+
 
     collector.shutdown()
     print("Success!")
