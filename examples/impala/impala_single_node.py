@@ -175,20 +175,11 @@ def main(cfg: "DictConfig"):
     # Optimizer
     ####################################################################################################################
 
-    # optim = torch.optim.Adam(
-    #     loss_module.parameters(),
-    #     lr=cfg.lr,
-    #     eps=cfg.eps,
-    #     weight_decay=cfg.weight_decay,
-    # )
-
-    # Create optimizer
-    optim = torch.optim.RMSprop(
+    optim = torch.optim.Adam(
         loss_module.parameters(),
         lr=cfg.lr,
-        weight_decay=cfg.weight_decay,
         eps=cfg.eps,
-        alpha=cfg.alpha,
+        weight_decay=cfg.weight_decay,
     )
 
     # Logger
@@ -204,6 +195,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     total_done = 0
+    num_updates = 0
     collected_frames = 0
     kl_coef = cfg.kl_coef
     sgd_updates = cfg.sgd_updates
@@ -283,23 +275,25 @@ def main(cfg: "DictConfig"):
 
         for j in range(sgd_updates):
 
-            if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
-                data = data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
-                for _ in range(cfg.replay_batches):
-                    row = random.randint(0, cfg.batch_size - 1)
-                    exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(5, decode_smiles=False)
-                    replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
-                    data[row] = replay_batch[0, 0:100]
-
-            # Compute advantage
-            with torch.no_grad():
-                data = adv_module(data)
-
             buffer.extend(data)
 
             for batch in buffer:
 
                 batch = batch.to(device, non_blocking=True)
+
+                if num_updates % cfg.replay_frequency == 0:
+                    if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
+                        batch = batch.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
+                        for _ in range(cfg.replay_batches):
+                            row = random.randint(0, cfg.batch_size - 1)
+                            exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(6, decode_smiles=False)
+                            replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
+                            batch[row] = replay_batch[0, 0:cfg.frames_per_batch]
+
+                # Compute advantage
+                with torch.no_grad():
+                    batch = adv_module(batch)
+
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
                 losses[j] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
@@ -315,6 +309,7 @@ def main(cfg: "DictConfig"):
                 torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
                 optim.step()
                 optim.zero_grad()
+                num_updates += 1
 
         losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
         for key, value in losses_mean.items():
