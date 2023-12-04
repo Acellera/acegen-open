@@ -203,7 +203,6 @@ def main(cfg: "DictConfig"):
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_frames)
     losses = TensorDict({}, batch_size=[sgd_updates])
-    replay_losses = TensorDict({}, batch_size=[sgd_updates])
     accumulator = []
 
     for data in collector:
@@ -314,9 +313,6 @@ def main(cfg: "DictConfig"):
         losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
         for key, value in losses_mean.items():
             log_info.update({f"train/{key}": value.item()})
-        replay_losses_mean = replay_losses.apply(lambda x: x.float().mean(), batch_size=[])
-        for key, value in replay_losses_mean.items():
-            log_info.update({f"train/replay_{key}": value.item()})
 
         # Add data to the replay buffer
         if experience_replay_buffer is not None:

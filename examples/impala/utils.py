@@ -57,7 +57,7 @@ def create_shared_impala_models(vocabulary_size, batch_size, ckpt=None):
 
     Example:
     ```python
-    shared_model = create_shared_IMPALA_model(10)
+    shared_model = create_shared_IMPALA_model(10, 4)
     ```
     """
 

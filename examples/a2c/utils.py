@@ -44,8 +44,8 @@ class Embed(torch.nn.Module):
         )  # If time dimension is 1, remove it. Ugly hack, should not be necessary
         return out
 
-def create_shared_impala_models(vocabulary_size, batch_size, ckpt=None):
-    """Create a shared IMPALA model using architecture and weights from the
+def create_shared_a2c_models(vocabulary_size, batch_size, ckpt=None):
+    """Create a shared A2C model using architecture and weights from the
     "REINVENT 2.0 – an AI tool for de novo drug design" paper.
 
     The policy component of the model uses the same architecture and weights
@@ -53,11 +53,11 @@ def create_shared_impala_models(vocabulary_size, batch_size, ckpt=None):
     as a simple Multi-Layer Perceptron (MLP) with one output.
 
     Returns:
-    - shared_model: The shared IMPALA model with both policy and critic components.
+    - shared_model: The shared A2C model with both policy and critic components.
 
     Example:
     ```python
-    shared_model = create_shared_IMPALA_model(10)
+    shared_model = create_shared_A2C_model(10, 1)
     ```
     """
 

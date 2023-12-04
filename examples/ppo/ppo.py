@@ -137,8 +137,8 @@ def main(cfg: "DictConfig"):
     )
     adv_module = adv_module.to(device)
     loss_module = ClipPPOLoss(
-        actor_training,
-        critic_training,
+        actor=actor_training,
+        critic=critic_training,
         critic_coef=cfg.critic_coef,
         entropy_coef=cfg.entropy_coef,
         clip_epsilon=cfg.ppo_clip,
@@ -201,7 +201,7 @@ def main(cfg: "DictConfig"):
     pbar = tqdm.tqdm(total=cfg.total_frames)
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
-    replay_losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
+    steps_per_env = cfg.frames_per_batch / cfg.num_envs
 
     for data in collector:
 
@@ -267,7 +267,7 @@ def main(cfg: "DictConfig"):
                     row = random.randint(0, cfg.num_envs - 1)
                     exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(10, decode_smiles=False)
                     replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
-                    data[row] = replay_batch[0, 0:100]
+                    data[row] = replay_batch[0, 0:int(steps_per_env)]
 
             with torch.no_grad():
                 data = adv_module(data)
@@ -278,8 +278,6 @@ def main(cfg: "DictConfig"):
 
                 # Compute loss for the current mini-batch
                 batch = buffer.sample()
-
-                # batch = batch.reshape(-1)
 
                 loss = loss_module(batch)
                 loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
@@ -300,9 +298,6 @@ def main(cfg: "DictConfig"):
         losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
         for key, value in losses_mean.items():
             log_info.update({f"train/{key}": value.item()})
-        replay_losses_mean = replay_losses.apply(lambda x: x.float().mean(), batch_size=[])
-        for key, value in replay_losses_mean.items():
-            log_info.update({f"train/replay_{key}": value.item()})
 
         # Add data to the replay buffer
         if experience_replay_buffer is not None:
