@@ -257,13 +257,15 @@ def main(cfg: "DictConfig"):
             ("next", "SMILES"),
         )
 
-        if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
-            data = data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
-            for _ in range(cfg.replay_batches):
-                row = random.randint(0, cfg.num_envs - 1)
-                exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(10, decode_smiles=False)
-                replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
-                data[row] = replay_batch[0, 0:int(steps_per_env)]
+        # Add data from the replay buffer
+        if num_updates % cfg.replay_frequency == 0:
+            if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
+                data = data.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
+                for _ in range(cfg.replay_batches):
+                    row = random.randint(0, cfg.num_envs - 1)
+                    exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(10, decode_smiles=False)
+                    replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
+                    data[row] = replay_batch[0, 0:int(steps_per_env)]
 
         buffer.extend(data)
 

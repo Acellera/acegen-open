@@ -61,6 +61,7 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
             "features",
             ("next", f"recurrent_state_{net_name}"),
         ],
+        python_based=True,
     )
     mlp = TensorDictModule(
         MLP(

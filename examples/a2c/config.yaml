@@ -1,7 +1,7 @@
 # Logging configuration
 experiment_name: torchrl_chem
-agent_name: impala
-log_dir: logs_impala
+agent_name: a2c
+log_dir: logs_a2c
 logger_backend: wandb
 seed: 101
 
@@ -30,6 +30,6 @@ kl_coef: 0.01
 mini_batch_size: 1
 max_grad_norm: 1.0
 experience_replay: False
-replay_batches: 2
+replay_batches: 1
 replay_frequency: 8
 loss_critic_type: l2

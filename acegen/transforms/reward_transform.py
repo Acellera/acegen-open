@@ -47,7 +47,10 @@ class SMILESReward(Transform):
             smiles_list.append(self.vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1]))
 
         # Calculate reward
-        reward[:, 0] += torch.tensor(self.reward_function(smiles_list), device=device)
+        try:
+            reward[:, 0] += torch.tensor(self.reward_function(smiles_list), device=device)
+        except RuntimeError:
+            reward[:, 0] += torch.tensor(self.reward_function(smiles_list), device=device)
         sub_tensordict.set("reward", reward, inplace=True)
 
         return tensordict
