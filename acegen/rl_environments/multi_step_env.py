@@ -66,7 +66,7 @@ class MultiStepDeNovoEnv(EnvBase):
                 "done": done,
                 "terminated": done.clone(),
                 "reward": torch.zeros(self.num_envs, device=self.device),
-                "observation": tensordict.get("action").to(torch.int32),
+                "observation": actions.clone().to(torch.int32),
             },
             device=self.device,
             batch_size=self.batch_size,

@@ -81,7 +81,7 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
             module=model_inference,
             in_keys=["logits"],
             out_keys=["action"],
-            distribution_class=torch.distributions.Categorical,
+            distribution_class=OneHotCategorical,
             return_log_prob=True,
             default_interaction_type=ExplorationType.RANDOM,
         )
@@ -89,7 +89,7 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
             module=model_training,
             in_keys=["logits"],
             out_keys=["action"],
-            distribution_class=torch.distributions.Categorical,
+            distribution_class=OneHotCategorical,
             return_log_prob=True,
             default_interaction_type=ExplorationType.RANDOM,
         )

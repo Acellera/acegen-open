@@ -67,6 +67,7 @@ def main(cfg: "DictConfig"):
         "length_vocabulary": len(vocabulary),
         "batch_size": cfg.num_envs,
         "device": device,
+        "one_hot_action_encoding": True,
     }
 
     # Models

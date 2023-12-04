@@ -6,30 +6,30 @@ logger_backend: wandb
 seed: 101
 
 # Environment configuration
-num_envs: 1
+num_envs: 4
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 penalize_repetition: False
 repetition_penalty: 0.5
 
 # Collector configuration
 total_frames: 1_000_000
-frames_per_batch: 120
+frames_per_batch: 400
 
 # Optimizer
 lr: 0.0005
 eps: 1.0e-08
-weight_decay: 0.0
+weight_decay: 1.0e-08
 
 
 # IMPALA configuration
 gamma: 0.999
 lmbda: 0.95
 critic_coef: 0.5
-entropy_coef: 0.01
-kl_coef: 0.01
-mini_batch_size: 1
+entropy_coef: 0.05
+kl_coef: 0.5
+mini_batch_size: 4
 max_grad_norm: 1.0
-experience_replay: False
+experience_replay: True
 replay_batches: 1
-replay_frequency: 8
+replay_frequency: 4
 loss_critic_type: l2
