@@ -33,6 +33,10 @@ from torchrl.record.loggers import get_logger
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv, SMILESReward, PenaliseRepeatedSMILES, BurnInTransform
 from utils import create_sac_models
 
+
+logging.basicConfig(level=logging.WARNING)
+
+
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
@@ -64,7 +68,6 @@ def main(cfg: "DictConfig"):
         "batch_size": cfg.num_envs,
         "device": device,
         "one_hot_action_encoding": True,
-        "one_hot_obs_encoding": True,
     }
 
     # Models
@@ -78,18 +81,19 @@ def main(cfg: "DictConfig"):
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
+    prior = deepcopy(actor_training)
 
-    # Environment
+# Environment
     ####################################################################################################################
 
     def create_env_fn():
         """Create a single RL rl_environments."""
         env = MultiStepDeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
-        # env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
-        # env.append_transform(
-        #     CatFrames(
-        #         N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
+        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
+        env.append_transform(
+            CatFrames(
+                N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
@@ -130,10 +134,11 @@ def main(cfg: "DictConfig"):
         qvalue_network=critic_training,
         num_actions=len(vocabulary),
         num_qvalue_nets=2,
+        target_entropy_weight=cfg.target_entropy_weight,
         loss_function="smooth_l1",
         action_space="one-hot",
     )
-    loss_module.make_value_estimator(gamma=0.99)
+    loss_module.make_value_estimator(gamma=cfg.gamma)
     target_net_updater = SoftUpdate(loss_module, eps=cfg.target_update_polyak)
 
     # Buffer
@@ -181,7 +186,7 @@ def main(cfg: "DictConfig"):
     for data in tqdm.tqdm(collector):
 
         # Compute all rewards in a single call
-        # data = rew_transform(data)
+        data = rew_transform(data)
 
         log_info = {}
         frames_in_batch = data.numel()
@@ -204,14 +209,15 @@ def main(cfg: "DictConfig"):
                 }
             )
 
-        # data = data.exclude(
-        #     "recurrent_state_actor", ("next", "recurrent_state_actor"),
-        #     "recurrent_state_critic", ("next", "recurrent_state_critic"),
-        # )
+        rhs = (
+            "recurrent_state_actor", ("next", "recurrent_state_actor"),
+            "recurrent_state_critic", ("next", "recurrent_state_critic"),
+        )
+        for i in rhs:
+            data.get(i).zero_()
 
         buffer.extend(data.cpu())
         batch = buffer.sample()
-
         batch = crop_seq(batch)
         batch = burn_in(batch)
 

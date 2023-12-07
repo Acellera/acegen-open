@@ -126,7 +126,7 @@ def main(cfg: "DictConfig"):
         storing_device="cpu",
     )
 
-    # Loss modules
+    # Loss
     ####################################################################################################################
 
     loss_module = DiscreteSACLoss(
@@ -139,10 +139,9 @@ def main(cfg: "DictConfig"):
         action_space="one-hot",
     )
     loss_module.make_value_estimator(gamma=cfg.gamma)
-    loss_module = loss_module.to(device)
     target_net_updater = SoftUpdate(loss_module, eps=cfg.target_update_polyak)
 
-    # Buffers
+    # Buffer
     ####################################################################################################################
 
     crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
@@ -153,8 +152,8 @@ def main(cfg: "DictConfig"):
         prefetch=3,
         sampler=RandomSampler(),
     )
-    # buffer.append_transform(crop_seq)
-    # buffer.append_transform(burn_in)
+    buffer.append_transform(crop_seq)
+    buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################
@@ -186,7 +185,7 @@ def main(cfg: "DictConfig"):
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
 
-    for data in collector:
+    for data in tqdm.tqdm(collector):
 
         # Compute all rewards in a single call
         data = rew_transform(data)
@@ -212,19 +211,31 @@ def main(cfg: "DictConfig"):
                 }
             )
 
-        import ipdb; ipdb.set_trace()
-        buffer.extend(data.cpu())
+        # Zero out recurrent states
+        rhs = (
+            "recurrent_state_actor", ("next", "recurrent_state_actor"),
+            "recurrent_state_critic", ("next", "recurrent_state_critic"),
+        )
+        for i in rhs:
+            data.get(i).zero_()
 
+        buffer.extend(data.cpu())
         batch = buffer.sample()
         batch = batch.to(device)
-        import ipdb; ipdb.set_trace()
-        loss_td = loss_module(batch)
+        loss = loss_module(batch)
 
-        # # Burn in
+        loss_sum = loss["loss_actor"] + loss["loss_qvalue"] + loss["loss_alpha"]
 
-        import ipdb; ipdb.set_trace()
+        loss_sum.backward()
+        torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
+        optim.step()
+        optim.zero_grad()
+
+        target_net_updater.step()
+
+    collector.shutdown()
+    print("Success!")
 
 
 if __name__ == "__main__":
     main()
-
