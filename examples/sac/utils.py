@@ -118,40 +118,38 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
 def create_sac_models(vocabulary_size, batch_size, ckpt):
 
     actor_inference, actor_training, actor_transform = create_net(vocabulary_size, batch_size, net_name="actor")
-    ckpt = torch.load(ckpt)
-    ckpt = adapt_sac_ckpt(ckpt)
-    actor_inference.load_state_dict(ckpt)
-    actor_training.load_state_dict(ckpt)
+    ckpt_actor = adapt_sac_ckpt_actor(ckpt)
+    actor_inference.load_state_dict(ckpt_actor)
+    actor_training.load_state_dict(ckpt_actor)
 
     critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size, net_name="critic")
-    ckpt = torch.load(ckpt)
-    ckpt = adapt_sac_ckpt(ckpt)
-    critic_inference.load_state_dict(ckpt)
-    critic_training.load_state_dict(ckpt)
+    ckpt_critic = adapt_sac_ckpt_critic(ckpt)
+    critic_inference.load_state_dict(ckpt_critic)
+    critic_training.load_state_dict(ckpt_critic)
 
     return actor_inference, actor_training, critic_inference, critic_training, actor_transform, critic_transform
 
 
-def adapt_sac_ckpt(ckpt):
+def adapt_sac_ckpt_actor(ckpt):
     """Adapt the SAC ckpt from the AceGen ckpt format."""
 
     keys_mapping = {
         'embedding.weight': "module.0.module.0.module._embedding.weight",
 
-        'gru_1.weight_ih': "module.0.module.1.lstm.weight_ih_l0",
-        'gru_1.weight_hh': "module.0.module.1.lstm.weight_hh_l0",
-        'gru_1.bias_ih': "module.0.module.1.lstm.bias_ih_l0",
-        'gru_1.bias_hh': "module.0.module.1.lstm.bias_hh_l0",
+        'gru_1.weight_ih': "module.0.module.1.gru.weight_ih_l0",
+        'gru_1.weight_hh': "module.0.module.1.gru.weight_hh_l0",
+        'gru_1.bias_ih': "module.0.module.1.gru.bias_ih_l0",
+        'gru_1.bias_hh': "module.0.module.1.gru.bias_hh_l0",
 
-        'gru_2.weight_ih': "module.0.module.1.lstm.weight_ih_l1",
-        'gru_2.weight_hh': "module.0.module.1.lstm.weight_hh_l1",
-        'gru_2.bias_ih': "module.0.module.1.lstm.bias_ih_l1",
-        'gru_2.bias_hh': "module.0.module.1.lstm.bias_hh_l1",
+        'gru_2.weight_ih': "module.0.module.1.gru.weight_ih_l1",
+        'gru_2.weight_hh': "module.0.module.1.gru.weight_hh_l1",
+        'gru_2.bias_ih': "module.0.module.1.gru.bias_ih_l1",
+        'gru_2.bias_hh': "module.0.module.1.gru.bias_hh_l1",
 
-        'gru_3.weight_ih': "module.0.module.1.lstm.weight_ih_l2",
-        'gru_3.weight_hh': "module.0.module.1.lstm.weight_hh_l2",
-        'gru_3.bias_ih': "module.0.module.1.lstm.bias_ih_l2",
-        'gru_3.bias_hh': "module.0.module.1.lstm.bias_hh_l2",
+        'gru_3.weight_ih': "module.0.module.1.gru.weight_ih_l2",
+        'gru_3.weight_hh': "module.0.module.1.gru.weight_hh_l2",
+        'gru_3.bias_ih': "module.0.module.1.gru.bias_ih_l2",
+        'gru_3.bias_hh': "module.0.module.1.gru.bias_hh_l2",
 
         'linear.weight': "module.0.module.2.module.0.weight",
         'linear.bias': "module.0.module.2.module.0.bias",
@@ -159,6 +157,39 @@ def adapt_sac_ckpt(ckpt):
 
     new_ckpt = {}
     for k, v in ckpt.items():
+        new_ckpt[keys_mapping[k]] = v
+
+    return new_ckpt
+
+
+def adapt_sac_ckpt_critic(ckpt):
+    """Adapt the SAC ckpt from the AceGen ckpt format."""
+
+    keys_mapping = {
+        'embedding.weight': "module.0.module.0.module._embedding.weight",
+
+        'gru_1.weight_ih': "module.0.module.1.gru.weight_ih_l0",
+        'gru_1.weight_hh': "module.0.module.1.gru.weight_hh_l0",
+        'gru_1.bias_ih': "module.0.module.1.gru.bias_ih_l0",
+        'gru_1.bias_hh': "module.0.module.1.gru.bias_hh_l0",
+
+        'gru_2.weight_ih': "module.0.module.1.gru.weight_ih_l1",
+        'gru_2.weight_hh': "module.0.module.1.gru.weight_hh_l1",
+        'gru_2.bias_ih': "module.0.module.1.gru.bias_ih_l1",
+        'gru_2.bias_hh': "module.0.module.1.gru.bias_hh_l1",
+
+        'gru_3.weight_ih': "module.0.module.1.gru.weight_ih_l2",
+        'gru_3.weight_hh': "module.0.module.1.gru.weight_hh_l2",
+        'gru_3.bias_ih': "module.0.module.1.gru.bias_ih_l2",
+        'gru_3.bias_hh': "module.0.module.1.gru.bias_hh_l2",
+
+        'linear.weight': "module.0.module.2.module.0.weight",
+        'linear.bias': "module.0.module.2.module.0.bias",
+    }
+
+    new_ckpt = {}
+    for k, v in ckpt.items():
+        print(k)
         new_ckpt[keys_mapping[k]] = v
 
     return new_ckpt
