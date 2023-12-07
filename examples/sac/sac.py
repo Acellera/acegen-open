@@ -212,6 +212,18 @@ def main(cfg: "DictConfig"):
                 }
             )
 
+        # Then exclude unnecessary tensors
+        data = data.exclude(
+            "embed",
+            "logits",
+            "features",
+            "collector",
+            "step_count",
+            ("next", "step_count"),
+            "SMILES",
+            ("next", "SMILES"),
+        )
+
         # Zero out recurrent states
         rhs = (
             "recurrent_state_actor", ("next", "recurrent_state_actor"),
@@ -221,18 +233,38 @@ def main(cfg: "DictConfig"):
             data.get(i).zero_()
 
         buffer.extend(data.cpu())
-        batch = buffer.sample()
-        batch = batch.to(device)
-        loss = loss_module(batch)
 
-        loss_sum = loss["loss_actor"] + loss["loss_qvalue"] + loss["loss_alpha"]
+        if total_done < cfg.init_random_smiles:
+            if logger:
+                for key, value in log_info.items():
+                    logger.log_scalar(key, value, collected_frames)
+            continue
 
-        loss_sum.backward()
-        torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
-        optim.step()
-        optim.zero_grad()
+        for i in range(cfg.num_loss_updates):
 
-        target_net_updater.step()
+            batch = buffer.sample()
+            batch = batch.to(device)
+            loss = loss_module(batch)
+
+            loss_sum = loss["loss_actor"] + loss["loss_qvalue"] + loss["loss_alpha"]
+            losses[i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+
+            loss_sum.backward()
+            torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
+            optim.step()
+            optim.zero_grad()
+
+            target_net_updater.step()
+
+        losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
+        for key, value in losses_mean.items():
+            log_info.update({f"train/{key}": value.item()})
+
+        if logger:
+            for key, value in log_info.items():
+                logger.log_scalar(key, value, collected_frames)
+        collector.update_policy_weights_()
+
 
     collector.shutdown()
     print("Success!")
