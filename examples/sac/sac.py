@@ -73,8 +73,9 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
+    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
     (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_sac_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs)
+     ) = create_sac_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs, ckpt=ckpt)
 
     # TODO: check inputs and outputs of models are correct
 

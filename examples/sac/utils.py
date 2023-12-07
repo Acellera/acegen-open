@@ -115,16 +115,16 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
     return model_inference, model_training, transform
 
 
-def create_sac_models(vocabulary_size, batch_size):
+def create_sac_models(vocabulary_size, batch_size, ckpt):
 
     actor_inference, actor_training, actor_transform = create_net(vocabulary_size, batch_size, net_name="actor")
-    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "reinvent.prior")
+    ckpt = torch.load(ckpt)
     ckpt = adapt_sac_ckpt(ckpt)
     actor_inference.load_state_dict(ckpt)
     actor_training.load_state_dict(ckpt)
 
     critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size, net_name="critic")
-    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "reinvent.prior")
+    ckpt = torch.load(ckpt)
     ckpt = adapt_sac_ckpt(ckpt)
     critic_inference.load_state_dict(ckpt)
     critic_training.load_state_dict(ckpt)
