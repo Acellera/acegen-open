@@ -137,6 +137,7 @@ def create_shared_ppo_models(vocabulary_size, batch_size, ckpt=None):
 
     return actor_inference, actor_training, critic_inference, critic_training, transform
 
+
 def adapt_ppo_ckpt(ckpt):
     """Adapt the PPO ckpt from the AceGen ckpt format."""
 
@@ -163,6 +164,7 @@ def adapt_ppo_ckpt(ckpt):
         new_ckpt[keys_mapping[k]] = v
 
     return new_ckpt
+
 
 ## Replay buffer #######################################################################################################
 
