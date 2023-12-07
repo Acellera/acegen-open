@@ -199,7 +199,6 @@ def main(cfg: "DictConfig"):
     pbar = tqdm.tqdm(total=cfg.total_frames)
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[num_mini_batches])
-    steps_per_env = cfg.frames_per_batch / cfg.num_envs
 
     for data in collector:
 
@@ -267,15 +266,15 @@ def main(cfg: "DictConfig"):
                     replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
                     data[row] = replay_batch[0, :data.shape[1]]
 
+        # Compute advantage - only once or per mini-batch?
+        with torch.no_grad():
+            data = adv_module(data)
+
         buffer.extend(data)
 
         for j, batch in enumerate(buffer):
 
             batch = batch.to(device, non_blocking=True)
-
-            # Compute advantage
-            with torch.no_grad():
-                batch = adv_module(batch)
 
             loss = loss_module(batch)
             loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]

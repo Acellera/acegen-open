@@ -90,6 +90,7 @@ class SingleStepDeNovoEnv(EnvBase):
                         nvec=torch.ones(self.num_envs) * self.length_vocabulary,
                         shape=torch.Size([self.num_envs]),
                         device=self.device,
+                        dtype=torch.int32,
                     ),
                 },
                 shape=torch.Size([self.num_envs]),
@@ -102,15 +103,19 @@ class SingleStepDeNovoEnv(EnvBase):
                         nvec=self.max_length * [self.length_vocabulary],
                         shape=torch.Size([self.num_envs, self.max_length]),
                         device=self.device,
+                        dtype=torch.int32,
                     ),
                 },
                 shape=torch.Size([self.num_envs, self.max_length]),
             )
         )
         self.reward_spec = (
-            CompositeSpec({"reward": UnboundedContinuousTensorSpec((1,))})
+            CompositeSpec({"reward": UnboundedContinuousTensorSpec(
+                shape=(1,),
+                dtype=torch.float32,
+                device=self.device)
+            })
             .expand(self.num_envs)
-            .to(self.device)
         )
 
     def __repr__(self) -> str:

@@ -73,7 +73,7 @@ class MultiStepDeNovoEnv(EnvBase):
                 "done": done,
                 "terminated": done.clone(),
                 "reward": torch.zeros(self.num_envs, device=self.device),
-                "observation": tensordict.get("action").clone() if self.one_hot_obs_encoding else
+                "observation": tensordict.get("action").clone().to(torch.int32) if self.one_hot_obs_encoding else
                 actions.clone().to(torch.int32),
             },
             device=self.device,
@@ -89,25 +89,34 @@ class MultiStepDeNovoEnv(EnvBase):
         self.observation_spec = (
             CompositeSpec(
                 {
-                    "observation": DiscreteTensorSpec(self.length_vocabulary),
+                    "observation": DiscreteTensorSpec(
+                        self.length_vocabulary,
+                        dtype=torch.int32,
+                        device=self.device,
+                    ),
                 }
             )
             .expand(self.num_envs)
-            .to(self.device)
         )
         self.action_spec = (
             CompositeSpec(
                 {
-                    "action": DiscreteTensorSpec(self.length_vocabulary),
+                    "action": DiscreteTensorSpec(
+                        self.length_vocabulary,
+                        dtype=torch.int32,
+                        device=self.device,
+                    ),
                 }
             )
             .expand(self.num_envs)
-            .to(self.device)
         )
         self.reward_spec = (
-            CompositeSpec({"reward": UnboundedContinuousTensorSpec((1,))})
+            CompositeSpec({"reward": UnboundedContinuousTensorSpec(
+                shape=(1,),
+                dtype=torch.float32,
+                device=self.device,
+            )})
             .expand(self.num_envs)
-            .to(self.device)
         )
 
     def __repr__(self) -> str:

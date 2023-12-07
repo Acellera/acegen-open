@@ -64,6 +64,7 @@ def main(cfg: "DictConfig"):
         "batch_size": cfg.num_envs,
         "device": device,
         "one_hot_action_encoding": True,
+        "one_hot_obs_encoding": True,
     }
 
     # Models

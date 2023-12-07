@@ -27,21 +27,16 @@ class Embed(torch.nn.Module):
         super().__init__()
         self.input_size = input_size
         self.embedding_size = embedding_size
-        self._embedding = torch.nn.Embedding(input_size, embedding_size, _freeze=False)
+        self._embedding = torch.nn.Embedding(input_size, embedding_size)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         *batch, L = inputs.shape
         if len(batch) > 1:
             inputs = inputs.flatten(0, len(batch) - 1)
+        inputs = inputs.squeeze(-1)  # Embedding creates an extra dimension
         out = self._embedding(inputs)
         if len(batch) > 1:
             out = out.unflatten(0, batch)
-        out = out.squeeze(
-            -1
-        )  # If time dimension is 1, remove it. Ugly hack, should not be necessary
-        out = out.squeeze(
-            -2
-        )  # If time dimension is 1, remove it. Ugly hack, should not be necessary
         return out
 
 def create_shared_ppo_models(vocabulary_size, batch_size, ckpt=None):
