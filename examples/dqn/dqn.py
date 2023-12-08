@@ -29,18 +29,14 @@ from torchrl.objectives import DQNLoss, SoftUpdate
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.record.loggers import get_logger
 
-from examples.models import get_model_factory
-from acegen.rl_environments import DeNovoEnv
-from acegen.vocabulary import DeNovoVocabulary
-from acegen.transforms.reward_transform import SMILESReward
-from acegen.transforms.burnin_transform import BurnInTransform
+from acegen import SMILESVocabulary, MultiStepDeNovoEnv, SMILESReward, PenaliseRepeatedSMILES, BurnInTransform
 from examples.dqn.sampler import CategoricalSamplingModule
 from utils import create_dqn_models
 
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path="../..", config_name="dqn_config", version_base="1.2")
+@hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -48,7 +44,7 @@ def main(cfg: "DictConfig"):
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
     os.makedirs(save_dir)
-    with open(Path(save_dir) / "dqn_config.yaml", 'w') as yaml_file:
+    with open(Path(save_dir) / "config.yaml", 'w') as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
@@ -61,9 +57,9 @@ def main(cfg: "DictConfig"):
     # Get available device
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
-    # Create test rl_environments to get action specs
+    # Environment
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
-    vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
+    vocabulary = SMILESVocabulary(ckpt)
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
         "end_token": vocabulary.vocab["EOS"],
@@ -93,7 +89,7 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn():
         """Create a single RL rl_environments."""
-        env = DeNovoEnv(**env_kwargs)
+        env = MultiStepDeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(
@@ -230,6 +226,7 @@ def main(cfg: "DictConfig"):
             continue
 
         for j in range(num_updates):
+            log_info = {}
             sampled_tensordict = buffer.sample()
             sampled_tensordict = sampled_tensordict.to(device)
             loss_td = loss_module(sampled_tensordict)

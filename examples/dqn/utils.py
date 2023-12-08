@@ -105,10 +105,10 @@ def create_dqn_models(vocabulary_size, batch_size, ckpt):
     critic_training.load_state_dict(ckpt)
 
     # Initialize final critic weights
-    for layer in critic_training[0][2].module[0].modules():
-        if isinstance(layer, torch.nn.Linear):
-            torch.nn.init.orthogonal_(layer.weight, 0.01)
-            layer.bias.data.zero_()
+    # for layer in critic_training[0][2].module[0].modules():
+    #     if isinstance(layer, torch.nn.Linear):
+    #         torch.nn.init.orthogonal_(layer.weight, 0.01)
+    #         layer.bias.data.zero_()
 
     critic_inference.load_state_dict(critic_training.state_dict())
 
