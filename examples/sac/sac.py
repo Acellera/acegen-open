@@ -41,8 +41,6 @@ logging.basicConfig(level=logging.WARNING)
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
-    torch.autograd.set_detect_anomaly(True)
-
     # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")

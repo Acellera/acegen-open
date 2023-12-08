@@ -62,11 +62,11 @@ def main(cfg: "DictConfig"):
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
     # Create test rl_environments to get action specs
-    ckpt = torch.load(Path(__file__).resolve().parent / "vocabulary" / "priors" / "chembl_vocabulary.prior")
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
     vocabulary = DeNovoVocabulary.from_ckpt(ckpt)
     env_kwargs = {
-        "start_token": vocabulary.encode_token("^"),
-        "end_token": vocabulary.encode_token("$"),
+        "start_token": vocabulary.vocab["GO"],
+        "end_token": vocabulary.vocab["EOS"],
         "length_vocabulary": len(vocabulary),
         "batch_size": cfg.num_envs,
         "device": device,
@@ -75,8 +75,9 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    (model_inference, model_training, initial_state_dict, *transforms
-     ) = create_dqn_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs)
+    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
+    (model_inference, model_training, *transforms
+     ) = create_dqn_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs, ckpt=ckpt)
 
     model_training = model_training.to(device)
     model_inference = model_inference.to(device)
@@ -150,7 +151,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
-    burn_in = BurnInTransform(lstm_module=model_training, burn_in=cfg.burn_in)
+    burn_in = BurnInTransform(rnn_modules=[model_training], burn_in=cfg.burn_in)
     buffer = TensorDictReplayBuffer(
         storage=LazyMemmapStorage(cfg.replay_buffer_size),
         batch_size=cfg.batch_size,
@@ -218,8 +219,7 @@ def main(cfg: "DictConfig"):
             )
 
         # Update the replay buffer
-        data = data.exclude(
-            "recurrent_state_c", "recurrent_state_h", ("next", "recurrent_state_c"), ("next", "recurrent_state_h"))
+        data = data.exclude("recurrent_state", ("next", "recurrent_state"))
         buffer.extend(data)
 
         if collected_frames < cfg.initial_frames:
@@ -228,9 +228,6 @@ def main(cfg: "DictConfig"):
                     logger.log_scalar(key, value, collected_frames)
                 collector.update_policy_weights_()
             continue
-
-        model_inference.load_state_dict(initial_state_dict)
-        model_training.load_state_dict(initial_state_dict)
 
         for j in range(num_updates):
             sampled_tensordict = buffer.sample()

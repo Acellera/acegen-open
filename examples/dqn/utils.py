@@ -6,7 +6,7 @@ import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
 from torchrl.modules import (
-    LSTMModule,
+    GRUModule,
     MLP,
     ActorValueOperator,
     ProbabilisticActor,
@@ -33,34 +33,32 @@ class Embed(torch.nn.Module):
         *batch, L = inputs.shape
         if len(batch) > 1:
             inputs = inputs.flatten(0, len(batch) - 1)
+        inputs = inputs.squeeze(-1)  # Embedding creates an extra dimension
         out = self._embedding(inputs)
         if len(batch) > 1:
             out = out.unflatten(0, batch)
-        out = out.squeeze(-2)  # This is an ugly hack, should not be necessary
         return out
 
 
 def create_net(vocabulary_size, batch_size):
+
     embedding_module = TensorDictModule(
-        Embed(vocabulary_size, 256),
+        Embed(vocabulary_size, 128),
         in_keys=["observation"],
         out_keys=["embed"],
     )
-    lstm_module = LSTMModule(
-        dropout=0.1,
-        input_size=256,
+
+    gru_module = GRUModule(
+        dropout=0.0,
+        input_size=128,
         hidden_size=512,
         num_layers=3,
-        in_keys=[
-            "embed",
-            f"recurrent_state_h",
-            f"recurrent_state_c",
-        ],
+        in_keys=["embed", f"recurrent_state", "is_init"],
         out_keys=[
             "features",
-            ("next", f"recurrent_state_h"),
-            ("next", f"recurrent_state_c"),
+            ("next", f"recurrent_state"),
         ],
+        python_based=True,
     )
     mlp = TensorDictModule(
         MLP(
@@ -71,65 +69,74 @@ def create_net(vocabulary_size, batch_size):
         in_keys=["features"],
         out_keys=["action_value"],
     )
+
+    model_inference = TensorDictSequential(embedding_module, gru_module, mlp)
+    model_training = TensorDictSequential(embedding_module, gru_module.set_recurrent_mode(True), mlp)
+
     model_inference = QValueActor(
-        # model_inference = DistributionalQValueActor(
-        TensorDictSequential(embedding_module, lstm_module, mlp),
+        module=model_inference,
+        in_keys=["action_value"],
         spec=DiscreteTensorSpec(vocabulary_size),
-        # support=torch.arange(vocabulary_size)
+        action_space="categorical",
     )
     model_training = QValueActor(
-        # model_training = DistributionalQValueActor(
-        TensorDictSequential(embedding_module, lstm_module.set_recurrent_mode(True), mlp),
+        module=model_training,
+        in_keys=["action_value"],
         spec=DiscreteTensorSpec(vocabulary_size),
-        # support=torch.arange(vocabulary_size)
+        action_space="categorical",
     )
 
     primers = {
-        ('recurrent_state_h',):
+        (f"recurrent_state",):
             UnboundedContinuousTensorSpec(
                 shape=torch.Size([batch_size, 3, 512]),
                 dtype=torch.float32,
             ),
-        ('recurrent_state_c',):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([batch_size, 3, 512]),
-                dtype=torch.float32),
     }
     transform = TensorDictPrimer(primers)
 
     return model_inference, model_training, transform
 
 
-def create_dqn_models(vocabulary_size, batch_size):
+def create_dqn_models(vocabulary_size, batch_size, ckpt):
 
     critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size)
-    initial_state_dict = critic_inference.state_dict()
-    ckpt = torch.load(Path(__file__).resolve().parent / "priors" / "chembl_actor.prior")
     ckpt = adapt_ckpt(ckpt)
-    critic_inference.load_state_dict(ckpt)
     critic_training.load_state_dict(ckpt)
 
-    return critic_inference, critic_training, initial_state_dict, critic_transform
+    # Initialize final critic weights
+    for layer in critic_training[0][2].module[0].modules():
+        if isinstance(layer, torch.nn.Linear):
+            torch.nn.init.orthogonal_(layer.weight, 0.01)
+            layer.bias.data.zero_()
+
+    critic_inference.load_state_dict(critic_training.state_dict())
+
+    return critic_inference, critic_training, critic_transform
 
 
 def adapt_ckpt(ckpt):
 
     keys_mapping = {
-        'module.0.module._embedding.weight': "module.0.module.0.module._embedding.weight",
-        'module.1.lstm.weight_ih_l0': "module.0.module.1.lstm.weight_ih_l0",
-        'module.1.lstm.weight_hh_l0': "module.0.module.1.lstm.weight_hh_l0",
-        'module.1.lstm.bias_ih_l0': "module.0.module.1.lstm.bias_ih_l0",
-        'module.1.lstm.bias_hh_l0': "module.0.module.1.lstm.bias_hh_l0",
-        'module.1.lstm.weight_ih_l1': "module.0.module.1.lstm.weight_ih_l1",
-        'module.1.lstm.weight_hh_l1': "module.0.module.1.lstm.weight_hh_l1",
-        'module.1.lstm.bias_ih_l1': "module.0.module.1.lstm.bias_ih_l1",
-        'module.1.lstm.bias_hh_l1': "module.0.module.1.lstm.bias_hh_l1",
-        'module.1.lstm.weight_ih_l2': "module.0.module.1.lstm.weight_ih_l2",
-        'module.1.lstm.weight_hh_l2': "module.0.module.1.lstm.weight_hh_l2",
-        'module.1.lstm.bias_ih_l2': "module.0.module.1.lstm.bias_ih_l2",
-        'module.1.lstm.bias_hh_l2': "module.0.module.1.lstm.bias_hh_l2",
-        'module.2.module.0.module.0.weight': "module.0.module.2.module.0.weight",
-        'module.2.module.0.module.0.bias': "module.0.module.2.module.0.bias",
+        'embedding.weight': "module.0.module.0.module._embedding.weight",
+
+        'gru_1.weight_ih': "module.0.module.1.gru.weight_ih_l0",
+        'gru_1.weight_hh': "module.0.module.1.gru.weight_hh_l0",
+        'gru_1.bias_ih': "module.0.module.1.gru.bias_ih_l0",
+        'gru_1.bias_hh': "module.0.module.1.gru.bias_hh_l0",
+
+        'gru_2.weight_ih': "module.0.module.1.gru.weight_ih_l1",
+        'gru_2.weight_hh': "module.0.module.1.gru.weight_hh_l1",
+        'gru_2.bias_ih': "module.0.module.1.gru.bias_ih_l1",
+        'gru_2.bias_hh': "module.0.module.1.gru.bias_hh_l1",
+
+        'gru_3.weight_ih': "module.0.module.1.gru.weight_ih_l2",
+        'gru_3.weight_hh': "module.0.module.1.gru.weight_hh_l2",
+        'gru_3.bias_ih': "module.0.module.1.gru.bias_ih_l2",
+        'gru_3.bias_hh': "module.0.module.1.gru.bias_hh_l2",
+
+        'linear.weight': "module.0.module.2.module.0.weight",
+        'linear.bias': "module.0.module.2.module.0.bias",
     }
 
     new_ckpt = {}
