@@ -124,8 +124,15 @@ def create_sac_models(vocabulary_size, batch_size, ckpt):
 
     critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size, net_name="critic")
     ckpt_critic = adapt_sac_ckpt_critic(ckpt)
-    critic_inference.load_state_dict(ckpt_critic)
     critic_training.load_state_dict(ckpt_critic)
+
+    # Initialize final critic weights
+    for layer in critic_training[0][2].module[0].modules():
+        if isinstance(layer, torch.nn.Linear):
+            torch.nn.init.orthogonal_(layer.weight, 0.01)
+            layer.bias.data.zero_()
+
+    critic_inference.load_state_dict(critic_training.state_dict())
 
     return actor_inference, actor_training, critic_inference, critic_training, actor_transform, critic_transform
 
