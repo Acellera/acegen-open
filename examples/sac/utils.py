@@ -189,7 +189,6 @@ def adapt_sac_ckpt_critic(ckpt):
 
     new_ckpt = {}
     for k, v in ckpt.items():
-        print(k)
         new_ckpt[keys_mapping[k]] = v
 
     return new_ckpt

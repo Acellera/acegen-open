@@ -17,5 +17,5 @@ class BurnInTransform(Transform):
                 td_burn_in = rnn_module(td_burn_in)
         td_burn_in = td_burn_in.to(device)
         td_out = td[..., self.burn_in:]
-        td_out[..., 0].update(td_burn_in[..., -1]["next"])
+        td_out[..., 0].update(td_burn_in[..., -1]["next"], inplace=False)
         return td_out

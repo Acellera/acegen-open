@@ -14,6 +14,7 @@ from omegaconf import OmegaConf
 from molscore.manager import MolScore
 
 import torch
+from torch.distributions.kl import kl_divergence
 from tensordict import TensorDict
 
 from torchrl.envs import (
@@ -39,6 +40,8 @@ logging.basicConfig(level=logging.WARNING)
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
+
+    torch.autograd.set_detect_anomaly(True)
 
     # Save config
     current_time = datetime.datetime.now()
@@ -154,7 +157,7 @@ def main(cfg: "DictConfig"):
         sampler=RandomSampler(),
     )
     buffer.append_transform(crop_seq)
-    buffer.append_transform(burn_in)
+    # buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################
@@ -180,9 +183,7 @@ def main(cfg: "DictConfig"):
 
     total_done = 0
     collected_frames = 0
-    repeated_smiles = 0
     pbar = tqdm.tqdm(total=cfg.total_frames)
-    losses = TensorDict({}, batch_size=[cfg.num_loss_updates])
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
 
@@ -211,6 +212,9 @@ def main(cfg: "DictConfig"):
                     / len(episode_length),
                 }
             )
+            if logger:
+                for key, value in log_info.items():
+                    logger.log_scalar(key, value, collected_frames)
 
         # Then exclude unnecessary tensors
         data = data.exclude(
@@ -235,9 +239,6 @@ def main(cfg: "DictConfig"):
         buffer.extend(data.cpu())
 
         if total_done < cfg.init_random_smiles:
-            if logger:
-                for key, value in log_info.items():
-                    logger.log_scalar(key, value, collected_frames)
             continue
 
         for i in range(cfg.num_loss_updates):
@@ -245,9 +246,19 @@ def main(cfg: "DictConfig"):
             batch = buffer.sample()
             batch = batch.to(device)
             loss = loss_module(batch)
-
             loss_sum = loss["loss_actor"] + loss["loss_qvalue"] + loss["loss_alpha"]
-            losses[i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+            with torch.no_grad():
+                prior_dist = prior.get_dist(batch)
+            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+            mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+            kl_div = kl_div[~mask].mean()
+            loss_sum += kl_div * kl_coef
+
+            log_info = {}
+            log_info.update({f"train/loss_actor": loss["loss_actor"].detach().item()})
+            log_info.update({f"train/loss_qvalue": loss["loss_qvalue"].detach().item()})
+            log_info.update({f"train/loss_alpha": loss["loss_alpha"].detach().item()})
+            log_info.update({f"train/kl_div": kl_div.detach().item()})
 
             loss_sum.backward()
             torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
@@ -256,13 +267,10 @@ def main(cfg: "DictConfig"):
 
             target_net_updater.step()
 
-        losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
-        for key, value in losses_mean.items():
-            log_info.update({f"train/{key}": value.item()})
+            if logger:
+                for key, value in log_info.items():
+                    logger.log_scalar(key, value, collected_frames)
 
-        if logger:
-            for key, value in log_info.items():
-                logger.log_scalar(key, value, collected_frames)
         collector.update_policy_weights_()
 
 
