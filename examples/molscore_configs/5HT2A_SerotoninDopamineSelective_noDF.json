@@ -1,5 +1,5 @@
 {
-  "task": "5HT2A_SerotoninDopamineSelective",
+  "task": "5HT2A_SerotoninDopamineSelective_noDF",
   "output_dir": "./",
   "load_from_previous": false,
   "logging": false,
