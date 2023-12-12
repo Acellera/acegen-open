@@ -136,7 +136,8 @@ def main(cfg: "DictConfig"):
         qvalue_network=critic_training,
         num_actions=len(vocabulary),
         num_qvalue_nets=2,
-        target_entropy_weight=cfg.target_entropy_weight,
+        # target_entropy_weight=cfg.target_entropy_weight,
+        target_entropy=0.98 * np.log(len(vocabulary)),
         loss_function="smooth_l1",
         action_space="one-hot",
     )

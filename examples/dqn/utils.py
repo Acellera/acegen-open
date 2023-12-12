@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 
-import copy
-from pathlib import Path
 import torch
-from tensordict.nn import TensorDictModule, TensorDictSequential
-from torchrl.envs import ExplorationType
+from tensordict.nn import TensorDictModule
 from torchrl.modules import (
     GRUModule,
     MLP,
@@ -13,11 +10,10 @@ from torchrl.modules import (
     QValueActor,
     DistributionalQValueActor,
 )
-from torchrl.modules.distributions import OneHotCategorical
 from torchrl.envs import ExplorationType, TensorDictPrimer
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 from tensordict.nn import TensorDictSequential
-from torchrl.data import DiscreteTensorSpec
+from torchrl.data import DiscreteTensorSpec, OneHotDiscreteTensorSpec
 
 
 class Embed(torch.nn.Module):
@@ -58,33 +54,21 @@ def create_net(vocabulary_size, batch_size):
             "features",
             ("next", f"recurrent_state"),
         ],
-        python_based=True,
+        # python_based=True,
     )
-    mlp = TensorDictModule(
-        MLP(
-            in_features=512,
-            out_features=vocabulary_size,
-            num_cells=[],
-        ),
+    mlp = MLP(
+        in_features=512,
+        out_features=vocabulary_size,
+        num_cells=[],
+    )
+    predictor = QValueActor(
+        module=mlp,
         in_keys=["features"],
-        out_keys=["action_value"],
+        spec=OneHotDiscreteTensorSpec(n=vocabulary_size),
     )
 
-    model_inference = TensorDictSequential(embedding_module, gru_module, mlp)
-    model_training = TensorDictSequential(embedding_module, gru_module.set_recurrent_mode(True), mlp)
-
-    model_inference = QValueActor(
-        module=model_inference,
-        in_keys=["action_value"],
-        spec=DiscreteTensorSpec(vocabulary_size),
-        action_space="categorical",
-    )
-    model_training = QValueActor(
-        module=model_training,
-        in_keys=["action_value"],
-        spec=DiscreteTensorSpec(vocabulary_size),
-        action_space="categorical",
-    )
+    model_inference = TensorDictSequential(embedding_module, gru_module, predictor)
+    model_training = TensorDictSequential(embedding_module, gru_module.set_recurrent_mode(True), predictor)
 
     primers = {
         (f"recurrent_state",):
@@ -101,42 +85,36 @@ def create_net(vocabulary_size, batch_size):
 def create_dqn_models(vocabulary_size, batch_size, ckpt):
 
     critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size)
+    initial_state_dict = critic_inference.state_dict()
     ckpt = adapt_ckpt(ckpt)
     critic_training.load_state_dict(ckpt)
+    critic_inference.load_state_dict(ckpt)
 
-    # Initialize final critic weights
-    # for layer in critic_training[0][2].module[0].modules():
-    #     if isinstance(layer, torch.nn.Linear):
-    #         torch.nn.init.orthogonal_(layer.weight, 0.01)
-    #         layer.bias.data.zero_()
-
-    critic_inference.load_state_dict(critic_training.state_dict())
-
-    return critic_inference, critic_training, critic_transform
+    return critic_inference, critic_training, initial_state_dict, critic_transform
 
 
 def adapt_ckpt(ckpt):
 
     keys_mapping = {
-        'embedding.weight': "module.0.module.0.module._embedding.weight",
+        'embedding.weight': "module.0.module._embedding.weight",
 
-        'gru_1.weight_ih': "module.0.module.1.gru.weight_ih_l0",
-        'gru_1.weight_hh': "module.0.module.1.gru.weight_hh_l0",
-        'gru_1.bias_ih': "module.0.module.1.gru.bias_ih_l0",
-        'gru_1.bias_hh': "module.0.module.1.gru.bias_hh_l0",
+        'gru_1.weight_ih': "module.1.gru.weight_ih_l0",
+        'gru_1.weight_hh': "module.1.gru.weight_hh_l0",
+        'gru_1.bias_ih': "module.1.gru.bias_ih_l0",
+        'gru_1.bias_hh': "module.1.gru.bias_hh_l0",
 
-        'gru_2.weight_ih': "module.0.module.1.gru.weight_ih_l1",
-        'gru_2.weight_hh': "module.0.module.1.gru.weight_hh_l1",
-        'gru_2.bias_ih': "module.0.module.1.gru.bias_ih_l1",
-        'gru_2.bias_hh': "module.0.module.1.gru.bias_hh_l1",
+        'gru_2.weight_ih': "module.1.gru.weight_ih_l1",
+        'gru_2.weight_hh': "module.1.gru.weight_hh_l1",
+        'gru_2.bias_ih': "module.1.gru.bias_ih_l1",
+        'gru_2.bias_hh': "module.1.gru.bias_hh_l1",
 
-        'gru_3.weight_ih': "module.0.module.1.gru.weight_ih_l2",
-        'gru_3.weight_hh': "module.0.module.1.gru.weight_hh_l2",
-        'gru_3.bias_ih': "module.0.module.1.gru.bias_ih_l2",
-        'gru_3.bias_hh': "module.0.module.1.gru.bias_hh_l2",
+        'gru_3.weight_ih': "module.1.gru.weight_ih_l2",
+        'gru_3.weight_hh': "module.1.gru.weight_hh_l2",
+        'gru_3.bias_ih': "module.1.gru.bias_ih_l2",
+        'gru_3.bias_hh': "module.1.gru.bias_hh_l2",
 
-        'linear.weight': "module.0.module.2.module.0.weight",
-        'linear.bias': "module.0.module.2.module.0.bias",
+        'linear.weight': "module.2.module.0.module.0.weight",
+        'linear.bias': "module.2.module.0.module.0.bias",
     }
 
     new_ckpt = {}

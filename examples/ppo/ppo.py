@@ -267,7 +267,7 @@ def main(cfg: "DictConfig"):
                     row = random.randint(0, cfg.num_envs - 1)
                     exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(10, decode_smiles=False)
                     replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
-                    data[row] = replay_batch[0, 0:int(steps_per_env)]
+                    data[row] = replay_batch[0, 0:data.shape[1]]
 
             with torch.no_grad():
                 data = adv_module(data)

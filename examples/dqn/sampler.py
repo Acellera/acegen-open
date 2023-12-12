@@ -1,7 +1,7 @@
 from typing import Optional
 
 import torch
-
+import random
 from tensordict.nn import TensorDictModuleBase
 from tensordict.tensordict import TensorDictBase
 from tensordict.utils import NestedKey
@@ -24,10 +24,11 @@ class CategoricalSamplingModule(TensorDictModuleBase):
         pass
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+
         if exploration_type() == ExplorationType.RANDOM or exploration_type() is None:
             action_tensordict = tensordict
             action_key = self.action_key
-            dist = torch.distributions.categorical.Categorical(logits=tensordict["action_value"])
+            dist = torch.distributions.one_hot_categorical.OneHotCategorical(logits=tensordict["action_value"])
             out = dist.sample()
             action_tensordict.set(action_key, out)
         return tensordict

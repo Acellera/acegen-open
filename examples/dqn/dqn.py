@@ -25,9 +25,10 @@ from torchrl.envs import (
 )
 from torchrl.data.replay_buffers import RandomSampler
 from torchrl.collectors import SyncDataCollector
-from torchrl.objectives import DQNLoss, SoftUpdate
+from torchrl.objectives import DQNLoss, SoftUpdate, HardUpdate
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.record.loggers import get_logger
+from torchrl.modules import EGreedyModule
 
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv, SMILESReward, PenaliseRepeatedSMILES, BurnInTransform
 from examples.dqn.sampler import CategoricalSamplingModule
@@ -66,23 +67,35 @@ def main(cfg: "DictConfig"):
         "length_vocabulary": len(vocabulary),
         "batch_size": cfg.num_envs,
         "device": device,
+        "one_hot_action_encoding": True,
     }
 
     # Models
     ####################################################################################################################
 
     ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
-    (model_inference, model_training, *transforms
+    (model_inference, model_training, initial_state_dict,  *transforms
      ) = create_dqn_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs, ckpt=ckpt)
 
     model_training = model_training.to(device)
     model_inference = model_inference.to(device)
     sampling_module = CategoricalSamplingModule()
+    greedy_module = EGreedyModule(
+        annealing_num_steps=100,
+        eps_init=0.1,
+        eps_end=0.05,
+        spec=model_inference[-1].spec,
+    )
 
     model_explore = TensorDictSequential(
         model_inference,
         sampling_module,
     ).to(device)
+
+    # model_explore = TensorDictSequential(
+    #     model_inference,
+    #     greedy_module,
+    # ).to(device)
 
     # Environment
     ####################################################################################################################
@@ -135,27 +148,27 @@ def main(cfg: "DictConfig"):
         gamma=cfg.gamma,
         loss_function="l2",
         delay_value=True,
-        action_space="categorical",
+        action_space=model_training[-1].spec,
     )
     loss_module.make_value_estimator()
-    target_net_updater = SoftUpdate(loss_module, eps=cfg.target_update_polyak)
-    # target_net_updater = HardUpdate(
-    #     loss_module, value_network_update_interval=cfg.value_network_update_interval
-    # )
+    # target_net_updater = SoftUpdate(loss_module, eps=cfg.target_update_polyak)
+    target_net_updater = HardUpdate(
+        loss_module, value_network_update_interval=cfg.value_network_update_interval
+    )
 
     # Buffers
     ####################################################################################################################
 
     crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
-    burn_in = BurnInTransform(rnn_modules=[model_training], burn_in=cfg.burn_in)
+    burn_in = BurnInTransform(rnn_modules=(model_training,), burn_in=cfg.burn_in)
     buffer = TensorDictReplayBuffer(
         storage=LazyMemmapStorage(cfg.replay_buffer_size),
         batch_size=cfg.batch_size,
         prefetch=3,
-        sampler=RandomSampler(),
+        # sampler=RandomSampler(),
     )
-    buffer.append_transform(crop_seq)
-    buffer.append_transform(burn_in)
+    # buffer.append_transform(crop_seq)
+    # buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################
@@ -187,6 +200,7 @@ def main(cfg: "DictConfig"):
     q_losses = torch.zeros(num_updates, device=device)
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
+    loaded_initial_state_dict = False
 
     for data in collector:
 
@@ -209,25 +223,51 @@ def main(cfg: "DictConfig"):
                     "train/reward": episode_rewards.mean().item(),
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
+                    # "train/q_values": torch.gather(data["action_value"],
+                    # 2, data["action"].unsqueeze(-1)).mean().item(),
                     "train/episode_length": episode_length.sum().item()
                     / len(episode_length),
                 }
             )
 
-        # Update the replay buffer
-        data = data.exclude("recurrent_state", ("next", "recurrent_state"))
-        buffer.extend(data)
-
-        if collected_frames < cfg.initial_frames:
             if logger:
                 for key, value in log_info.items():
                     logger.log_scalar(key, value, collected_frames)
-                collector.update_policy_weights_()
+
+        # Update the replay buffer
+        data = data.exclude(
+            "embed",
+            "logits",
+            "features",
+            "collector",
+            "step_count",
+            ("next", "step_count"),
+            # "recurrent_state",
+            # ("next", "recurrent_state"),
+            "SMILES",
+            ("next", "SMILES"),
+            "action_value",
+        )
+        buffer.extend(data)
+
+        if collected_frames < cfg.initial_frames:
             continue
+
+        if not loaded_initial_state_dict:
+            # Initialize final critic weights
+            for layer in model_inference[-2].modules():
+                if isinstance(layer, torch.nn.Linear):
+                    layer.weight.data.zero_()
+                    layer.bias.data.zero_()
+            model_training.load_state_dict(model_inference.state_dict())
+            loaded_initial_state_dict = True
 
         for j in range(num_updates):
             log_info = {}
             sampled_tensordict = buffer.sample()
+
+            assert "recurrent_state" in sampled_tensordict.keys()
+
             sampled_tensordict = sampled_tensordict.to(device)
             loss_td = loss_module(sampled_tensordict)
             q_loss = loss_td["loss"]
@@ -241,10 +281,11 @@ def main(cfg: "DictConfig"):
             # Get and log q-values, loss, epsilon, sampling time and training time
             log_info.update(
                 {
-                    "train/q_values": torch.gather(data["action_value"], 2, data["action"].unsqueeze(-1)).mean().item(),
                     "train/q_loss": q_losses.mean().item(),
                 }
             )
+
+            print(j)
 
             if logger:
                 for key, value in log_info.items():
