@@ -31,8 +31,8 @@ class SMILESReward(Transform):
         # Get steps where trajectories end
         device = tensordict.device
         td_next = tensordict.get("next")
-        terminated = td_next.get("terminated").squeeze(-1)
-        sub_tensordict = td_next.get_sub_tensordict(terminated)
+        done = td_next.get("done").squeeze(-1)
+        sub_tensordict = td_next.get_sub_tensordict(done)
 
         if len(sub_tensordict) == 0:
             return tensordict

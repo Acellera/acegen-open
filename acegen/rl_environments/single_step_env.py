@@ -68,10 +68,11 @@ class SingleStepDeNovoEnv(EnvBase):
             actions = torch.argmax(actions, dim=-1)
         reward = torch.zeros(self.num_envs, device=self.device)
         done = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+        terminated = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         next_tensordict = TensorDict(
             {
                 "done": done,
-                "terminated": done.clone(),
+                "terminated": terminated,
                 "reward": reward,
             },
             device=self.device,

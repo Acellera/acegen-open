@@ -208,7 +208,7 @@ def main(cfg: "DictConfig"):
 
         log_info = {}
         frames_in_batch = data.numel()
-        total_done += data.get(("next", "terminated")).sum()
+        total_done += data.get(("next", "done")).sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
@@ -216,8 +216,8 @@ def main(cfg: "DictConfig"):
         data = rew_transform(data)
 
         # Register smiles lengths and real rewards
-        episode_rewards = data["next", "reward"][data["next", "terminated"]]
-        episode_length = data["next", "step_count"][data["next", "terminated"]]
+        episode_rewards = data["next", "reward"][data["next", "done"]]
+        episode_length = data["next", "step_count"][data["next", "done"]]
         if len(episode_rewards) > 0:
             log_info.update(
                 {

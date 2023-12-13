@@ -134,7 +134,7 @@ def main(cfg: "DictConfig"):
 
         log_info = {}
         frames_in_batch = data.numel()
-        total_done += data.get(("next", "terminated")).sum()
+        total_done += data.get(("next", "done")).sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 

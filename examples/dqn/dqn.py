@@ -190,7 +190,7 @@ def main(cfg: "DictConfig"):
 
         log_info = {}
         frames_in_batch = data.numel()
-        total_done += data.get(("next", "terminated")).sum()
+        total_done += data.get(("next", "done")).sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
@@ -198,8 +198,8 @@ def main(cfg: "DictConfig"):
         data = rew_transform(data)
 
         # Register smiles lengths and real rewards
-        episode_rewards = data["next", "reward"][data["next", "terminated"]]
-        episode_length = data["next", "step_count"][data["next", "terminated"]]
+        episode_rewards = data["next", "reward"][data["next", "done"]]
+        episode_length = data["next", "step_count"][data["next", "done"]]
         if len(episode_rewards) > 0:
             log_info.update(
                 {
@@ -238,7 +238,7 @@ def main(cfg: "DictConfig"):
         if collected_frames < cfg.initial_frames:
             continue
 
-        if not loaded_initial_state_dict and collected_frames > (cfg.initial_frames // 2):
+        if not loaded_initial_state_dict:
             print("Loading initial state dict!")
             model_training.load_state_dict(initial_state_dict)
             model_training.load_state_dict(initial_state_dict)
