@@ -71,7 +71,8 @@ class MultiStepDeNovoEnv(EnvBase):
         next_tensordict = TensorDict(
             {
                 "done": done,
-                "terminated": done.clone(),
+                # "terminated": done.clone(),
+                "terminated": False,
                 "reward": torch.zeros(self.num_envs, device=self.device),
                 "observation": tensordict.get("action").clone().to(torch.int32) if self.one_hot_obs_encoding else
                 actions.clone().to(torch.int32),

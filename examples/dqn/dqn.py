@@ -1,5 +1,4 @@
 import os
-
 import tqdm
 import yaml
 import json
@@ -10,6 +9,7 @@ import logging
 import datetime
 import numpy as np
 from pathlib import Path
+from copy import deepcopy
 from omegaconf import OmegaConf
 from molscore.manager import MolScore
 
@@ -28,7 +28,6 @@ from torchrl.collectors import SyncDataCollector
 from torchrl.objectives import DQNLoss, SoftUpdate, HardUpdate
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.record.loggers import get_logger
-from torchrl.modules import EGreedyModule
 
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv, SMILESReward, PenaliseRepeatedSMILES, BurnInTransform
 from examples.dqn.sampler import CategoricalSamplingModule
@@ -40,6 +39,12 @@ logging.basicConfig(level=logging.WARNING)
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
+    # Set seeds
+    seed = cfg.seed
+    random.seed(int(seed))
+    np.random.seed(int(seed))
+    torch.manual_seed(int(seed))
+
     # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
@@ -49,26 +54,12 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
-
     # Get available device
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
-    # Environment
+    # Vocabulary
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
     vocabulary = SMILESVocabulary(ckpt)
-    env_kwargs = {
-        "start_token": vocabulary.vocab["GO"],
-        "end_token": vocabulary.vocab["EOS"],
-        "length_vocabulary": len(vocabulary),
-        "batch_size": cfg.num_envs,
-        "device": device,
-        "one_hot_action_encoding": True,
-    }
 
     # Models
     ####################################################################################################################
@@ -80,25 +71,20 @@ def main(cfg: "DictConfig"):
     model_training = model_training.to(device)
     model_inference = model_inference.to(device)
     sampling_module = CategoricalSamplingModule()
-    greedy_module = EGreedyModule(
-        annealing_num_steps=100,
-        eps_init=0.1,
-        eps_end=0.05,
-        spec=model_inference[-1].spec,
-    )
-
-    model_explore = TensorDictSequential(
-        model_inference,
-        sampling_module,
-    ).to(device)
-
-    # model_explore = TensorDictSequential(
-    #     model_inference,
-    #     greedy_module,
-    # ).to(device)
+    model_explore = TensorDictSequential(model_inference, sampling_module).to(device)
+    prior = deepcopy(model_training)
 
     # Environment
     ####################################################################################################################
+
+    env_kwargs = {
+        "start_token": vocabulary.vocab["GO"],
+        "end_token": vocabulary.vocab["EOS"],
+        "length_vocabulary": len(vocabulary),
+        "batch_size": cfg.num_envs,
+        "device": device,
+        "one_hot_action_encoding": True,
+    }
 
     def create_env_fn():
         """Create a single RL rl_environments."""
@@ -146,7 +132,7 @@ def main(cfg: "DictConfig"):
     loss_module = DQNLoss(
         value_network=model_training,
         gamma=cfg.gamma,
-        loss_function="l2",
+        loss_function="l2", # smooth_l1
         delay_value=True,
         action_space=model_training[-1].spec,
     )
@@ -165,10 +151,10 @@ def main(cfg: "DictConfig"):
         storage=LazyMemmapStorage(cfg.replay_buffer_size),
         batch_size=cfg.batch_size,
         prefetch=3,
-        # sampler=RandomSampler(),
+        sampler=RandomSampler(),
     )
-    # buffer.append_transform(crop_seq)
-    # buffer.append_transform(burn_in)
+    buffer.append_transform(crop_seq)
+    buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################
@@ -194,10 +180,8 @@ def main(cfg: "DictConfig"):
 
     total_done = 0
     collected_frames = 0
-    repeated_smiles = 0
     pbar = tqdm.tqdm(total=cfg.total_frames)
     num_updates = cfg.num_loss_updates
-    q_losses = torch.zeros(num_updates, device=device)
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
     loaded_initial_state_dict = False
@@ -223,8 +207,7 @@ def main(cfg: "DictConfig"):
                     "train/reward": episode_rewards.mean().item(),
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
-                    # "train/q_values": torch.gather(data["action_value"],
-                    # 2, data["action"].unsqueeze(-1)).mean().item(),
+                    "train/q_values": data["chosen_action_value"].mean().item(),
                     "train/episode_length": episode_length.sum().item()
                     / len(episode_length),
                 }
@@ -236,6 +219,7 @@ def main(cfg: "DictConfig"):
 
         # Update the replay buffer
         data = data.exclude(
+            "done"
             "embed",
             "logits",
             "features",
@@ -248,48 +232,39 @@ def main(cfg: "DictConfig"):
             ("next", "SMILES"),
             "action_value",
         )
+
         buffer.extend(data)
 
         if collected_frames < cfg.initial_frames:
             continue
 
-        if not loaded_initial_state_dict:
-            # Initialize final critic weights
-            for layer in model_inference[-2].modules():
-                if isinstance(layer, torch.nn.Linear):
-                    layer.weight.data.zero_()
-                    layer.bias.data.zero_()
-            model_training.load_state_dict(model_inference.state_dict())
+        if not loaded_initial_state_dict and collected_frames > (cfg.initial_frames // 2):
+            print("Loading initial state dict!")
+            model_training.load_state_dict(initial_state_dict)
+            model_training.load_state_dict(initial_state_dict)
+            collector.update_policy_weights_()
             loaded_initial_state_dict = True
 
         for j in range(num_updates):
-            log_info = {}
             sampled_tensordict = buffer.sample()
-
             assert "recurrent_state" in sampled_tensordict.keys()
-
             sampled_tensordict = sampled_tensordict.to(device)
+
+            with torch.no_grad():
+                sampled_tensordict = model_training(sampled_tensordict)
+            if logger:
+                logger.log_scalar("train/chosen_action_value", sampled_tensordict["chosen_action_value"].mean().item(),  collected_frames)
+                logger.log_scalar("train/action_value", sampled_tensordict["action_value"].mean().item(),  collected_frames)
+
             loss_td = loss_module(sampled_tensordict)
             q_loss = loss_td["loss"]
             optim.zero_grad()
             q_loss.backward()
-            torch.nn.utils.clip_grad_norm_(list(loss_module.parameters()), max_norm=cfg.max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(list(loss_module.parameters()), max_norm=max_grad_norm)
             optim.step()
             target_net_updater.step()
-            q_losses[j].copy_(q_loss.detach())
-
-            # Get and log q-values, loss, epsilon, sampling time and training time
-            log_info.update(
-                {
-                    "train/q_loss": q_losses.mean().item(),
-                }
-            )
-
-            print(j)
-
             if logger:
-                for key, value in log_info.items():
-                    logger.log_scalar(key, value) #  collected_frames)
+                logger.log_scalar("train/q_loss", q_loss.item(),  collected_frames)
 
         # update weights of the inference policy
         collector.update_policy_weights_()

@@ -41,6 +41,12 @@ logging.basicConfig(level=logging.WARNING)
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
+    # Set seeds
+    seed = cfg.seed
+    random.seed(int(seed))
+    np.random.seed(int(seed))
+    torch.manual_seed(int(seed))
+
     # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
@@ -50,25 +56,12 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
-
     # Get available device
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
-    # Create test rl_environments to get action specs
+    # Load vocabulary
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
     vocabulary = SMILESVocabulary(ckpt)
-    env_kwargs = {
-        "start_token": vocabulary.vocab["GO"],
-        "end_token": vocabulary.vocab["EOS"],
-        "length_vocabulary": len(vocabulary),
-        "batch_size": 1,
-        "device": device,
-    }
 
     # Models
     ####################################################################################################################
@@ -84,6 +77,14 @@ def main(cfg: "DictConfig"):
 
     # Environment
     ####################################################################################################################
+
+    env_kwargs = {
+        "start_token": vocabulary.vocab["GO"],
+        "end_token": vocabulary.vocab["EOS"],
+        "length_vocabulary": len(vocabulary),
+        "batch_size": 1,
+        "device": device,
+    }
 
     def create_env_fn():
         """Create a single RL rl_environments."""

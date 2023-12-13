@@ -23,12 +23,22 @@ class CategoricalSamplingModule(TensorDictModuleBase):
     def step(self, frames: int = 1) -> None:
         pass
 
-    def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+    def forward(self, tensordict: TensorDictBase, temperature = 1.0) -> TensorDictBase:
 
         if exploration_type() == ExplorationType.RANDOM or exploration_type() is None:
-            action_tensordict = tensordict
-            action_key = self.action_key
-            dist = torch.distributions.one_hot_categorical.OneHotCategorical(logits=tensordict["action_value"])
+
+            # Ensure numeric stability by subtracting the maximum Q-value
+            action_values = tensordict["action_value"]
+            max_action_value, _ = torch.max(tensordict["action_value"], dim=-1, keepdim=True)
+            exp_values = torch.exp((action_values - max_action_value) / temperature)
+
+            # Calculate probabilities using the softmax function
+            probabilities = exp_values / torch.sum(exp_values, dim=-1, keepdim=True)
+
+            # Sample an action according to the probabilities
+            dist = torch.distributions.one_hot_categorical.OneHotCategorical(probs=probabilities)
             out = dist.sample()
-            action_tensordict.set(action_key, out)
+            tensordict.set(self.action_key, out)
+            tensordict.set("action_probs", probabilities)
+
         return tensordict

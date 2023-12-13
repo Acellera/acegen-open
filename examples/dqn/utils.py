@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import copy
 import torch
 from tensordict.nn import TensorDictModule
 from torchrl.modules import (
@@ -54,7 +55,6 @@ def create_net(vocabulary_size, batch_size):
             "features",
             ("next", f"recurrent_state"),
         ],
-        # python_based=True,
     )
     mlp = MLP(
         in_features=512,
@@ -83,13 +83,11 @@ def create_net(vocabulary_size, batch_size):
 
 
 def create_dqn_models(vocabulary_size, batch_size, ckpt):
-
     critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size)
-    initial_state_dict = critic_inference.state_dict()
+    initial_state_dict = copy.deepcopy(critic_training.state_dict())
     ckpt = adapt_ckpt(ckpt)
     critic_training.load_state_dict(ckpt)
     critic_inference.load_state_dict(ckpt)
-
     return critic_inference, critic_training, initial_state_dict, critic_transform
 
 
