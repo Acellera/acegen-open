@@ -43,7 +43,7 @@ class SoftmaxSamplingModule(TensorDictModuleBase):
     """
     def __init__(
                 self,
-                spec: TensorSpec,
+                spec: Optional[TensorSpec] = None,
                 action_key: Optional[NestedKey] = "action",
                 action_mask_key: Optional[NestedKey] = None,
         ):

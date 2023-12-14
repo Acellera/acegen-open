@@ -14,12 +14,12 @@ total_frames: 1_000_000
 frames_per_batch: 100
 
 # Replay buffer configuration
-replay_buffer_size: 200_000
+replay_buffer_size: 250_000
 
 # DQN configuration
 lr: 2.5e-4
 eps: 1e-08
-initial_frames: 100_000
+initial_frames: 50_000
 weight_decay: 1e-8
 gamma: 0.999
 target_update_polyak: 0.95
