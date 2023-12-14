@@ -27,7 +27,7 @@ To install MolScore, run
 
 ### Configuration file
     
-The configuration file is `ppo_config.yml`. It contains the parameters for the training.
+The configuration file is `config.yml`. It contains the parameters for the training.
 
 ### Running the training script
 

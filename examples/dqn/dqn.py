@@ -30,7 +30,7 @@ from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.record.loggers import get_logger
 
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv, SMILESReward, PenaliseRepeatedSMILES, BurnInTransform
-from examples.dqn.sampler import CategoricalSamplingModule
+from sampler import SoftmaxSamplingModule
 from utils import create_dqn_models
 
 logging.basicConfig(level=logging.WARNING)
@@ -64,13 +64,13 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
+    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt", map_location=device)
     (model_inference, model_training, initial_state_dict,  *transforms
      ) = create_dqn_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs, ckpt=ckpt)
 
     model_training = model_training.to(device)
     model_inference = model_inference.to(device)
-    sampling_module = CategoricalSamplingModule()
+    sampling_module = SoftmaxSamplingModule()
     model_explore = TensorDictSequential(model_inference, sampling_module).to(device)
     prior = deepcopy(model_training)
 

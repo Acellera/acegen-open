@@ -62,17 +62,26 @@ class MultiStepDeNovoEnv(EnvBase):
         return next_tensordict
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
+        # Get actions
         actions = tensordict.get("action")
         if self.one_hot_action_encoding:
             actions = torch.argmax(actions, dim=-1)
+
+        # Update episode length
         self.episode_length += 1
-        done = (actions == self.end_token) | (self.episode_length == self.max_length)
+
+        # Create termination flags
+        terminated = actions == self.end_token
+        truncated = self.episode_length == self.max_length
+        done = terminated | truncated
         self.episode_length[done] = 1
+
+        # Create next_tensordict
         next_tensordict = TensorDict(
             {
                 "done": done,
-                # "terminated": done.clone(),
-                "terminated": torch.zeros(self.num_envs, device=self.device, dtype=torch.bool),
+                "truncated": truncated,
+                "terminated": terminated,
                 "reward": torch.zeros(self.num_envs, device=self.device),
                 "observation": tensordict.get("action").clone().to(torch.int32) if self.one_hot_obs_encoding else
                 actions.clone().to(torch.int32),

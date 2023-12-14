@@ -6,12 +6,12 @@ logger_backend: null
 seed: 101
 
 # Environment configuration
-num_envs: 20
+num_envs: 5
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 
 # Collector configuration
 total_frames: 1_000_000
-frames_per_batch: 2000
+frames_per_batch: 100
 
 # Replay buffer configuration
 replay_buffer_size: 200_000
@@ -28,5 +28,5 @@ sampled_sequence_length: 11
 burn_in: 10
 kl_coef: 0.01
 max_grad_norm: 1.0
-num_loss_updates: 2000
+num_loss_updates: 100
 value_network_update_interval: 1000
