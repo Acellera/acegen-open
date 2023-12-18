@@ -156,7 +156,7 @@ def main(cfg: "DictConfig"):
         sampler=RandomSampler(),
     )
     buffer.append_transform(crop_seq)
-    # buffer.append_transform(burn_in)
+    buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################

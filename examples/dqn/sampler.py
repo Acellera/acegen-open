@@ -34,47 +34,41 @@ class SoftmaxSamplingModule(TensorDictModuleBase):
 
     Args:
         spec (TensorSpec): the spec used for sampling actions.
-
-    Keyword Args:
         action_key (NestedKey, optional): the key where the action can be found in the input tensordict.
             Default is ``"action"``.
-        action_mask_key (NestedKey, optional): the key where the action mask can be found in the input tensordict.
-            Default is ``None`` (corresponding to no mask).
     """
     def __init__(
-                self,
-                spec: Optional[TensorSpec] = None,
-                action_key: Optional[NestedKey] = "action",
-                action_mask_key: Optional[NestedKey] = None,
+            self,
+            action_spec: Optional[TensorSpec] = None,
+            logits_key: Optional[NestedKey] = "action_value",
+            action_key: Optional[NestedKey] = "action",
         ):
         self.action_key = action_key
-        in_keys = [self.action_key]
-        self.in_keys = in_keys
+        self.logits_key = logits_key
+        self.in_keys = [self.logits_key]
         self.out_keys = [self.action_key]
         super().__init__()
 
-        if spec is not None:
-            if not isinstance(spec, CompositeSpec) and len(self.out_keys) >= 1:
-                spec = CompositeSpec({action_key: spec}, shape=spec.shape[:-1])
-        self._spec = spec
+        if action_spec is not None:
+            if not isinstance(action_spec, CompositeSpec) and len(self.out_keys) >= 1:
+                action_spec = CompositeSpec({action_key: action_spec}, shape=action_spec.shape[:-1])
+        self._spec = action_spec
 
     @property
     def spec(self):
         return self._spec
     def forward(self, tensordict: TensorDictBase, temperature = 1.0) -> TensorDictBase:
+        """Computes the softmax distribution and samples an action from it."""
+
+        import ipdb; ipdb.set_trace()
+        # TODO: if action spec available, check that logits dimension is equal to the number of actions
 
         if exploration_type() == ExplorationType.RANDOM or exploration_type() is None:
-            if isinstance(self.action_key, tuple) and len(self.action_key) > 1:
-                action_tensordict = tensordict.get(self.action_key[:-1]) # TODO: is this necessary?
-                action_key = self.action_key[-1]
-            else:
-                action_tensordict = tensordict
-                action_key = self.action_key
 
             # Ensure numeric stability by subtracting the maximum Q-value
-            action_values = action_tensordict[action_key]
-            max_action_value, _ = torch.max(tensordict[action_key], dim=-1, keepdim=True)
-            exp_values = torch.exp((action_values - max_action_value) / temperature)
+            logits = tensordict.get(self.logits_key)
+            max_logits, _ = torch.max(logits, dim=-1, keepdim=True)
+            exp_values = torch.exp((logits - max_logits) / temperature)
 
             # Calculate probabilities using the softmax function
             probabilities = exp_values / torch.sum(exp_values, dim=-1, keepdim=True)

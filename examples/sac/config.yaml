@@ -12,7 +12,7 @@ molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.jso
 # Collector configuration
 total_frames: 1_000_000
 frames_per_batch: 100
-init_random_smiles: 200
+init_random_smiles: 500
 
 # Replay buffer configuration
 replay_buffer_size: 10_000
