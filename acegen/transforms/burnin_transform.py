@@ -19,10 +19,10 @@ class BurnInTransform(Transform):
         td_out = td[..., self.burn_in:]
 
         # TODO: This is a hack to get the recurrent state from the burn in
-        rhs = torch.zeros(td_out.shape[0], td_out.shape[1], 3, 512)
-        rhs[:, 0].copy_(td_burn_in["next"]["recurrent_state"][:, -1])
-        td_out.set("recurrent_state", rhs)
+        # rhs = torch.zeros(td_out.shape[0], td_out.shape[1], 3, 512)
+        # rhs[:, 0].copy_(td_burn_in["next"]["recurrent_state"][:, -1])
+        # td_out.set("recurrent_state", rhs)
 
-        # td_out[..., 0].update(td_burn_in["next"][..., -1])
+        td_out[..., 0].update(td_burn_in["next"][..., -1])
 
         return td_out

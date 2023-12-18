@@ -156,7 +156,7 @@ def main(cfg: "DictConfig"):
         sampler=RandomSampler(),
     )
     buffer.append_transform(crop_seq)
-    buffer.append_transform(burn_in)
+    # buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################
@@ -227,13 +227,13 @@ def main(cfg: "DictConfig"):
             ("next", "SMILES"),
         )
 
-        # Zero out recurrent states
-        rhs = (
-            "recurrent_state_actor", ("next", "recurrent_state_actor"),
-            "recurrent_state_critic", ("next", "recurrent_state_critic"),
-        )
-        for i in rhs:
-            data.get(i).zero_()
+        # # Zero out recurrent states
+        # rhs = (
+        #     "recurrent_state_actor", ("next", "recurrent_state_actor"),
+        #     "recurrent_state_critic", ("next", "recurrent_state_critic"),
+        # )
+        # for i in rhs:
+        #     data.get(i).zero_()
 
         buffer.extend(data.cpu())
 
