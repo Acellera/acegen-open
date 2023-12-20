@@ -103,7 +103,7 @@ def main(cfg: "DictConfig"):
             env.append_transform(transform)
         return env
 
-    # test env
+    # tests env
     test_env = MultiStepDeNovoEnv(**env_kwargs)
 
     # Save molscore output. Also redirect output to save_dir

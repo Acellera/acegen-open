@@ -52,7 +52,7 @@ def main(cfg: "DictConfig"):
     # Get available device
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
-    # Create test rl_environments to get action specs
+    # Create tests rl_environments to get action specs
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
     vocabulary = SMILESVocabulary(ckpt)
 
