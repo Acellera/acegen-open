@@ -238,7 +238,7 @@ def create_gru_actor_critic(
             num_cells=[],
         ),
         in_keys=["features"],
-        out_keys=["action_value"],
+        out_keys=["action_value"] if critic_value_per_action else ["state_value"],
     )
 
     # Wrap modules in a single ActorCritic operator

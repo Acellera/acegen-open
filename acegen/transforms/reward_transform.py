@@ -54,7 +54,6 @@ class SMILESReward(Transform):
         except RuntimeError:
             reward[:, 0] += torch.tensor(self.reward_function(smiles_list), device=device)
 
-        sub_tensordict.set("real_reward", reward, inplace=True)
-        sub_tensordict.set("reward", reward / sub_tensordict.get("step_count").squeeze(), inplace=True)
+        sub_tensordict.set("reward", reward, inplace=True)
 
         return tensordict

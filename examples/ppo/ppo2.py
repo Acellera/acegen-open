@@ -33,7 +33,7 @@ from torchrl.record.loggers import get_logger
 
 import acegen
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv as DeNovoEnv, SMILESReward, PenaliseRepeatedSMILES
-from acegen.models.gru import create_gru_actor_critic
+from acegen.models import create_gru_actor_critic, adapt_state_dict
 from utils import Experience, create_batch_from_replay_smiles, create_shared_ppo_models
 
 logging.basicConfig(level=logging.WARNING)
@@ -71,6 +71,9 @@ def main(cfg: "DictConfig"):
     (actor_inference, actor_training, critic_inference, critic_training) = create_gru_actor_critic(
         vocabulary_size=len(vocabulary))
 
+    actor_inference.load_state_dict(adapt_state_dict(ckpt["actor"], actor_inference.state_dict()))
+    actor_training.load_state_dict(adapt_state_dict(ckpt["actor"], actor_training.state_dict()))
+
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
@@ -78,6 +81,18 @@ def main(cfg: "DictConfig"):
 
     # Environment
     ####################################################################################################################
+
+    from torchrl.envs import ExplorationType, TensorDictPrimer
+    from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+
+    primers = {
+        ('recurrent_state',):
+            UnboundedContinuousTensorSpec(
+                shape=torch.Size([cfg.num_envs, 3, 512]),
+                dtype=torch.float32,
+            ),
+    }
+    transform = TensorDictPrimer(primers)
 
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
@@ -97,8 +112,7 @@ def main(cfg: "DictConfig"):
                 N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        for transform in transforms:
-            env.append_transform(transform)
+        env.append_transform(transform)
         return env
 
     # Save molscore output. Also redirect output to save_dir
