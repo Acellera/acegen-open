@@ -1,5 +1,5 @@
 import pytest
-
+from torchrl.envs.utils import step_mdp
 from torchrl.collectors import RandomPolicy
 from acegen.smiles_environments.multi_step_smiles_env import MultiStepSMILESEnv
 from tests.utils import get_default_devices
@@ -29,9 +29,21 @@ def test_multi_step_smiles_env(
         one_hot_action_encoding=one_hot_action_encoding,
         one_hot_obs_encoding=one_hot_obs_encoding,
     )
-    import ipdb; ipdb.set_trace()
     policy = RandomPolicy(env.action_spec)
     td = env.reset()
+
+    if one_hot_obs_encoding:
+        assert td.get("observation").shape == (batch_size, length_vocabulary)
+    else:
+        # TODO: can it be shape (batch_size, 1)?
+        assert td.get("observation").shape == (batch_size,)
+
+    # assert td.get("done").shape == (batch_size, 1)
+    # assert all(td.get("observation") == start_token)
+
+    td = policy(td)
+    td = env.step(td)
+    td = step_mdp(td)
 
 # @pytest.mark.parametrize("start_token", [0])
 # @pytest.mark.parametrize("end_token", [1])
