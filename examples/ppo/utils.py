@@ -64,7 +64,7 @@ def create_shared_ppo_models(vocabulary_size, batch_size, ckpt=None):
         in_keys=["observation"],
         out_keys=["embed"],
     )
-    lstm_module = GRUModule(
+    gru_module = GRUModule(
         dropout=0.0,
         input_size=128,
         hidden_size=512,
@@ -104,14 +104,14 @@ def create_shared_ppo_models(vocabulary_size, batch_size, ckpt=None):
 
     # Wrap modules in a single ActorCritic operator
     actor_critic_inference = ActorValueOperator(
-        common_operator=TensorDictSequential(embedding_module, lstm_module),
+        common_operator=TensorDictSequential(embedding_module, gru_module),
         policy_operator=policy_module,
         value_operator=critic_module,
     )
 
     actor_critic_training = ActorValueOperator(
         common_operator=TensorDictSequential(
-            embedding_module, lstm_module.set_recurrent_mode(True)
+            embedding_module, gru_module.set_recurrent_mode(True)
         ),
         policy_operator=policy_module,
         value_operator=critic_module,

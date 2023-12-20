@@ -8,6 +8,8 @@ from torchrl.data import (
     CompositeSpec,
     DiscreteTensorSpec,
     UnboundedContinuousTensorSpec,
+    OneHotDiscreteTensorSpec,
+
 )
 
 
@@ -96,11 +98,12 @@ class MultiStepDeNovoEnv(EnvBase):
         torch.manual_seed(seed)
 
     def _set_specs(self) -> None:
+        obs_spec = OneHotDiscreteTensorSpec if self.one_hot_obs_encoding else DiscreteTensorSpec
         self.observation_spec = (
             CompositeSpec(
                 {
-                    "observation": DiscreteTensorSpec(
-                        self.length_vocabulary,
+                    "observation": obs_spec(
+                        n=self.length_vocabulary,
                         dtype=torch.int32,
                         device=self.device,
                     ),
@@ -108,14 +111,15 @@ class MultiStepDeNovoEnv(EnvBase):
             )
             .expand(self.num_envs)
         )
+        action_spec = OneHotDiscreteTensorSpec if self.one_hot_action_encoding else DiscreteTensorSpec
         self.action_spec = (
             CompositeSpec(
                 {
-                    "action": DiscreteTensorSpec(
-                        self.length_vocabulary,
+                    "action": action_spec(
+                        n=self.length_vocabulary,
                         dtype=torch.int32,
                         device=self.device,
-                    ),
+                    )
                 }
             )
             .expand(self.num_envs)

@@ -12,6 +12,7 @@ class SMILESReward(Transform):
         vocabulary: DeNovoVocabulary,
         in_keys=None,
         out_keys=None,
+        reward_scale=1.0,
     ):
         if not isinstance(reward_function, Callable):
             raise ValueError("reward_function must be a callable.")
@@ -20,6 +21,7 @@ class SMILESReward(Transform):
             out_keys = ["reward"]
         if in_keys is None:
             in_keys = ["SMILES"]
+        self.reward_scale = reward_scale
 
         super().__init__(in_keys, out_keys)
 
@@ -51,6 +53,8 @@ class SMILESReward(Transform):
             reward[:, 0] += torch.tensor(self.reward_function(smiles_list), device=device)
         except RuntimeError:
             reward[:, 0] += torch.tensor(self.reward_function(smiles_list), device=device)
-        sub_tensordict.set("reward", reward, inplace=True)
+
+        sub_tensordict.set("real_reward", reward, inplace=True)
+        sub_tensordict.set("reward", reward / sub_tensordict.get("step_count").squeeze(), inplace=True)
 
         return tensordict

@@ -27,7 +27,7 @@ from torchrl.envs import (
 )
 from torchrl.collectors import SyncDataCollector
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
-from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
+from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer, TensorDictPrioritizedReplayBuffer
 from torchrl.data.replay_buffers.samplers import RandomSampler
 from torchrl.record.loggers import get_logger
 
@@ -68,6 +68,7 @@ def main(cfg: "DictConfig"):
         "length_vocabulary": len(vocabulary),
         "batch_size": cfg.num_envs,
         "device": device,
+        "max_length": 80,
         "one_hot_action_encoding": True,
     }
 
@@ -102,6 +103,9 @@ def main(cfg: "DictConfig"):
             env.append_transform(transform)
         return env
 
+    # test env
+    test_env = MultiStepDeNovoEnv(**env_kwargs)
+
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
     data = json.load(open(cfg.molscore, 'r'))
@@ -126,6 +130,7 @@ def main(cfg: "DictConfig"):
         total_frames=cfg.total_frames,
         device=device,
         storing_device="cpu",
+        reset_at_each_iter=True,
     )
 
     # Loss
@@ -136,10 +141,10 @@ def main(cfg: "DictConfig"):
         qvalue_network=critic_training,
         num_actions=len(vocabulary),
         num_qvalue_nets=2,
-        # target_entropy_weight=cfg.target_entropy_weight,
-        target_entropy=0.98 * np.log(len(vocabulary)),
+        target_entropy_weight=cfg.target_entropy_weight,
+        target_entropy="auto",
         loss_function="smooth_l1",
-        action_space="one-hot",
+        action_space=test_env.action_spec,
     )
     loss_module.make_value_estimator(gamma=cfg.gamma)
     target_net_updater = SoftUpdate(loss_module, eps=cfg.target_update_polyak)
@@ -149,13 +154,22 @@ def main(cfg: "DictConfig"):
 
     crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
     burn_in = BurnInTransform(rnn_modules=(actor_training, critic_training), burn_in=cfg.burn_in)
-    buffer = TensorDictReplayBuffer(
+    # buffer = TensorDictReplayBuffer(
+    #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
+    #     batch_size=cfg.batch_size,
+    #     prefetch=3,
+    # )
+    buffer = TensorDictPrioritizedReplayBuffer(
         storage=LazyMemmapStorage(cfg.replay_buffer_size),
-        batch_size=cfg.batch_size,
+        alpha=0.7,
+        beta=0.5,
+        pin_memory=False,
         prefetch=3,
-        sampler=RandomSampler(),
+        batch_size=cfg.batch_size,
+        priority_key="loss_qvalue",
+
     )
-    buffer.append_transform(crop_seq)
+    # buffer.append_transform(crop_seq)
     # buffer.append_transform(burn_in)
 
     # Optimizer
@@ -182,6 +196,7 @@ def main(cfg: "DictConfig"):
 
     total_done = 0
     collected_frames = 0
+    num_updates = 0
     pbar = tqdm.tqdm(total=cfg.total_frames)
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
@@ -242,22 +257,30 @@ def main(cfg: "DictConfig"):
 
         for i in range(cfg.num_loss_updates):
 
-            batch = buffer.sample()
-            batch = batch.to(device)
-            loss = loss_module(batch)
-            loss_sum = loss["loss_actor"] + loss["loss_qvalue"] + loss["loss_alpha"]
-            with torch.no_grad():
-                prior_dist = prior.get_dist(batch)
-            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-            mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-            kl_div = kl_div[~mask].mean()
-            loss_sum += kl_div * kl_coef
-
             log_info = {}
-            log_info.update({f"train/loss_actor": loss["loss_actor"].detach().item()})
+            batch = buffer.sample()
+            if batch.device != device:
+                batch = batch.to(
+                    device, non_blocking=True
+                )
+            else:
+                batch = batch.clone()
+
+            loss = loss_module(batch)
+            loss_sum = loss["loss_qvalue"]
             log_info.update({f"train/loss_qvalue": loss["loss_qvalue"].detach().item()})
-            log_info.update({f"train/loss_alpha": loss["loss_alpha"].detach().item()})
-            log_info.update({f"train/kl_div": kl_div.detach().item()})
+
+            if num_updates % 5 == 0:
+                loss_sum += loss["loss_actor"] + loss["loss_alpha"]
+                with torch.no_grad():
+                    prior_dist = prior.get_dist(batch)
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+                mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+                kl_div = kl_div[~mask].mean()
+                loss_sum += kl_div * kl_coef
+                log_info.update({f"train/kl_div": kl_div.detach().item()})
+                log_info.update({f"train/loss_actor": loss["loss_actor"].detach().item()})
+                log_info.update({f"train/loss_alpha": loss["loss_alpha"].detach().item()})
 
             loss_sum.backward()
             torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
@@ -265,6 +288,8 @@ def main(cfg: "DictConfig"):
             optim.zero_grad()
 
             target_net_updater.step()
+            num_updates += 1
+            buffer.update_priority(index=batch.get("index"), priority=batch.get("td_error"))
 
             if logger:
                 for key, value in log_info.items():
