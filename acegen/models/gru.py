@@ -261,6 +261,8 @@ def create_gru_actor_critic(
     actor_training = actor_critic_training.get_policy_operator()
     critic_training = actor_critic_training.get_value_operator()
 
+
+
     return actor_training, actor_inference, critic_training, critic_inference
 
 

@@ -30,11 +30,12 @@ from torchrl.collectors import SyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
-
-import acegen
+from torchrl.envs import ExplorationType, TensorDictPrimer
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv as DeNovoEnv, SMILESReward, PenaliseRepeatedSMILES
-from acegen.models.gru import create_gru_actor_critic
-from utils import Experience, create_batch_from_replay_smiles, create_shared_ppo_models
+from acegen.models import create_gru_actor_critic, adapt_state_dict
+from acegen.experience_replay.replay_buffer import Experience
+from utils import Experience, create_batch_from_replay_smiles
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -67,17 +68,36 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
-    (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_shared_ppo_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
+    # Create GRU model
+    actor_training, actor_inference, critic_training, critic_inference = create_gru_actor_critic(
+        vocabulary_size=len(vocabulary))
 
+    # Load pretrained weights
+    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
+    actor_inference.load_state_dict(adapt_state_dict(ckpt, actor_inference.state_dict()))
+    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
+
+    # Define prior
     prior = deepcopy(actor_training)
 
     # Environment
     ####################################################################################################################
+
+    # TODO: don't hardcode it or will break! get it from the actor spec for example
+    # Create transform to populate initial tensordict with recurrent states equal to 0.0
+    num_layers = 3
+    hidden_size = 512
+    primers = {
+        ('recurrent_state',):
+            UnboundedContinuousTensorSpec(
+                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                dtype=torch.float32,
+            ),
+    }
+    rhs_primer = TensorDictPrimer(primers)
 
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
@@ -91,15 +111,18 @@ def main(cfg: "DictConfig"):
         """Create a single RL rl_environments."""
         env = DeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
+        env.append_transform(
+            UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
         env.append_transform(
             CatFrames(
                 N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        for transform in transforms:
-            env.append_transform(transform)
+        env.append_transform(rhs_primer)
         return env
+
+    # Scoring transform - more efficient to do it outside the environment
+    ####################################################################################################################
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -144,7 +167,7 @@ def main(cfg: "DictConfig"):
         critic_coef=cfg.critic_coef,
         entropy_coef=cfg.entropy_coef,
         clip_epsilon=cfg.ppo_clip,
-        loss_critic_type="smooth_l1",
+        loss_critic_type="l2",
         normalize_advantage=True,
     )
     loss_module = loss_module.to(device)
@@ -262,11 +285,11 @@ def main(cfg: "DictConfig"):
 
         for j in range(ppo_epochs):
 
-            if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
+            if experience_replay_buffer is not None and len(experience_replay_buffer) > 20:
                 to_cat = [data.clone()]
                 for _ in range(cfg.replay_batches):
-                    exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(10, decode_smiles=False)
-                    replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
+                    # TODO: fix, dont loop, sample a real batch from the replay buffer!!
+                    replay_batch = experience_replay_buffer.sample_replay_batch(batch_size=20)
                     to_cat.append(replay_batch[..., 0:data.shape[1]])
                 extended_data = torch.cat(to_cat)
             else:
@@ -312,19 +335,6 @@ def main(cfg: "DictConfig"):
             prior_likelihood = np.zeros_like(rewards)
             new_experience = zip(smiles_list, rewards, rewards, prior_likelihood)
             experience_replay_buffer.add_experience(new_experience)
-
-        # # ----- entropy annealing
-        # if len(self.oracle) > 1000:
-        #     self.sort_buffer()
-        #     new_top10 = [item[1][0] for item in list(self.mol_buffer.items())[:10]]
-        #     if new_top10 == old_top10:
-        #         kl_coef *= 1.01
-        #         loss_module.entropy_coef *= 1.01
-        #     else:
-        #         kl_coef = config["kl_coef"]
-        #         loss_module.entropy_coef.copy_(config["entropy_coef"])
-        #     print(f"entropy coef {loss_module.entropy_coef}")
-        # # -----
 
         if logger:
             for key, value in log_info.items():

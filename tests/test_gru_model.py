@@ -97,4 +97,5 @@ def test_gru_actor_critic(vocabulary_size, device, sequence_length=5, batch_size
     assert ("next", "recurrent_state") in training_batch.keys(include_nested=True)
 
 
-
+def test_adapt_ckpt():
+    pass
