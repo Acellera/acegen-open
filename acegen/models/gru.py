@@ -195,8 +195,8 @@ def create_gru_actor_critic(
         return_log_prob=True,
         critic_value_per_action=False,
         in_key: str = "observation",
-        out_key: str = "action_value",
-        recurrent_state: str = "recurrent_state_critic",
+        out_key: str = "logits",
+        recurrent_state: str = "recurrent_state",
 ):
     """Create a GRU-based actor-critic model for inference and one for training.
 
