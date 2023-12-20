@@ -35,7 +35,6 @@ from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 from acegen import SMILESVocabulary, MultiStepDeNovoEnv as DeNovoEnv, SMILESReward, PenaliseRepeatedSMILES
 from acegen.models import create_gru_actor_critic, adapt_state_dict
 from acegen.experience_replay.replay_buffer import Experience
-from utils import Experience, create_batch_from_replay_smiles
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -269,7 +268,7 @@ def main(cfg: "DictConfig"):
 
         # Get data to be added to the replay buffer later
         replay_data = data.get("next").clone()
-        replay_data = replay_data.get_sub_tensordict(idx= replay_data.get("terminated").squeeze(-1))
+        replay_data = replay_data.get_sub_tensordict(idx=replay_data.get("terminated").squeeze(-1))
 
         # Then exclude unnecessary tensors
         data = data.exclude(
@@ -289,7 +288,7 @@ def main(cfg: "DictConfig"):
                 to_cat = [data.clone()]
                 for _ in range(cfg.replay_batches):
                     # TODO: fix, dont loop, sample a real batch from the replay buffer!!
-                    replay_batch = experience_replay_buffer.sample_replay_batch(batch_size=20)
+                    replay_batch = experience_replay_buffer.sample_replay_batch(batch_size=20, device=device)
                     to_cat.append(replay_batch[..., 0:data.shape[1]])
                 extended_data = torch.cat(to_cat)
             else:

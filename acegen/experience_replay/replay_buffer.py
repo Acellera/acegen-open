@@ -42,7 +42,7 @@ class Experience(object):
             smiles = collate_fn(encoded)
         return smiles, torch.tensor(scores), torch.tensor(prior_likelihood)
 
-    def sample_replay_batch(self, batch_size, decode_smiles=True, device="cpu"):
+    def sample_replay_batch(self, batch_size, decode_smiles=False, device="cpu"):
         """Create a TensorDict data batch from replay data."""
 
         replay_smiles, replay_rewards, _ = self.sample_smiles(batch_size, decode_smiles)
