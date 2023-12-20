@@ -79,7 +79,7 @@ class MultiStepSMILESEnv(EnvBase):
         self.episode_length[done] = 1
 
         # Create next_tensordict
-        obs = actions.clone().to(torch.int32)
+        obs = actions.clone().long()
         if self.one_hot_obs_encoding and not self.one_hot_action_encoding:
             obs = torch.nn.functional.one_hot(obs, num_classes=self.length_vocabulary)
         next_tensordict = TensorDict(
