@@ -17,8 +17,6 @@ class SingleStepSMILESEnv(EnvBase):
             start_token: int,
             end_token: int,
             length_vocabulary: int,
-            vocabulary,
-            reward_function,
             max_length: int = 140,
             device: DEVICE_TYPING = None,
             batch_size: int = 1,
@@ -29,9 +27,6 @@ class SingleStepSMILESEnv(EnvBase):
             device=device,
             batch_size=torch.Size([batch_size]),
         )
-
-        self.vocabulary = vocabulary
-        self.reward_function = reward_function
 
         self.num_envs = batch_size
         self.max_length = max_length
