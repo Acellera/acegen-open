@@ -1,4 +1,5 @@
 import pytest
+import torch
 from torchrl.envs.utils import step_mdp
 from torchrl.collectors import RandomPolicy
 from acegen.smiles_environments.multi_step_smiles_env import MultiStepSMILESEnv
@@ -33,17 +34,30 @@ def test_multi_step_smiles_env(
     td = env.reset()
 
     if one_hot_obs_encoding:
-        assert td.get("observation").shape == (batch_size, length_vocabulary)
+        assert (torch.argmax(td.get("observation"), dim=-1) == start_token).all()
     else:
-        # TODO: can it be shape (batch_size, 1)?
-        assert td.get("observation").shape == (batch_size,)
+        assert (td.get("observation") == start_token).all()
 
-    # assert td.get("done").shape == (batch_size, 1)
-    # assert all(td.get("observation") == start_token)
+    for i in range(10):
 
-    td = policy(td)
-    td = env.step(td)
-    td = step_mdp(td)
+        if one_hot_obs_encoding:
+            assert td.get("observation").shape == (batch_size, length_vocabulary)
+        else:
+            # TODO: can it be shape (batch_size, 1)?
+            assert td.get("observation").shape == (batch_size,)
+
+        assert td.get("done").shape == (batch_size, 1)
+
+        td = policy(td)
+
+        if one_hot_action_encoding:
+            assert td.get("action").shape == (batch_size, length_vocabulary)
+        else:
+            # TODO: can it be shape (batch_size, 1)?
+            assert td.get("action").shape == (batch_size,)
+
+        td = env.step(td)
+        td = step_mdp(td)
 
 # @pytest.mark.parametrize("start_token", [0])
 # @pytest.mark.parametrize("end_token", [1])

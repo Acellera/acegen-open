@@ -41,7 +41,7 @@ class MultiStepSMILESEnv(EnvBase):
 
         if self.one_hot_obs_encoding:
             start_obs = torch.zeros(batch_size, length_vocabulary, device=self.device, dtype=torch.int32)
-            start_obs[:, self.start_token - 1] = 1
+            start_obs[:, self.start_token] = 1
         else:
             start_obs = torch.ones(self.num_envs, device=self.device, dtype=torch.int32) * self.start_token
 
