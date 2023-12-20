@@ -52,7 +52,7 @@ def main(cfg: "DictConfig"):
     # Get available device
     device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
 
-    # Create tests rl_environments to get action specs
+    # Create tests smiles_environments to get action specs
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
     vocabulary = SMILESVocabulary(ckpt)
 
@@ -90,7 +90,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     def create_env_fn():
-        """Create a single RL rl_environments."""
+        """Create a single RL smiles_environments."""
         env = SingleStepDeNovoEnv(**env_kwargs)
         return env
 

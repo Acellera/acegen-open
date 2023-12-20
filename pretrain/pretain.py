@@ -26,10 +26,10 @@ from pytorchrl.utils import save_argparse
 from pytorchrl.agent.actors import OnPolicyActor
 
 from acegen.de_novo_design.ppo.dataset import load_dataset, DeNovoDataset
-from acegen.rl_environments.de_novo.generative_chemistry_env_factory import (
+from acegen.smiles_environments.de_novo.generative_chemistry_env_factory import (
     de_novo_train_env_factory,
 )
-from acegen.rl_environments.vocabulary import ReinventVocabulary
+from acegen.smiles_environments.vocabulary import ReinventVocabulary
 from acegen.de_novo_design.ppo.train_rnn_model import get_args
 from acegen.networks.lstm import LstmNet
 

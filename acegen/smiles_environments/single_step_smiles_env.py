@@ -6,19 +6,19 @@ from torchrl.envs import EnvBase
 from torchrl.data.utils import DEVICE_TYPING
 from torchrl.data import (
     CompositeSpec,
-    DiscreteTensorSpec,
+    MultiDiscreteTensorSpec,
     UnboundedContinuousTensorSpec,
-    OneHotDiscreteTensorSpec,
-
 )
 
 
-class MultiStepDeNovoEnv(EnvBase):
+class SingleStepSMILESEnv(EnvBase):
     def __init__(
             self,
             start_token: int,
             end_token: int,
             length_vocabulary: int,
+            vocabulary,
+            reward_function,
             max_length: int = 140,
             device: DEVICE_TYPING = None,
             batch_size: int = 1,
@@ -29,6 +29,9 @@ class MultiStepDeNovoEnv(EnvBase):
             device=device,
             batch_size=torch.Size([batch_size]),
         )
+
+        self.vocabulary = vocabulary
+        self.reward_function = reward_function
 
         self.num_envs = batch_size
         self.max_length = max_length
@@ -56,80 +59,63 @@ class MultiStepDeNovoEnv(EnvBase):
         self._set_specs()
 
     def _reset(self, tensordict: TensorDictBase, **kwargs) -> TensorDictBase:
-        if tensordict is not None:
-            next_tensordict = tensordict
-            next_tensordict.update(self._reset_tensordict.clone())
-        else:
-            next_tensordict = self._reset_tensordict.clone()
+        next_tensordict = self._reset_tensordict.clone()
         return next_tensordict
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
-        # Get actions
         actions = tensordict.get("action")
         if self.one_hot_action_encoding:
             actions = torch.argmax(actions, dim=-1)
-
-        # Update episode length
-        self.episode_length += 1
-
-        # Create termination flags
-        terminated = actions == self.end_token
-        truncated = self.episode_length == self.max_length
-        done = terminated | truncated
-        self.episode_length[done] = 1
-
-        # Create next_tensordict
+        reward = torch.zeros(self.num_envs, device=self.device)
+        done = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+        terminated = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         next_tensordict = TensorDict(
             {
                 "done": done,
-                "truncated": truncated,
                 "terminated": terminated,
-                "reward": torch.zeros(self.num_envs, device=self.device),
-                "observation": tensordict.get("action").clone().to(torch.int32) if self.one_hot_obs_encoding else
-                actions.clone().to(torch.int32),
+                "reward": reward,
             },
             device=self.device,
             batch_size=self.batch_size,
         )
-        next_tensordict.update(tensordict.get("next", {}))
         return next_tensordict
 
     def _set_seed(self, seed: Optional[int] = -1) -> None:
         torch.manual_seed(seed)
 
     def _set_specs(self) -> None:
-        obs_spec = OneHotDiscreteTensorSpec if self.one_hot_obs_encoding else DiscreteTensorSpec
         self.observation_spec = (
             CompositeSpec(
                 {
-                    "observation": obs_spec(
-                        n=self.length_vocabulary,
-                        dtype=torch.int32,
+                    "observation": MultiDiscreteTensorSpec(
+                        nvec=torch.ones(self.num_envs) * self.length_vocabulary,
+                        shape=torch.Size([self.num_envs]),
                         device=self.device,
+                        dtype=torch.int32,
                     ),
-                }
+                },
+                shape=torch.Size([self.num_envs]),
             )
-            .expand(self.num_envs)
         )
-        action_spec = OneHotDiscreteTensorSpec if self.one_hot_action_encoding else DiscreteTensorSpec
         self.action_spec = (
             CompositeSpec(
                 {
-                    "action": action_spec(
-                        n=self.length_vocabulary,
-                        dtype=torch.int32,
+                    "action": MultiDiscreteTensorSpec(
+                        nvec=self.max_length * [self.length_vocabulary],
+                        shape=torch.Size([self.num_envs, self.max_length]),
                         device=self.device,
-                    )
-                }
+                        dtype=torch.int32,
+                    ),
+                },
+                shape=torch.Size([self.num_envs, self.max_length]),
             )
-            .expand(self.num_envs)
         )
         self.reward_spec = (
             CompositeSpec({"reward": UnboundedContinuousTensorSpec(
                 shape=(1,),
                 dtype=torch.float32,
-                device=self.device,
-            )})
+                device=self.device)
+            })
             .expand(self.num_envs)
         )
 

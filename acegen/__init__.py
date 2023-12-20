@@ -1,6 +1,6 @@
 # RL Environments
-from .rl_environments.single_step_env import SingleStepDeNovoEnv
-from .rl_environments.multi_step_env import MultiStepDeNovoEnv
+from .smiles_environments.single_step_smiles_env import SingleStepDeNovoEnv
+from .smiles_environments.multi_step_smiles_env import MultiStepDeNovoEnv
 
 # Vocabulary
 from .vocabulary.vocabulary import SMILESVocabulary

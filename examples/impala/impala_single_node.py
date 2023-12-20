@@ -87,7 +87,7 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL rl_environments."""
+        """Create a single RL smiles_environments."""
         env = DeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
