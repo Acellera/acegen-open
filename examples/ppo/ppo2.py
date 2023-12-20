@@ -68,8 +68,8 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
-    (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_shared_ppo_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs)
+    (actor_inference, actor_training, critic_inference, critic_training) = create_gru_actor_critic(
+        vocabulary_size=len(vocabulary))
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
