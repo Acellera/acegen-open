@@ -78,12 +78,14 @@ def test_single_step_smiles_env(
     one_hot_action_encoding,
     one_hot_obs_encoding,
 ):
+    max_length = 10
     env = SingleStepSMILESEnv(
         start_token=start_token,
         end_token=end_token,
         length_vocabulary=length_vocabulary,
         device=device,
         batch_size=batch_size,
+        max_length=max_length,
         one_hot_action_encoding=one_hot_action_encoding,
         one_hot_obs_encoding=one_hot_obs_encoding,
     )
@@ -93,3 +95,11 @@ def test_single_step_smiles_env(
         assert (torch.argmax(td.get("observation"), dim=-1) == start_token).all()
     else:
         assert (td.get("observation") == start_token).all()
+    td = policy(td)
+    if one_hot_action_encoding:
+        assert td.get("action").shape == (batch_size, max_length, length_vocabulary)
+    else:
+        assert td.get("action").shape == (batch_size, max_length)
+    td = env.step(td)
+    td = step_mdp(td)
+    assert (td.get("done") == True).all()
