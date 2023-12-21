@@ -9,7 +9,7 @@ import numpy as np
 
 import torch
 import yaml
-from acegen import MultiStepDeNovoEnv, SMILESVocabulary
+from acegen import MultiStepSMILESEnv, SMILESVocabulary
 from omegaconf import OmegaConf
 from sampler import SoftmaxSamplingModule
 from tensordict.nn import TensorDictSequential
@@ -85,7 +85,7 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn():
         """Create a single RL rl_environments."""
-        env = MultiStepDeNovoEnv(**env_kwargs)
+        env = MultiStepSMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
