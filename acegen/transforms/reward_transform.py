@@ -1,3 +1,4 @@
+import warnings
 from typing import Callable
 
 import torch
@@ -74,7 +75,11 @@ class SMILESReward(Transform):
                 if i == max_attempts - 1:
                     raise
                 else:
-                    print("RuntimeError, trying again...")
+                    warnings.warn(
+                        "RuntimeError in reward function. Trying again. Attempt {}/{}".format(
+                            i + 1, max_attempts
+                        )
+                    )
                     continue
 
         sub_tensordict.set("reward", reward * self.reward_scale, inplace=True)
