@@ -12,8 +12,8 @@ class SMILESReward(Transform):
 
     Args:
         reward_function: A callable that takes a list of SMILES and returns a list of rewards.
-        vocabulary: A vocabulary object.
-        in_keys: The key in the tensordict that contains the smiles.
+        vocabulary: A vocabulary object with at least encode and decode methods.
+        in_keys: The key in the tensordict that contains the encoded SMILES.
         out_keys: The key in the tensordict to store the reward.
         reward_scale: The scale to apply to the reward.
     """
@@ -62,16 +62,21 @@ class SMILESReward(Transform):
                 self.vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1])
             )
 
-        # Calculate reward
-        try:
-            reward[:, 0] += torch.tensor(
-                self.reward_function(smiles_list), device=device
-            )
-        except RuntimeError:
-            reward[:, 0] += torch.tensor(
-                self.reward_function(smiles_list), device=device
-            )
+        # Calculate reward - try multiple times in case of RuntimeError
+        max_attempts = 3
+        for i in range(max_attempts):
+            try:
+                reward[:, 0] += torch.tensor(
+                    self.reward_function(smiles_list), device=device
+                )
+                break
+            except RuntimeError:
+                if i == max_attempts - 1:
+                    raise
+                else:
+                    print("RuntimeError, trying again...")
+                    continue
 
-        sub_tensordict.set("reward", reward, inplace=True)
+        sub_tensordict.set("reward", reward * self.reward_scale, inplace=True)
 
         return tensordict

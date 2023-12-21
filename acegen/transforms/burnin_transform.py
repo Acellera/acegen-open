@@ -3,7 +3,16 @@ from torchrl.envs import Transform
 
 
 class BurnInTransform(Transform):
-    """Transform to burn in the recurrent state of an RNN."""
+    """Transform to burn in the recurrent state of an RNN.
+
+    Args:
+        rnn_modules: A list of RNN modules to burn in.
+        burn_in: The number of steps to burn in.
+
+    Note:
+        This transform assumes that all RNN modules are TensorDict-compatible
+        modules and that can handle recurrence in the time dimension (recurrent mode).
+    """
 
     def __init__(self, rnn_modules, burn_in):
         super().__init__()
