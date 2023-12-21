@@ -82,6 +82,10 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
+    import ipdb
+
+    ipdb.set_trace()
+
     # Create GRU model
     (
         actor_training,

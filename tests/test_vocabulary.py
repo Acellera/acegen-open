@@ -8,7 +8,7 @@ multiple_smiles = [
     "CC(C)C",  # Isobutane (C4H10)
     "CC1=CC=CC=C1",  # Toluene (C7H8)
 ]
-chars = ["(", ")", "1", "=", "C", "E", "G", "N", "O", "S", "EOS", "GO"]
+chars = ["(", ")", "1", "=", "C", "N", "O"]
 
 
 def test_tokenize():
@@ -38,7 +38,7 @@ def create_from_list_of_chars():
 
 def test_create_methods_match():
     vocabulary = SMILESVocabulary.create_from_smiles(multiple_smiles)
-    vocabulary2 = SMILESVocabulary.create_from_list_of_chars(chars)
+    vocabulary2 = SMILESVocabulary.create_from_list_of_chars(sorted(chars))
     for obj1, obj2 in zip(vocabulary.__dict__.items(), vocabulary2.__dict__.items()):
         k1, v1 = obj1
         k2, v2 = obj2

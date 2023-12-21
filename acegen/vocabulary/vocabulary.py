@@ -89,7 +89,8 @@ class SMILESVocabulary(Vocabulary):
     def add_characters(self, chars):
         """Adds characters to the vocabulary."""
         for char in chars:
-            self.additional_chars.update(char)
+            if char not in self.chars:
+                self.additional_chars.add(char)
         char_list = list(self.additional_chars)
         char_list.sort()
         self.chars = char_list + self.special_tokens
