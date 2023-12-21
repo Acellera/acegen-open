@@ -66,7 +66,6 @@ def create_gru_components(
     training_model, inference_model = create_model(10)
     ```
     """
-
     embedding_module = TensorDictModule(
         Embed(vocabulary_size, embedding_size),
         in_keys=[in_key],
@@ -183,7 +182,6 @@ def create_gru_critic(
     training_critic, inference_critic = create_gru_critic(10)
     ```
     """
-
     output_size = vocabulary_size if critic_value_per_action else 1
 
     embedding, gru, head = create_gru_components(
@@ -242,7 +240,6 @@ def create_gru_actor_critic(
         inference_critic) = create_gru_actor_critic(10)
     ```
     """
-
     embedding, gru, actor_head = create_gru_components(
         vocabulary_size,
         embedding_size,
@@ -293,7 +290,3 @@ def create_gru_actor_critic(
     critic_training = actor_critic_training.get_value_operator()
 
     return actor_training, actor_inference, critic_training, critic_inference
-
-
-def create_rhs_transform():
-    pass
