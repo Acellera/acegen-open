@@ -2,26 +2,26 @@ from typing import Optional
 
 import torch
 from tensordict.tensordict import TensorDict, TensorDictBase
-from torchrl.envs import EnvBase
-from torchrl.data.utils import DEVICE_TYPING
 from torchrl.data import (
     CompositeSpec,
     MultiDiscreteTensorSpec,
     UnboundedContinuousTensorSpec,
 )
+from torchrl.data.utils import DEVICE_TYPING
+from torchrl.envs import EnvBase
 
 
 class SingleStepSMILESEnv(EnvBase):
     def __init__(
-            self,
-            start_token: int,
-            end_token: int,
-            length_vocabulary: int,
-            max_length: int = 140,
-            device: DEVICE_TYPING = None,
-            batch_size: int = 1,
-            one_hot_action_encoding: bool = False,
-            one_hot_obs_encoding: bool = False,
+        self,
+        start_token: int,
+        end_token: int,
+        length_vocabulary: int,
+        max_length: int = 140,
+        device: DEVICE_TYPING = None,
+        batch_size: int = 1,
+        one_hot_action_encoding: bool = False,
+        one_hot_obs_encoding: bool = False,
     ):
         super().__init__(
             device=device,
@@ -35,18 +35,23 @@ class SingleStepSMILESEnv(EnvBase):
         self.length_vocabulary = length_vocabulary
         self.one_hot_obs_encoding = one_hot_obs_encoding
         self.one_hot_action_encoding = one_hot_action_encoding
-        self.episode_length = torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
+        self.episode_length = torch.ones(
+            self.num_envs, device=self.device, dtype=torch.int32
+        )
 
         if self.one_hot_obs_encoding:
-            start_obs = torch.zeros(batch_size, length_vocabulary, device=self.device, dtype=torch.int32)
+            start_obs = torch.zeros(
+                batch_size, length_vocabulary, device=self.device, dtype=torch.int32
+            )
             start_obs[:, self.start_token - 1] = 1
         else:
-            start_obs = torch.ones(self.num_envs, device=self.device, dtype=torch.int32) * self.start_token
+            start_obs = (
+                torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
+                * self.start_token
+            )
 
         self._reset_tensordict = TensorDict(
-            {
-                "observation": start_obs
-            },
+            {"observation": start_obs},
             device=self.device,
             batch_size=self.batch_size,
         )
@@ -79,41 +84,38 @@ class SingleStepSMILESEnv(EnvBase):
         torch.manual_seed(seed)
 
     def _set_specs(self) -> None:
-        self.observation_spec = (
-            CompositeSpec(
-                {
-                    "observation": MultiDiscreteTensorSpec(
-                        nvec=torch.ones(self.num_envs) * self.length_vocabulary,
-                        shape=torch.Size([self.num_envs]),
-                        device=self.device,
-                        dtype=torch.int32,
-                    ),
-                },
-                shape=torch.Size([self.num_envs]),
-            )
+        self.observation_spec = CompositeSpec(
+            {
+                "observation": MultiDiscreteTensorSpec(
+                    nvec=torch.ones(self.num_envs) * self.length_vocabulary,
+                    shape=torch.Size([self.num_envs]),
+                    device=self.device,
+                    dtype=torch.int32,
+                ),
+            },
+            shape=torch.Size([self.num_envs]),
         )
-        self.action_spec = (
-            CompositeSpec(
-                {
-                    "action": MultiDiscreteTensorSpec(
-                        nvec=self.max_length * [self.length_vocabulary],
-                        shape=torch.Size([self.num_envs, self.max_length]),
-                        device=self.device,
-                        dtype=torch.int32,
-                    ),
-                },
-                shape=torch.Size([self.num_envs, self.max_length]),
-            )
+        self.action_spec = CompositeSpec(
+            {
+                "action": MultiDiscreteTensorSpec(
+                    nvec=self.max_length * [self.length_vocabulary],
+                    shape=torch.Size([self.num_envs, self.max_length]),
+                    device=self.device,
+                    dtype=torch.int32,
+                ),
+            },
+            shape=torch.Size([self.num_envs, self.max_length]),
         )
-        self.reward_spec = (
-            CompositeSpec({"reward": UnboundedContinuousTensorSpec(
-                shape=(1,),
-                dtype=torch.float32,
-                device=self.device)
-            })
-            .expand(self.num_envs)
-        )
+        self.reward_spec = CompositeSpec(
+            {
+                "reward": UnboundedContinuousTensorSpec(
+                    shape=(1,), dtype=torch.float32, device=self.device
+                )
+            }
+        ).expand(self.num_envs)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}, start_token={self.start_token}," \
-               f" end_token={self.end_token} batch_size={self.batch_size})"
+        return (
+            f"{self.__class__.__name__}, start_token={self.start_token},"
+            f" end_token={self.end_token} batch_size={self.batch_size})"
+        )

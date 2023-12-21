@@ -38,5 +38,3 @@ We provide 2 types of environments for reinforcement learning:
         - essentially a vocabulary has 2 methods: encode and decode
         - encode takes a string and returns a sequence of integers
         - decode takes a sequence of integers and returns a string
-
-

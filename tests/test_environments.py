@@ -1,10 +1,10 @@
 import pytest
 import torch
-from torchrl.envs.utils import step_mdp
-from torchrl.collectors import RandomPolicy
 from acegen.smiles_environments.multi_step_smiles_env import MultiStepSMILESEnv
 from acegen.smiles_environments.single_step_smiles_env import SingleStepSMILESEnv
 from tests.utils import get_default_devices
+from torchrl.collectors import RandomPolicy
+from torchrl.envs.utils import step_mdp
 
 
 @pytest.mark.parametrize("start_token", [0])
@@ -15,13 +15,14 @@ from tests.utils import get_default_devices
 @pytest.mark.parametrize("one_hot_action_encoding", [False, True])
 @pytest.mark.parametrize("one_hot_obs_encoding", [False, True])
 def test_multi_step_smiles_env(
-        start_token,
-        end_token,
-        length_vocabulary,
-        device,
-        batch_size,
-        one_hot_action_encoding,
-        one_hot_obs_encoding):
+    start_token,
+    end_token,
+    length_vocabulary,
+    device,
+    batch_size,
+    one_hot_action_encoding,
+    one_hot_obs_encoding,
+):
     env = MultiStepSMILESEnv(
         start_token=start_token,
         end_token=end_token,
@@ -60,6 +61,7 @@ def test_multi_step_smiles_env(
         td = env.step(td)
         td = step_mdp(td)
 
+
 @pytest.mark.parametrize("start_token", [0])
 @pytest.mark.parametrize("end_token", [1])
 @pytest.mark.parametrize("length_vocabulary", [3])
@@ -68,13 +70,14 @@ def test_multi_step_smiles_env(
 @pytest.mark.parametrize("one_hot_action_encoding", [False])
 @pytest.mark.parametrize("one_hot_obs_encoding", [False])
 def test_single_step_smiles_env(
-        start_token,
-        end_token,
-        length_vocabulary,
-        device,
-        batch_size,
-        one_hot_action_encoding,
-        one_hot_obs_encoding):
+    start_token,
+    end_token,
+    length_vocabulary,
+    device,
+    batch_size,
+    one_hot_action_encoding,
+    one_hot_obs_encoding,
+):
     env = SingleStepSMILESEnv(
         start_token=start_token,
         end_token=end_token,
@@ -86,4 +89,3 @@ def test_single_step_smiles_env(
     )
     policy = RandomPolicy(env.action_spec)
     td = env.reset()
-

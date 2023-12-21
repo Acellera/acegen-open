@@ -1,3 +1,3 @@
-from .reward_transform import SMILESReward
-from .penalise_repeated_transform import PenaliseRepeatedSMILES
 from .burnin_transform import BurnInTransform
+from .penalise_repeated_transform import PenaliseRepeatedSMILES
+from .reward_transform import SMILESReward

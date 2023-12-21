@@ -1,18 +1,18 @@
 import torch
 from tensordict import TensorDictBase
-from torchrl.data import TensorDictReplayBuffer, LazyTensorStorage
+from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.envs.transforms.transforms import Transform
 
 
 class PenaliseRepeatedSMILES(Transform):
     def __init__(
-            self,
-            check_duplicate_key,
-            in_key=None,
-            out_key=None,
-            penalty=0.0,
-            device=None,
-            max_tracked_smiles=10_000,
+        self,
+        check_duplicate_key,
+        in_key=None,
+        out_key=None,
+        penalty=0.0,
+        device=None,
+        max_tracked_smiles=10_000,
     ):
         """Penalise repeated smiles and add unique smiles to the diversity buffer.
 
@@ -46,7 +46,9 @@ class PenaliseRepeatedSMILES(Transform):
         """Penalise repeated smiles and add unique smiles to the diversity buffer."""
         # Check duplicated key is in tensordict
         if self.check_duplicate_key not in tensordict.keys():
-            raise KeyError(f"duplicate_key {self.check_duplicate_key} not found in tensordict.")
+            raise KeyError(
+                f"duplicate_key {self.check_duplicate_key} not found in tensordict."
+            )
 
         # Get a td with only the terminated trajectories
         td_next = tensordict.get("next")
@@ -61,9 +63,13 @@ class PenaliseRepeatedSMILES(Transform):
         td_smiles = self.diversity_buffer._storage._storage
 
         # Identify repeated smiles
-        repeated = torch.zeros(finished_smiles.shape[0], dtype=torch.bool, device=tensordict.device)
+        repeated = torch.zeros(
+            finished_smiles.shape[0], dtype=torch.bool, device=tensordict.device
+        )
         if td_smiles is not None:
-            unique_smiles = td_smiles.get(("_data", self.check_duplicate_key))[:len(self.diversity_buffer)]
+            unique_smiles = td_smiles.get(("_data", self.check_duplicate_key))[
+                : len(self.diversity_buffer)
+            ]
             for i, smi in enumerate(finished_smiles):
                 repeated[i] = (smi == unique_smiles).all(dim=-1).any()
 
@@ -74,7 +80,9 @@ class PenaliseRepeatedSMILES(Transform):
 
         # Add unique smiles to the diversity buffer
         if (~repeated).any():
-            self.diversity_buffer.extend(sub_td.select(self.check_duplicate_key)[~repeated])
+            self.diversity_buffer.extend(
+                sub_td.select(self.check_duplicate_key)[~repeated]
+            )
 
         self._repeated_smiles += repeated.sum().item()
 

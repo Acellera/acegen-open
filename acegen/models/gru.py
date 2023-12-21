@@ -1,20 +1,16 @@
+from typing import Optional
+
 import torch
-from typing import Optional, List, Union
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from torchrl.envs import ExplorationType, TensorDictPrimer
-from torchrl.modules import (
-    MLP,
-    GRUModule,
-    ValueOperator,
-    ActorValueOperator,
-    ProbabilisticActor,
-)
+from torchrl.envs import ExplorationType
+from torchrl.modules import ActorValueOperator, GRUModule, MLP, ProbabilisticActor
 
 
 class Embed(torch.nn.Module):
     """Implements a simple embedding layer.
 
-    It handles the case of having a time dimension (RL training) and not having it (RL inference).
+    It handles the case of having a time dimension (RL training) and not having
+    it (RL inference).
 
     Args:
         input_size (int): The number of possible input values.
@@ -39,19 +35,20 @@ class Embed(torch.nn.Module):
 
 
 def create_gru_components(
-        vocabulary_size: int,
-        embedding_size: int = 128,
-        hidden_size: int = 512,
-        num_layers: int = 3,
-        dropout: float = 0.0,
-        output_size: Optional[int] = None,
-        in_key: str = "observation",
-        out_key: str = "logits",
-        recurrent_state: str = "recurrent_state",
+    vocabulary_size: int,
+    embedding_size: int = 128,
+    hidden_size: int = 512,
+    num_layers: int = 3,
+    dropout: float = 0.0,
+    output_size: Optional[int] = None,
+    in_key: str = "observation",
+    out_key: str = "logits",
+    recurrent_state: str = "recurrent_state",
 ):
     """Create all GRU model components: embedding, GRU, and head.
 
-    These modules handle the case of having a time dimension (RL training) and not having it (RL inference).
+    These modules handle the case of having a time dimension (RL training)
+    and not having it (RL inference).
 
     Args:
         vocabulary_size (int): The number of possible input values.
@@ -95,17 +92,18 @@ def create_gru_components(
 
     return embedding_module, gru_module, head
 
+
 def create_gru_actor(
-        vocabulary_size: int,
-        embedding_size: int = 128,
-        hidden_size: int = 512,
-        num_layers: int = 3,
-        dropout: float = 0.0,
-        distribution_class=torch.distributions.Categorical,
-        return_log_prob=True,
-        in_key: str = "observation",
-        out_key: str = "logits",
-        recurrent_state: str = "recurrent_state_actor",
+    vocabulary_size: int,
+    embedding_size: int = 128,
+    hidden_size: int = 512,
+    num_layers: int = 3,
+    dropout: float = 0.0,
+    distribution_class=torch.distributions.Categorical,
+    return_log_prob=True,
+    in_key: str = "observation",
+    out_key: str = "logits",
+    recurrent_state: str = "recurrent_state_actor",
 ):
     """Create one GRU-based actor model for inference and one for training.
 
@@ -115,8 +113,10 @@ def create_gru_actor(
         hidden_size (int): The size of the GRU hidden state.
         num_layers (int): The number of GRU layers.
         dropout (float): The GRU dropout rate.
-        distribution_class (torch.distributions.Distribution): The distribution class to use.
-        return_log_prob (bool): Whether to return the log probability of the action.
+        distribution_class (torch.distributions.Distribution): The
+            distribution class to use.
+        return_log_prob (bool): Whether to return the log probability
+            of the action.
         in_key (str): The input key name.
         out_key (str):): The output key name.
         recurrent_state (str): The name of the recurrent state.
@@ -127,8 +127,15 @@ def create_gru_actor(
     ```
     """
     embedding, gru, head = create_gru_components(
-        vocabulary_size, embedding_size, hidden_size, num_layers, dropout,
-        vocabulary_size, in_key, out_key, recurrent_state
+        vocabulary_size,
+        embedding_size,
+        hidden_size,
+        num_layers,
+        dropout,
+        vocabulary_size,
+        in_key,
+        out_key,
+        recurrent_state,
     )
     policy_head = ProbabilisticActor(
         module=head,
@@ -140,20 +147,22 @@ def create_gru_actor(
     )
 
     actor_inference_model = TensorDictSequential(embedding, gru, policy_head)
-    actor_training_model = TensorDictSequential(embedding, gru.set_recurrent_mode(True), policy_head)
+    actor_training_model = TensorDictSequential(
+        embedding, gru.set_recurrent_mode(True), policy_head
+    )
     return actor_training_model, actor_inference_model
 
-def create_gru_critic(
-        vocabulary_size: int,
-        embedding_size: int = 128,
-        hidden_size: int = 512,
-        num_layers: int = 3,
-        dropout: float = 0.0,
-        critic_value_per_action=False,
-        in_key: str = "observation",
-        out_key: str = "action_value",
-        recurrent_state: str = "recurrent_state_critic",
 
+def create_gru_critic(
+    vocabulary_size: int,
+    embedding_size: int = 128,
+    hidden_size: int = 512,
+    num_layers: int = 3,
+    dropout: float = 0.0,
+    critic_value_per_action=False,
+    in_key: str = "observation",
+    out_key: str = "action_value",
+    recurrent_state: str = "recurrent_state_critic",
 ):
     """Create one GRU-based critic model for inference and one for training.
 
@@ -163,7 +172,8 @@ def create_gru_critic(
         hidden_size (int): The size of the GRU hidden state.
         num_layers (int): The number of GRU layers.
         dropout (float): The GRU dropout rate.
-        critic_value_per_action (bool): Whether the critic should output a value per action or a single value.
+        critic_value_per_action (bool): Whether the critic should output a
+            value per action or a single value.
         in_key (Union[str, List[str]]): The input key name.
         out_key (Union[str, List[str]]): The output key name.
         recurrent_state (str): The name of the recurrent state.
@@ -177,26 +187,36 @@ def create_gru_critic(
     output_size = vocabulary_size if critic_value_per_action else 1
 
     embedding, gru, head = create_gru_components(
-        vocabulary_size, embedding_size, hidden_size, num_layers, dropout,
-        output_size, in_key, out_key, recurrent_state)
+        vocabulary_size,
+        embedding_size,
+        hidden_size,
+        num_layers,
+        dropout,
+        output_size,
+        in_key,
+        out_key,
+        recurrent_state,
+    )
 
     critic_inference_model = TensorDictSequential(embedding, gru, head)
-    critic_training_model = TensorDictSequential(embedding, gru.set_recurrent_mode(True), head)
+    critic_training_model = TensorDictSequential(
+        embedding, gru.set_recurrent_mode(True), head
+    )
     return critic_training_model, critic_inference_model
 
 
 def create_gru_actor_critic(
-        vocabulary_size: int,
-        embedding_size: int = 128,
-        hidden_size: int = 512,
-        num_layers: int = 3,
-        dropout: float = 0.0,
-        distribution_class=torch.distributions.Categorical,
-        return_log_prob=True,
-        critic_value_per_action=False,
-        in_key: str = "observation",
-        out_key: str = "logits",
-        recurrent_state: str = "recurrent_state",
+    vocabulary_size: int,
+    embedding_size: int = 128,
+    hidden_size: int = 512,
+    num_layers: int = 3,
+    dropout: float = 0.0,
+    distribution_class=torch.distributions.Categorical,
+    return_log_prob=True,
+    critic_value_per_action=False,
+    in_key: str = "observation",
+    out_key: str = "logits",
+    recurrent_state: str = "recurrent_state",
 ):
     """Create a GRU-based actor-critic model for inference and one for training.
 
@@ -206,22 +226,33 @@ def create_gru_actor_critic(
         hidden_size (int): The size of the GRU hidden state.
         num_layers (int): The number of GRU layers.
         dropout (float): The GRU dropout rate.
-        distribution_class (torch.distributions.Distribution): The distribution class to use.
-        return_log_prob (bool): Whether to return the log probability of the action.
-        critic_value_per_action (bool): Whether the critic should output a value per action or a single value.
+        distribution_class (torch.distributions.Distribution): The
+            distribution class to use.
+        return_log_prob (bool): Whether to return the log probability
+            of the action.
+        critic_value_per_action (bool): Whether the critic should output
+            a value per action or a single value.
         in_key (str): The input key name.
         out_key (str): The output key name.
         recurrent_state (str): The name of the recurrent state.
 
     Example:
     ```python
-    training_actor, inference_actor, training_critic, inference_critic = create_gru_actor_critic(10)
+    (training_actor, inference_actor, training_critic,
+        inference_critic) = create_gru_actor_critic(10)
     ```
     """
 
     embedding, gru, actor_head = create_gru_components(
-        vocabulary_size, embedding_size, hidden_size, num_layers, dropout,
-        vocabulary_size, in_key, out_key, recurrent_state
+        vocabulary_size,
+        embedding_size,
+        hidden_size,
+        num_layers,
+        dropout,
+        vocabulary_size,
+        in_key,
+        out_key,
+        recurrent_state,
     )
     actor_head = ProbabilisticActor(
         module=actor_head,
@@ -231,6 +262,7 @@ def create_gru_actor_critic(
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
+    critic_out = ["action_value"] if critic_value_per_action else ["state_value"]
     critic_head = TensorDictModule(
         MLP(
             in_features=hidden_size,
@@ -238,7 +270,7 @@ def create_gru_actor_critic(
             num_cells=[],
         ),
         in_keys=["features"],
-        out_keys=["action_value"] if critic_value_per_action else ["state_value"],
+        out_keys=critic_out,
     )
 
     # Wrap modules in a single ActorCritic operator
@@ -248,10 +280,9 @@ def create_gru_actor_critic(
         value_operator=critic_head,
     )
 
+    common_net = TensorDictSequential(embedding, gru.set_recurrent_mode(True))
     actor_critic_training = ActorValueOperator(
-        common_operator=TensorDictSequential(
-            embedding, gru.set_recurrent_mode(True)
-        ),
+        common_operator=common_net,
         policy_operator=actor_head,
         value_operator=critic_head,
     )
@@ -260,8 +291,6 @@ def create_gru_actor_critic(
     critic_inference = actor_critic_inference.get_value_operator()
     actor_training = actor_critic_training.get_policy_operator()
     critic_training = actor_critic_training.get_value_operator()
-
-
 
     return actor_training, actor_inference, critic_training, critic_inference
 

@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 with open("acegen/README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -6,7 +6,7 @@ with open("acegen/README.md", "r", encoding="utf-8") as fh:
 setup(
     name="acegen",
     version="1.0",
-    license='MIT',
+    license="MIT",
     author="Albert Bou",
     author_email="albertbou92@gmail.com",
     description="A torchrl RL framework for de novo drug design",

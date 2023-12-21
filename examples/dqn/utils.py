@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 
 import copy
+
 import torch
-from tensordict.nn import TensorDictModule
+from tensordict.nn import TensorDictModule, TensorDictSequential
+from torchrl.data import DiscreteTensorSpec, OneHotDiscreteTensorSpec
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+from torchrl.envs import ExplorationType, TensorDictPrimer
 from torchrl.modules import (
+    ActorValueOperator,
+    DistributionalQValueActor,
     GRUModule,
     MLP,
-    ActorValueOperator,
     ProbabilisticActor,
     QValueActor,
-    DistributionalQValueActor,
 )
-from torchrl.envs import ExplorationType, TensorDictPrimer
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
-from tensordict.nn import TensorDictSequential
-from torchrl.data import DiscreteTensorSpec, OneHotDiscreteTensorSpec
 
 
 class Embed(torch.nn.Module):
@@ -68,14 +68,15 @@ def create_net(vocabulary_size, batch_size):
     )
 
     model_inference = TensorDictSequential(embedding_module, gru_module, predictor)
-    model_training = TensorDictSequential(embedding_module, gru_module.set_recurrent_mode(True), predictor)
+    model_training = TensorDictSequential(
+        embedding_module, gru_module.set_recurrent_mode(True), predictor
+    )
 
     primers = {
-        (f"recurrent_state",):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([batch_size, 3, 512]),
-                dtype=torch.float32,
-            ),
+        (f"recurrent_state",): UnboundedContinuousTensorSpec(
+            shape=torch.Size([batch_size, 3, 512]),
+            dtype=torch.float32,
+        ),
     }
     transform = TensorDictPrimer(primers)
 
@@ -83,7 +84,9 @@ def create_net(vocabulary_size, batch_size):
 
 
 def create_dqn_models(vocabulary_size, batch_size, ckpt):
-    critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size)
+    critic_inference, critic_training, critic_transform = create_net(
+        vocabulary_size, batch_size
+    )
     initial_state_dict = copy.deepcopy(critic_training.state_dict())
     ckpt = adapt_ckpt(ckpt)
     critic_training.load_state_dict(ckpt)
@@ -94,25 +97,21 @@ def create_dqn_models(vocabulary_size, batch_size, ckpt):
 def adapt_ckpt(ckpt):
 
     keys_mapping = {
-        'embedding.weight': "module.0.module._embedding.weight",
-
-        'gru_1.weight_ih': "module.1.gru.weight_ih_l0",
-        'gru_1.weight_hh': "module.1.gru.weight_hh_l0",
-        'gru_1.bias_ih': "module.1.gru.bias_ih_l0",
-        'gru_1.bias_hh': "module.1.gru.bias_hh_l0",
-
-        'gru_2.weight_ih': "module.1.gru.weight_ih_l1",
-        'gru_2.weight_hh': "module.1.gru.weight_hh_l1",
-        'gru_2.bias_ih': "module.1.gru.bias_ih_l1",
-        'gru_2.bias_hh': "module.1.gru.bias_hh_l1",
-
-        'gru_3.weight_ih': "module.1.gru.weight_ih_l2",
-        'gru_3.weight_hh': "module.1.gru.weight_hh_l2",
-        'gru_3.bias_ih': "module.1.gru.bias_ih_l2",
-        'gru_3.bias_hh': "module.1.gru.bias_hh_l2",
-
-        'linear.weight': "module.2.module.0.module.0.weight",
-        'linear.bias': "module.2.module.0.module.0.bias",
+        "embedding.weight": "module.0.module._embedding.weight",
+        "gru_1.weight_ih": "module.1.gru.weight_ih_l0",
+        "gru_1.weight_hh": "module.1.gru.weight_hh_l0",
+        "gru_1.bias_ih": "module.1.gru.bias_ih_l0",
+        "gru_1.bias_hh": "module.1.gru.bias_hh_l0",
+        "gru_2.weight_ih": "module.1.gru.weight_ih_l1",
+        "gru_2.weight_hh": "module.1.gru.weight_hh_l1",
+        "gru_2.bias_ih": "module.1.gru.bias_ih_l1",
+        "gru_2.bias_hh": "module.1.gru.bias_hh_l1",
+        "gru_3.weight_ih": "module.1.gru.weight_ih_l2",
+        "gru_3.weight_hh": "module.1.gru.weight_hh_l2",
+        "gru_3.bias_ih": "module.1.gru.bias_ih_l2",
+        "gru_3.bias_hh": "module.1.gru.bias_hh_l2",
+        "linear.weight": "module.2.module.0.module.0.weight",
+        "linear.bias": "module.2.module.0.module.0.bias",
     }
 
     new_ckpt = {}

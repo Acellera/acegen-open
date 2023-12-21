@@ -1,5 +1,6 @@
 import warnings
 
+
 def adapt_state_dict(source_state_dict: dict, target_state_dict: dict):
     """Adapt the source state dict to the target state dict.
 
@@ -12,17 +13,21 @@ def adapt_state_dict(source_state_dict: dict, target_state_dict: dict):
         target_state_dict (dict): The target state dict.
     """
     if len(source_state_dict) != len(target_state_dict):
-        raise ValueError("The source and target state dicts must have the same number of parameters.")
+        raise ValueError(
+            "The source and target state dicts must have the same number of parameters."
+        )
 
     for key_source, value_source, key_target, value_target in zip(
-            source_state_dict.keys(),
-            source_state_dict.values(),
-            target_state_dict.keys(),
-            target_state_dict.values(),
+        source_state_dict.keys(),
+        source_state_dict.values(),
+        target_state_dict.keys(),
+        target_state_dict.values(),
     ):
         if value_source.shape != value_target.shape:
-            warnings.warn(f"The shape of {key_source} ({value_source.shape}) "
-                          f"and {key_target} ({value_target.shape}) do not match.")
+            warnings.warn(
+                f"The shape of {key_source} ({value_source.shape}) "
+                f"and {key_target} ({value_target.shape}) do not match."
+            )
             continue
         target_state_dict[key_target] = value_source
 

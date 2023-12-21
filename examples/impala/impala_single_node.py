@@ -1,21 +1,32 @@
-import os
-import tqdm
-import yaml
-import json
-import hydra
-import shutil
-import random
-import logging
 import datetime
-import numpy as np
+import json
+import logging
+import os
+import random
+import shutil
 from copy import deepcopy
 from pathlib import Path
-from omegaconf import OmegaConf
-from molscore.manager import MolScore
+
+import acegen
+import hydra
+import numpy as np
 
 import torch
-from torch.distributions.kl import kl_divergence
+import tqdm
+import yaml
+from acegen import (
+    MultiStepDeNovoEnv as DeNovoEnv,
+    PenaliseRepeatedSMILES,
+    SMILESReward,
+    SMILESVocabulary,
+)
+from molscore.manager import MolScore
+from omegaconf import OmegaConf
 from tensordict import TensorDict
+from torch.distributions.kl import kl_divergence
+from torchrl.collectors import MultiaSyncDataCollector
+from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
+from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
 from torchrl.envs import (
     CatFrames,
@@ -26,14 +37,12 @@ from torchrl.envs import (
 )
 from torchrl.objectives import A2CLoss
 from torchrl.objectives.value.advantages import VTrace
-from torchrl.collectors import MultiaSyncDataCollector
-from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
-from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
-
-import acegen
-from acegen import SMILESVocabulary, MultiStepDeNovoEnv as DeNovoEnv, SMILESReward, PenaliseRepeatedSMILES
-from utils import Experience, create_batch_from_replay_smiles, create_shared_impala_models
+from utils import (
+    create_batch_from_replay_smiles,
+    create_shared_impala_models,
+    Experience,
+)
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -52,23 +61,38 @@ def main(cfg: "DictConfig"):
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
     os.makedirs(save_dir)
-    with open(Path(save_dir) / "config.yaml", 'w') as yaml_file:
+    with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
     # Get available device
-    device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
+    device = (
+        torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
+    )
 
     # Load vocabulary
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
+    ckpt = (
+        Path(__file__).resolve().parent.parent.parent
+        / "priors"
+        / "reinvent_vocabulary.txt"
+    )
     vocabulary = SMILESVocabulary(ckpt)
 
     # Models
     ####################################################################################################################
 
-    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
-    (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_shared_impala_models(vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=1)
+    ckpt = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+    )
+    (
+        actor_inference,
+        actor_training,
+        critic_inference,
+        critic_training,
+        *transforms,
+    ) = create_shared_impala_models(
+        vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=1
+    )
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -90,10 +114,21 @@ def main(cfg: "DictConfig"):
         """Create a single RL smiles_environments."""
         env = DeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
+        env.append_transform(
+            UnsqueezeTransform(
+                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
+            )
+        )
         env.append_transform(
             CatFrames(
-                N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
+                N=100,
+                dim=-1,
+                padding="constant",
+                in_keys=["observation"],
+                out_keys=["SMILES"],
+                padding_value=-1,
+            )
+        )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
@@ -102,9 +137,9 @@ def main(cfg: "DictConfig"):
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, 'r'))
-    data['output_dir'] = save_dir
-    json.dump(data, open(cfg.molscore, 'w'), indent=4)
+    data = json.load(open(cfg.molscore, "r"))
+    data["output_dir"] = save_dir
+    json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
     scoring = MolScore(model_name="impala", task_config=cfg.molscore)
@@ -112,7 +147,9 @@ def main(cfg: "DictConfig"):
     scoring_function = scoring.score
 
     # Create reward transform
-    rew_transform = SMILESReward(reward_function=scoring_function, vocabulary=vocabulary)
+    rew_transform = SMILESReward(
+        reward_function=scoring_function, vocabulary=vocabulary
+    )
 
     # Collector
     ####################################################################################################################
@@ -189,7 +226,10 @@ def main(cfg: "DictConfig"):
     logger = None
     if cfg.logger_backend:
         logger = get_logger(
-            cfg.logger_backend, logger_name="impala", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
+            cfg.logger_backend,
+            logger_name="impala",
+            experiment_name=cfg.agent_name,
+            project_name=cfg.experiment_name,
         )
 
     # Training loop
@@ -259,7 +299,9 @@ def main(cfg: "DictConfig"):
 
         # Get data to be added to the replay buffer later
         replay_data = data.get("next").clone()
-        replay_data = replay_data.get_sub_tensordict(idx= replay_data.get("terminated").squeeze(-1))
+        replay_data = replay_data.get_sub_tensordict(
+            idx=replay_data.get("terminated").squeeze(-1)
+        )
 
         # Then exclude unnecessary tensors
         data = data.exclude(
@@ -282,31 +324,53 @@ def main(cfg: "DictConfig"):
                 batch = batch.to(device, non_blocking=True)
 
                 if num_updates % cfg.replay_frequency == 0:
-                    if experience_replay_buffer is not None and len(experience_replay_buffer) > 10:
-                        batch = batch.exclude("advantage", "state_value", "value_target", ("next", "state_value"))
+                    if (
+                        experience_replay_buffer is not None
+                        and len(experience_replay_buffer) > 10
+                    ):
+                        batch = batch.exclude(
+                            "advantage",
+                            "state_value",
+                            "value_target",
+                            ("next", "state_value"),
+                        )
                         for _ in range(cfg.replay_batches):
                             row = random.randint(0, cfg.batch_size - 1)
-                            exp_seqs, exp_reward, exp_prior_likelihood = experience_replay_buffer.sample(6, decode_smiles=False)
-                            replay_batch = create_batch_from_replay_smiles(exp_seqs, exp_reward, device, vocabulary=vocabulary)
-                            batch[row] = replay_batch[0, 0:cfg.frames_per_batch]
+                            (
+                                exp_seqs,
+                                exp_reward,
+                                exp_prior_likelihood,
+                            ) = experience_replay_buffer.sample(6, decode_smiles=False)
+                            replay_batch = create_batch_from_replay_smiles(
+                                exp_seqs, exp_reward, device, vocabulary=vocabulary
+                            )
+                            batch[row] = replay_batch[0, 0 : cfg.frames_per_batch]
 
                 # Compute advantage
                 with torch.no_grad():
                     batch = adv_module(batch)
 
                 loss = loss_module(batch)
-                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-                losses[j] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+                loss_sum = (
+                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                )
+                losses[j] = loss.select(
+                    "loss_critic", "loss_entropy", "loss_objective"
+                ).detach()
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
                 mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
-                losses[j] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
+                losses[j] = TensorDict(
+                    {"kl_div": kl_div.detach().item()}, batch_size=[]
+                )
 
                 loss_sum.backward()
-                torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(
+                    loss_module.parameters(), max_norm=max_grad_norm
+                )
                 optim.step()
                 optim.zero_grad()
                 num_updates += 1

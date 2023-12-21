@@ -1,40 +1,47 @@
-import os
-import tqdm
-import yaml
-import json
-import hydra
-import shutil
-import random
-import logging
 import datetime
-import numpy as np
+import json
+import logging
+import os
+import random
+import shutil
 from copy import deepcopy
 from pathlib import Path
-from omegaconf import OmegaConf
-from molscore.manager import MolScore
+
+import hydra
+import numpy as np
 
 import torch
-from torch.distributions.kl import kl_divergence
+import tqdm
+import yaml
+from acegen import (
+    MultiStepDeNovoEnv as DeNovoEnv,
+    PenaliseRepeatedSMILES,
+    SMILESReward,
+    SMILESVocabulary,
+)
+from acegen.experience_replay.replay_buffer import Experience
+from acegen.models import adapt_state_dict, create_gru_actor_critic
+from molscore.manager import MolScore
+from omegaconf import OmegaConf
 from tensordict import TensorDict
+from torch.distributions.kl import kl_divergence
+from torchrl.collectors import SyncDataCollector
+from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
+from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
     CatFrames,
+    ExplorationType,
     InitTracker,
     StepCounter,
+    TensorDictPrimer,
     TransformedEnv,
     UnsqueezeTransform,
 )
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
-from torchrl.collectors import SyncDataCollector
-from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
-from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.record.loggers import get_logger
-from torchrl.envs import ExplorationType, TensorDictPrimer
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
-from acegen import SMILESVocabulary, MultiStepDeNovoEnv as DeNovoEnv, SMILESReward, PenaliseRepeatedSMILES
-from acegen.models import create_gru_actor_critic, adapt_state_dict
-from acegen.experience_replay.replay_buffer import Experience
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -53,27 +60,41 @@ def main(cfg: "DictConfig"):
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
     os.makedirs(save_dir)
-    with open(Path(save_dir) / "config.yaml", 'w') as yaml_file:
+    with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
     # Get available device
-    device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
+    device = (
+        torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
+    )
 
     # Load Vocabulary
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
+    ckpt = (
+        Path(__file__).resolve().parent.parent.parent
+        / "priors"
+        / "reinvent_vocabulary.txt"
+    )
     vocabulary = SMILESVocabulary(ckpt)
 
     # Models
     ####################################################################################################################
 
     # Create GRU model
-    actor_training, actor_inference, critic_training, critic_inference = create_gru_actor_critic(
-        vocabulary_size=len(vocabulary))
+    (
+        actor_training,
+        actor_inference,
+        critic_training,
+        critic_inference,
+    ) = create_gru_actor_critic(vocabulary_size=len(vocabulary))
 
     # Load pretrained weights
-    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
-    actor_inference.load_state_dict(adapt_state_dict(ckpt, actor_inference.state_dict()))
+    ckpt = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+    )
+    actor_inference.load_state_dict(
+        adapt_state_dict(ckpt, actor_inference.state_dict())
+    )
     actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -90,11 +111,10 @@ def main(cfg: "DictConfig"):
     num_layers = 3
     hidden_size = 512
     primers = {
-        ('recurrent_state',):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
-                dtype=torch.float32,
-            ),
+        ("recurrent_state",): UnboundedContinuousTensorSpec(
+            shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+            dtype=torch.float32,
+        ),
     }
     rhs_primer = TensorDictPrimer(primers)
 
@@ -111,10 +131,20 @@ def main(cfg: "DictConfig"):
         env = DeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
-            UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
+            UnsqueezeTransform(
+                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
+            )
+        )
         env.append_transform(
             CatFrames(
-                N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
+                N=100,
+                dim=-1,
+                padding="constant",
+                in_keys=["observation"],
+                out_keys=["SMILES"],
+                padding_value=-1,
+            )
+        )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         env.append_transform(rhs_primer)
@@ -125,9 +155,9 @@ def main(cfg: "DictConfig"):
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, 'r'))
-    data['output_dir'] = save_dir
-    json.dump(data, open(cfg.molscore, 'w'), indent=4)
+    data = json.load(open(cfg.molscore, "r"))
+    data["output_dir"] = save_dir
+    json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
     scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
@@ -135,7 +165,9 @@ def main(cfg: "DictConfig"):
     scoring_function = scoring.score
 
     # Create reward transform
-    rew_transform = SMILESReward(reward_function=scoring_function, vocabulary=vocabulary)
+    rew_transform = SMILESReward(
+        reward_function=scoring_function, vocabulary=vocabulary
+    )
 
     # Collector
     ####################################################################################################################
@@ -211,7 +243,10 @@ def main(cfg: "DictConfig"):
     logger = None
     if cfg.logger_backend:
         logger = get_logger(
-            cfg.logger_backend, logger_name="ppo", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
+            cfg.logger_backend,
+            logger_name="ppo",
+            experiment_name=cfg.agent_name,
+            project_name=cfg.experiment_name,
         )
 
     # Training loop
@@ -268,7 +303,9 @@ def main(cfg: "DictConfig"):
 
         # Get data to be added to the replay buffer later
         replay_data = data.get("next").clone()
-        replay_data = replay_data.get_sub_tensordict(idx=replay_data.get("terminated").squeeze(-1))
+        replay_data = replay_data.get_sub_tensordict(
+            idx=replay_data.get("terminated").squeeze(-1)
+        )
 
         # Then exclude unnecessary tensors
         data = data.exclude(
@@ -284,12 +321,17 @@ def main(cfg: "DictConfig"):
 
         for j in range(ppo_epochs):
 
-            if experience_replay_buffer is not None and len(experience_replay_buffer) > 20:
+            if (
+                experience_replay_buffer is not None
+                and len(experience_replay_buffer) > 20
+            ):
                 to_cat = [data.clone()]
                 for _ in range(cfg.replay_batches):
                     # TODO: fix, dont loop, sample a real batch from the replay buffer!!
-                    replay_batch = experience_replay_buffer.sample_replay_batch(batch_size=20, device=device)
-                    to_cat.append(replay_batch[..., 0:data.shape[1]])
+                    replay_batch = experience_replay_buffer.sample_replay_batch(
+                        batch_size=20, device=device
+                    )
+                    to_cat.append(replay_batch[..., 0 : data.shape[1]])
                 extended_data = torch.cat(to_cat)
             else:
                 extended_data = data
@@ -305,18 +347,26 @@ def main(cfg: "DictConfig"):
                 batch = buffer.sample()
 
                 loss = loss_module(batch)
-                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-                losses[j, i] = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
+                loss_sum = (
+                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                )
+                losses[j, i] = loss.select(
+                    "loss_critic", "loss_entropy", "loss_objective"
+                ).detach()
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
                 mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
-                losses[j, i] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
+                losses[j, i] = TensorDict(
+                    {"kl_div": kl_div.detach().item()}, batch_size=[]
+                )
 
                 loss_sum.backward()
-                torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(
+                    loss_module.parameters(), max_norm=max_grad_norm
+                )
                 optim.step()
                 optim.zero_grad()
 

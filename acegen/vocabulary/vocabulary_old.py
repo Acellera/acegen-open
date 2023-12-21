@@ -1,4 +1,3 @@
-
 # coding=utf-8
 """
 Vocabulary helper classes.
@@ -7,6 +6,7 @@ From https://github.com/MolecularAI/reinvent-models/blob/main/reinvent_models/re
 """
 
 import re
+
 import numpy as np
 
 
@@ -86,7 +86,7 @@ class SMILESTokenizer:
     REGEXPS = {
         "brackets": re.compile(r"(\[[^\]]*\])"),
         "2_ring_nums": re.compile(r"(%\d{2})"),
-        "brcl": re.compile(r"(Br|Cl)")
+        "brcl": re.compile(r"(Br|Cl)"),
     }
     REGEXP_ORDER = ["brackets", "2_ring_nums", "brcl"]
 
@@ -97,7 +97,7 @@ class SMILESTokenizer:
             if not regexps:
                 return list(data)
             regexp = self.REGEXPS[regexps[0]]
-            data = re.sub(r'<pad>', '', data)
+            data = re.sub(r"<pad>", "", data)
             splitted = regexp.split(data)
             tokens = []
             for i, split in enumerate(splitted):
@@ -183,16 +183,19 @@ class DeNovoVocabulary:
         """Creates the vocabulary from a saved checkpoint."""
         tokenizer = SMILESTokenizer()
         vocabulary = Vocabulary()
-        vocabulary._tokens = state['_tokens']
-        vocabulary._current_id = state['_current_id']
+        vocabulary._tokens = state["_tokens"]
+        vocabulary._current_id = state["_current_id"]
         return DeNovoVocabulary(vocabulary, tokenizer)
 
     def __getstate__(self):
-        return {'_tokens': self.vocabulary._tokens, '_current_id': self.vocabulary._current_id}
+        return {
+            "_tokens": self.vocabulary._tokens,
+            "_current_id": self.vocabulary._current_id,
+        }
 
     def __setstate__(self, state):
         vocabulary = Vocabulary()
-        vocabulary._tokens = state['_tokens']
-        vocabulary._current_id = state['_current_id']
+        vocabulary._tokens = state["_tokens"]
+        vocabulary._current_id = state["_current_id"]
         self.vocabulary = vocabulary
         self.tokenizer = SMILESTokenizer()

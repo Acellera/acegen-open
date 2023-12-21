@@ -3,35 +3,36 @@
 Pretrain a GRU or LSTM model.
 """
 
-import os
-import wandb
-import torch
-import logging
 import datetime
-import numpy as np
-from tqdm import tqdm
-from rdkit import Chem
+import logging
+import os
 from pathlib import Path
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 
-from torch.nn import Module
-from torch.distributed import init_process_group, destroy_process_group, barrier
-from torch.nn.parallel import DistributedDataParallel
-from torch.utils.data.distributed import DistributedSampler
+import numpy as np
 
 import pytorchrl as prl
-from pytorchrl.agent.env import VecEnv
-from pytorchrl.utils import save_argparse
-from pytorchrl.agent.actors import OnPolicyActor
+import torch
+import wandb
 
-from acegen.de_novo_design.ppo.dataset import load_dataset, DeNovoDataset
+from acegen.de_novo_design.ppo.dataset import DeNovoDataset, load_dataset
+from acegen.de_novo_design.ppo.train_rnn_model import get_args
+from acegen.networks.lstm import LstmNet
 from acegen.smiles_environments.de_novo.generative_chemistry_env_factory import (
     de_novo_train_env_factory,
 )
 from acegen.smiles_environments.vocabulary import ReinventVocabulary
-from acegen.de_novo_design.ppo.train_rnn_model import get_args
-from acegen.networks.lstm import LstmNet
+from pytorchrl.agent.actors import OnPolicyActor
+from pytorchrl.agent.env import VecEnv
+from pytorchrl.utils import save_argparse
+from rdkit import Chem
+from torch.distributed import barrier, destroy_process_group, init_process_group
+
+from torch.nn import Module
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 
 # Wraps the actor into a module for DDP
@@ -63,7 +64,7 @@ class Model(Module):
 
         # Loss
         mask = (seqs[1:, :] != 0).float()  # Mask padding
-        loss = (- logp_action.squeeze(-1) * mask).sum(0).mean()
+        loss = (-logp_action.squeeze(-1) * mask).sum(0).mean()
         # loss = -logp_action.squeeze(-1).sum(0).mean()
 
         return loss
@@ -118,7 +119,7 @@ if __name__ == "__main__":
         # NOTE: this has to be done on the master process not to blow up the memory
         if master:
             if not args.pretrainingset_path or not os.path.exists(
-                    args.pretrainingset_path
+                args.pretrainingset_path
             ):
                 raise RuntimeError("The provided pretrainingset_path is not valid!")
             print("\nConstructing vocabulary...")
@@ -225,10 +226,10 @@ if __name__ == "__main__":
         tb_writer = None
 
     with wandb.init(
-            project=args.experiment_name,
-            name=args.agent_name + "_pretrain",
-            config=args,
-            mode=mode,
+        project=args.experiment_name,
+        name=args.agent_name + "_pretrain",
+        config=args,
+        mode=mode,
     ):
 
         # Calculate number of parameters
@@ -256,7 +257,7 @@ if __name__ == "__main__":
                     info_dict = {}
                     total_steps = step + len(dataloader) * (epoch - 1)
                     if (
-                            total_steps % args.pretrain_lr_decrease_period
+                        total_steps % args.pretrain_lr_decrease_period
                     ) == 0 and total_steps != 0:
 
                         # Eval mode
@@ -289,7 +290,7 @@ if __name__ == "__main__":
                                 num_tokens += 1
 
                             if is_valid_smile(
-                                    vocabulary.remove_start_and_end_tokens(molecule)
+                                vocabulary.remove_start_and_end_tokens(molecule)
                             ):
                                 valid_molecules += 1
                             list_molecules.append(molecule)
@@ -310,7 +311,7 @@ if __name__ == "__main__":
                                 ),
                                 "pretrain_avg_entropy": np.mean(list_entropy),
                                 "pretrain_valid_molecules": valid_molecules
-                                                            / total_molecules,
+                                / total_molecules,
                                 "pretrain_ratio_repeated": ratio_repeated,
                             }
                         )

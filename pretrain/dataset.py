@@ -1,11 +1,12 @@
-import os
 import logging
+import os
 from pathlib import Path
-from tqdm import tqdm
-from rdkit import Chem
+
 import numpy as np
 import torch
+from rdkit import Chem
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 def load_dataset(file_path):
@@ -48,8 +49,8 @@ class DeNovoDataset(Dataset):
         }
 
         if not (
-                self.mmaps["smiles_index"][0] == 0
-                and self.mmaps["smiles_index"][-1] == len(self.mmaps["smiles_data"])
+            self.mmaps["smiles_index"][0] == 0
+            and self.mmaps["smiles_index"][-1] == len(self.mmaps["smiles_data"])
         ):
             raise RuntimeError(
                 "Error during the creation of Dataset memory maps. Incorrect indices detected."
@@ -60,9 +61,9 @@ class DeNovoDataset(Dataset):
         smiles_list = load_dataset(self.dataset_path)
 
         for smile in tqdm(
-                smiles_list,
-                total=len(smiles_list),
-                desc="Process samples",
+            smiles_list,
+            total=len(smiles_list),
+            desc="Process samples",
         ):
             encoded_smile = self.vocabulary.encode_smile(smile)
             if encoded_smile is None:
@@ -85,13 +86,13 @@ class DeNovoDataset(Dataset):
             mode="w+",
             dtype=np.int64,
             shape=num_samples + 1,
-            )
+        )
         mmaps["smiles_data"] = np.memmap(
             str(self.files["smiles_data"]) + ".tmp",
             mode="w+",
             dtype=np.int64,
             shape=num_smile_encodings,
-            )
+        )
 
         logging.info("Storing data...")
         mmaps["smiles_index"][0] = 0

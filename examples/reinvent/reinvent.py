@@ -1,22 +1,23 @@
-import os
-import tqdm
-import yaml
-import json
-import hydra
-import shutil
-import random
-import logging
 import datetime
-import numpy as np
+import json
+import logging
+import os
+import random
+import shutil
 from pathlib import Path
-from omegaconf import OmegaConf
-from molscore.manager import MolScore
+
+import hydra
+import numpy as np
 
 import torch
+import tqdm
+import yaml
+from acegen import SingleStepDeNovoEnv, SMILESVocabulary
+from molscore.manager import MolScore
+from omegaconf import OmegaConf
 from torchrl.record.loggers import get_logger
 
-from utils import Experience, create_reinvent_model
-from acegen import SMILESVocabulary, SingleStepDeNovoEnv
+from utils import create_reinvent_model, Experience
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -24,7 +25,9 @@ logging.basicConfig(level=logging.WARNING)
 def unique(arr):
     # Finds unique rows in arr and return their indices
     arr = arr.cpu().numpy()
-    arr_ = np.ascontiguousarray(arr).view(np.dtype((np.void, arr.dtype.itemsize * arr.shape[1])))
+    arr_ = np.ascontiguousarray(arr).view(
+        np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
+    )
     _, idxs = np.unique(arr_, return_index=True)
     if torch.cuda.is_available():
         return torch.LongTensor(np.sort(idxs)).cuda()
@@ -39,7 +42,7 @@ def main(cfg: "DictConfig"):
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
     os.makedirs(save_dir)
-    with open(Path(save_dir) / "config.yaml", 'w') as yaml_file:
+    with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
@@ -50,17 +53,23 @@ def main(cfg: "DictConfig"):
     torch.manual_seed(int(seed))
 
     # Get available device
-    device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
+    device = (
+        torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
+    )
 
     # Create tests smiles_environments to get action specs
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
+    ckpt = (
+        Path(__file__).resolve().parent.parent.parent
+        / "priors"
+        / "reinvent_vocabulary.txt"
+    )
     vocabulary = SMILESVocabulary(ckpt)
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, 'r'))
-    data['output_dir'] = save_dir
-    json.dump(data, open(cfg.molscore, 'w'), indent=4)
+    data = json.load(open(cfg.molscore, "r"))
+    data["output_dir"] = save_dir
+    json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
     scoring = MolScore(model_name="reinvent", task_config=cfg.molscore)
@@ -115,9 +124,11 @@ def main(cfg: "DictConfig"):
     logger = None
     if cfg.logger_backend:
         logger = get_logger(
-            cfg.logger_backend, logger_name="reinvent", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
+            cfg.logger_backend,
+            logger_name="reinvent",
+            experiment_name=cfg.agent_name,
+            project_name=cfg.experiment_name,
         )
-
 
     # Training loop
     ####################################################################################################################
@@ -147,7 +158,9 @@ def main(cfg: "DictConfig"):
 
         # Identify unique sequences
         arr = data.get("action").cpu().numpy()
-        arr_ = np.ascontiguousarray(arr).view(np.dtype((np.void, arr.dtype.itemsize * arr.shape[1])))
+        arr_ = np.ascontiguousarray(arr).view(
+            np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
+        )
         _, idxs = np.unique(arr_, return_index=True)
         unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
         data = data[unique_idxs]
@@ -177,7 +190,7 @@ def main(cfg: "DictConfig"):
         loss = loss.mean()
 
         # Add regularizer that penalizes high likelihood for the entire sequence
-        loss_p = - (1 / agent_likelihood).mean()
+        loss_p = -(1 / agent_likelihood).mean()
         loss += 5 * 1e3 * loss_p
 
         # Calculate gradients and make an update to the network weights
@@ -187,7 +200,9 @@ def main(cfg: "DictConfig"):
 
         # Then add new experience to replay buffer
         if cfg.experience_replay is True:
-            new_experience = zip(smiles_list, score.cpu().numpy(), prior_likelihood.cpu().numpy())
+            new_experience = zip(
+                smiles_list, score.cpu().numpy(), prior_likelihood.cpu().numpy()
+            )
             experience.add_experience(new_experience)
 
         # Log
@@ -206,4 +221,3 @@ def main(cfg: "DictConfig"):
 
 if __name__ == "__main__":
     main()
-

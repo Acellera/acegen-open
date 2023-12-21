@@ -1,7 +1,9 @@
-import torch
 from typing import Callable
+
+import torch
 from tensordict import TensorDictBase
 from torchrl.envs.transforms.transforms import Transform
+
 from acegen.vocabulary.vocabulary_old import DeNovoVocabulary
 
 
@@ -46,13 +48,19 @@ class SMILESReward(Transform):
         # Get smiles as strings
         smiles_list = []
         for i, smi in enumerate(smiles):
-            smiles_list.append(self.vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1]))
+            smiles_list.append(
+                self.vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1])
+            )
 
         # Calculate reward
         try:
-            reward[:, 0] += torch.tensor(self.reward_function(smiles_list), device=device)
+            reward[:, 0] += torch.tensor(
+                self.reward_function(smiles_list), device=device
+            )
         except RuntimeError:
-            reward[:, 0] += torch.tensor(self.reward_function(smiles_list), device=device)
+            reward[:, 0] += torch.tensor(
+                self.reward_function(smiles_list), device=device
+            )
 
         sub_tensordict.set("reward", reward, inplace=True)
 

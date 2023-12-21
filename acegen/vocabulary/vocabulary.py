@@ -1,6 +1,7 @@
-from typing import Protocol
-import numpy as np
 import re
+from typing import Protocol
+
+import numpy as np
 
 
 class SMILESTokenizer:
@@ -9,7 +10,7 @@ class SMILESTokenizer:
     REGEXPS = {
         "brackets": re.compile(r"(\[[^\]]*\])"),
         "2_ring_nums": re.compile(r"(%\d{2})"),
-        "brcl": re.compile(r"(Br|Cl)")
+        "brcl": re.compile(r"(Br|Cl)"),
     }
     REGEXP_ORDER = ["brackets", "2_ring_nums", "brcl"]
 
@@ -20,7 +21,7 @@ class SMILESTokenizer:
             if not regexps:
                 return list(data)
             regexp = self.REGEXPS[regexps[0]]
-            data = re.sub(r'<pad>', '', data)
+            data = re.sub(r"<pad>", "", data)
             splitted = regexp.split(data)
             tokens = []
             for i, split in enumerate(splitted):
@@ -49,6 +50,7 @@ class SMILESTokenizer:
 
 class Vocabulary(Protocol):
     """An interface for handling encoding/decoding from SMILES to an array of indices"""
+
     def encode(self, smiles: list[str]) -> np.ndarray:
         ...
 
@@ -58,15 +60,17 @@ class Vocabulary(Protocol):
 
 class SMILESVocabulary(Vocabulary):
     """A class for handling encoding/decoding from SMILES to an array of indices"""
+
     def __init__(self, init_from_file=None, max_length=140):
-        self.special_tokens = ['EOS', 'GO']
+        self.special_tokens = ["EOS", "GO"]
         self.additional_chars = set()
         self.chars = self.special_tokens
         self.vocab_size = len(self.chars)
         self.vocab = dict(zip(self.chars, range(len(self.chars))))
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}
         self.max_length = max_length
-        if init_from_file: self.init_from_file(init_from_file)
+        if init_from_file:
+            self.init_from_file(init_from_file)
 
     def encode(self, smiles):
         """Takes a list of characters (eg '[NH]') and encodes to array of indices"""
@@ -82,9 +86,9 @@ class SMILESVocabulary(Vocabulary):
         for i in encoded_smiles:
             if i in ignore_indices:
                 continue
-            if i == self.vocab['GO']:
+            if i == self.vocab["GO"]:
                 continue
-            if i == self.vocab['EOS']:
+            if i == self.vocab["EOS"]:
                 break
             chars.append(self.reversed_vocab[i])
         smiles = "".join(chars)
@@ -93,18 +97,18 @@ class SMILESVocabulary(Vocabulary):
 
     def tokenize(self, smiles):
         """Takes a SMILES and return a list of characters/tokens"""
-        regex = '(\[[^\[\]]{1,6}\])'
+        regex = "(\[[^\[\]]{1,6}\])"
         smiles = replace_halogen(smiles)
         char_list = re.split(regex, smiles)
         tokenized = []
-        tokenized.append('GO')
+        tokenized.append("GO")
         for char in char_list:
-            if char.startswith('['):
+            if char.startswith("["):
                 tokenized.append(char)
             else:
                 chars = [unit for unit in char]
                 [tokenized.append(unit) for unit in chars]
-        tokenized.append('EOS')
+        tokenized.append("EOS")
         return tokenized
 
     def add_characters(self, chars):
@@ -120,7 +124,7 @@ class SMILESVocabulary(Vocabulary):
 
     def init_from_file(self, file):
         """Takes a file containing \n separated characters to initialize the vocabulary"""
-        with open(file, 'r') as f:
+        with open(file, "r") as f:
             chars = f.read().split()
         self.add_characters(chars)
 
@@ -129,6 +133,7 @@ class SMILESVocabulary(Vocabulary):
 
     def __str__(self):
         return "Vocabulary containing {} tokens: {}".format(len(self), self.chars)
+
     @classmethod
     def create_from_smiles(cls, smiles_list: list[str], tokenizer=SMILESTokenizer()):
         """Creates a vocabulary for the SMILES syntax."""
@@ -136,16 +141,16 @@ class SMILESVocabulary(Vocabulary):
         for smi in smiles_list:
             tokens.update(tokenizer.tokenize(smi, with_begin_and_end=False))
 
-
         vocabulary = cls()
         vocabulary.add_characters(["<pad>", "$", "^"] + sorted(tokens))
         return vocabulary
 
+
 def replace_halogen(string):
     """Regex to replace Br and Cl with single letters"""
-    br = re.compile('Br')
-    cl = re.compile('Cl')
-    string = br.sub('R', string)
-    string = cl.sub('L', string)
+    br = re.compile("Br")
+    cl = re.compile("Cl")
+    string = br.sub("R", string)
+    string = cl.sub("L", string)
 
     return string

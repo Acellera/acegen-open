@@ -1,5 +1,6 @@
 import torch
 
+
 def get_default_devices():
     num_cuda = torch.cuda.device_count()
     if num_cuda == 0:

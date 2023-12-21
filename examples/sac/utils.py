@@ -2,21 +2,21 @@
 
 import copy
 from pathlib import Path
+
 import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from torchrl.envs import ExplorationType
+from torchrl.data import DiscreteTensorSpec
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+from torchrl.envs import ExplorationType, TensorDictPrimer
 from torchrl.modules import (
+    ActorValueOperator,
     GRUModule,
     LSTMModule,
     MLP,
-    ActorValueOperator,
     ProbabilisticActor,
     QValueActor,
 )
 from torchrl.modules.distributions import OneHotCategorical
-from torchrl.envs import ExplorationType, TensorDictPrimer
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
-from torchrl.data import DiscreteTensorSpec
 
 
 class Embed(torch.nn.Module):
@@ -70,7 +70,9 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
     )
 
     model_inference = TensorDictSequential(embedding_module, gru_module, mlp)
-    model_training = TensorDictSequential(embedding_module, gru_module.set_recurrent_mode(True), mlp)
+    model_training = TensorDictSequential(
+        embedding_module, gru_module.set_recurrent_mode(True), mlp
+    )
 
     if net_name == "actor":
         model_inference = ProbabilisticActor(
@@ -105,11 +107,10 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
         # )
 
     primers = {
-        (f"recurrent_state_{net_name}",):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([batch_size, 3, 512]),
-                dtype=torch.float32,
-            ),
+        (f"recurrent_state_{net_name}",): UnboundedContinuousTensorSpec(
+            shape=torch.Size([batch_size, 3, 512]),
+            dtype=torch.float32,
+        ),
     }
     transform = TensorDictPrimer(primers)
 
@@ -118,12 +119,16 @@ def create_net(vocabulary_size, batch_size, net_name="actor"):
 
 def create_sac_models(vocabulary_size, batch_size, ckpt):
 
-    actor_inference, actor_training, actor_transform = create_net(vocabulary_size, batch_size, net_name="actor")
+    actor_inference, actor_training, actor_transform = create_net(
+        vocabulary_size, batch_size, net_name="actor"
+    )
     ckpt_actor = adapt_sac_ckpt_actor(ckpt)
     actor_inference.load_state_dict(ckpt_actor)
     actor_training.load_state_dict(ckpt_actor)
 
-    critic_inference, critic_training, critic_transform = create_net(vocabulary_size, batch_size, net_name="critic")
+    critic_inference, critic_training, critic_transform = create_net(
+        vocabulary_size, batch_size, net_name="critic"
+    )
     ckpt_critic = adapt_sac_ckpt_critic(ckpt)
     # critic_training.load_state_dict(ckpt_critic)
     # # Initialize final critic weights
@@ -133,32 +138,35 @@ def create_sac_models(vocabulary_size, batch_size, ckpt):
     #         layer.bias.data.zero_()
     # critic_inference.load_state_dict(critic_training.state_dict())
 
-    return actor_inference, actor_training, critic_inference, critic_training, actor_transform, critic_transform
+    return (
+        actor_inference,
+        actor_training,
+        critic_inference,
+        critic_training,
+        actor_transform,
+        critic_transform,
+    )
 
 
 def adapt_sac_ckpt_actor(ckpt):
     """Adapt the SAC ckpt from the AceGen ckpt format."""
 
     keys_mapping = {
-        'embedding.weight': "module.0.module.0.module._embedding.weight",
-
-        'gru_1.weight_ih': "module.0.module.1.gru.weight_ih_l0",
-        'gru_1.weight_hh': "module.0.module.1.gru.weight_hh_l0",
-        'gru_1.bias_ih': "module.0.module.1.gru.bias_ih_l0",
-        'gru_1.bias_hh': "module.0.module.1.gru.bias_hh_l0",
-
-        'gru_2.weight_ih': "module.0.module.1.gru.weight_ih_l1",
-        'gru_2.weight_hh': "module.0.module.1.gru.weight_hh_l1",
-        'gru_2.bias_ih': "module.0.module.1.gru.bias_ih_l1",
-        'gru_2.bias_hh': "module.0.module.1.gru.bias_hh_l1",
-
-        'gru_3.weight_ih': "module.0.module.1.gru.weight_ih_l2",
-        'gru_3.weight_hh': "module.0.module.1.gru.weight_hh_l2",
-        'gru_3.bias_ih': "module.0.module.1.gru.bias_ih_l2",
-        'gru_3.bias_hh': "module.0.module.1.gru.bias_hh_l2",
-
-        'linear.weight': "module.0.module.2.module.0.weight",
-        'linear.bias': "module.0.module.2.module.0.bias",
+        "embedding.weight": "module.0.module.0.module._embedding.weight",
+        "gru_1.weight_ih": "module.0.module.1.gru.weight_ih_l0",
+        "gru_1.weight_hh": "module.0.module.1.gru.weight_hh_l0",
+        "gru_1.bias_ih": "module.0.module.1.gru.bias_ih_l0",
+        "gru_1.bias_hh": "module.0.module.1.gru.bias_hh_l0",
+        "gru_2.weight_ih": "module.0.module.1.gru.weight_ih_l1",
+        "gru_2.weight_hh": "module.0.module.1.gru.weight_hh_l1",
+        "gru_2.bias_ih": "module.0.module.1.gru.bias_ih_l1",
+        "gru_2.bias_hh": "module.0.module.1.gru.bias_hh_l1",
+        "gru_3.weight_ih": "module.0.module.1.gru.weight_ih_l2",
+        "gru_3.weight_hh": "module.0.module.1.gru.weight_hh_l2",
+        "gru_3.bias_ih": "module.0.module.1.gru.bias_ih_l2",
+        "gru_3.bias_hh": "module.0.module.1.gru.bias_hh_l2",
+        "linear.weight": "module.0.module.2.module.0.weight",
+        "linear.bias": "module.0.module.2.module.0.bias",
     }
 
     new_ckpt = {}
@@ -172,25 +180,21 @@ def adapt_sac_ckpt_critic(ckpt):
     """Adapt the SAC ckpt from the AceGen ckpt format."""
 
     keys_mapping = {
-        'embedding.weight': "module.0.module.0.module._embedding.weight",
-
-        'gru_1.weight_ih': "module.0.module.1.gru.weight_ih_l0",
-        'gru_1.weight_hh': "module.0.module.1.gru.weight_hh_l0",
-        'gru_1.bias_ih': "module.0.module.1.gru.bias_ih_l0",
-        'gru_1.bias_hh': "module.0.module.1.gru.bias_hh_l0",
-
-        'gru_2.weight_ih': "module.0.module.1.gru.weight_ih_l1",
-        'gru_2.weight_hh': "module.0.module.1.gru.weight_hh_l1",
-        'gru_2.bias_ih': "module.0.module.1.gru.bias_ih_l1",
-        'gru_2.bias_hh': "module.0.module.1.gru.bias_hh_l1",
-
-        'gru_3.weight_ih': "module.0.module.1.gru.weight_ih_l2",
-        'gru_3.weight_hh': "module.0.module.1.gru.weight_hh_l2",
-        'gru_3.bias_ih': "module.0.module.1.gru.bias_ih_l2",
-        'gru_3.bias_hh': "module.0.module.1.gru.bias_hh_l2",
-
-        'linear.weight': "module.0.module.2.module.0.weight",
-        'linear.bias': "module.0.module.2.module.0.bias",
+        "embedding.weight": "module.0.module.0.module._embedding.weight",
+        "gru_1.weight_ih": "module.0.module.1.gru.weight_ih_l0",
+        "gru_1.weight_hh": "module.0.module.1.gru.weight_hh_l0",
+        "gru_1.bias_ih": "module.0.module.1.gru.bias_ih_l0",
+        "gru_1.bias_hh": "module.0.module.1.gru.bias_hh_l0",
+        "gru_2.weight_ih": "module.0.module.1.gru.weight_ih_l1",
+        "gru_2.weight_hh": "module.0.module.1.gru.weight_hh_l1",
+        "gru_2.bias_ih": "module.0.module.1.gru.bias_ih_l1",
+        "gru_2.bias_hh": "module.0.module.1.gru.bias_hh_l1",
+        "gru_3.weight_ih": "module.0.module.1.gru.weight_ih_l2",
+        "gru_3.weight_hh": "module.0.module.1.gru.weight_hh_l2",
+        "gru_3.bias_ih": "module.0.module.1.gru.bias_ih_l2",
+        "gru_3.bias_hh": "module.0.module.1.gru.bias_hh_l2",
+        "linear.weight": "module.0.module.2.module.0.weight",
+        "linear.bias": "module.0.module.2.module.0.bias",
     }
 
     new_ckpt = {}

@@ -10,13 +10,13 @@ class BurnInTransform(Transform):
 
     def forward(self, td):
         device = td.device or "cpu"
-        td_burn_in = td[..., :self.burn_in]
+        td_burn_in = td[..., : self.burn_in]
         with torch.no_grad():
             for rnn_module in self.rnn_modules:
                 td_burn_in = td_burn_in.to(rnn_module.device)
                 td_burn_in = rnn_module(td_burn_in)
         td_burn_in = td_burn_in.to(device)
-        td_out = td[..., self.burn_in:]
+        td_out = td[..., self.burn_in :]
 
         # TODO: This is a hack to get the recurrent state from the burn in
         # rhs = torch.zeros(td_out.shape[0], td_out.shape[1], 3, 512)

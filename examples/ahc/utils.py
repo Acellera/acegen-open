@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 
 import torch
 import torch.nn as nn
@@ -9,9 +8,10 @@ from tensordict.nn import TensorDictModule
 
 ## Models #############################################################################################################
 
+
 class MultiGRU(nn.Module):
-    """ Implements a three layer GRU cell including an embedding layer
-       and an output linear layer back to the size of the vocabulary"""
+    """Implements a three layer GRU cell including an embedding layer
+    and an output linear layer back to the size of the vocabulary"""
 
     def __init__(self, voc_size):
         super(MultiGRU, self).__init__()
@@ -50,20 +50,20 @@ class RNN(nn.Module):
 
     def likelihood(self, target):
         """
-            Retrieves the likelihood of a given sequence
+        Retrieves the likelihood of a given sequence
 
-            Args:
-                target: (batch_size * sequence_lenght) A batch of sequences
+        Args:
+            target: (batch_size * sequence_lenght) A batch of sequences
 
-            Outputs:
-                log_probs : (batch_size) Log likelihood for each example*
-                entropy: (batch_size) The entropies for the sequences. Not
-                                      currently used.
+        Outputs:
+            log_probs : (batch_size) Log likelihood for each example*
+            entropy: (batch_size) The entropies for the sequences. Not
+                                  currently used.
         """
         device = self.device
         batch_size, seq_length = target.size()
         start_token = torch.zeros(batch_size, 1).long().to(device)
-        start_token[:] = self.voc.vocab['GO']
+        start_token[:] = self.voc.vocab["GO"]
         x = torch.cat((start_token, target[:, :-1]), 1)
         h = self.rnn.init_h(batch_size).to(device)
 
@@ -77,15 +77,15 @@ class RNN(nn.Module):
 
     def forward(self, observation, max_length=140):
         """
-            Sample a batch of sequences
+        Sample a batch of sequences
 
-            Args:
-                observation : initial token for the sequences
-                max_length:  Maximum length of the sequences
+        Args:
+            observation : initial token for the sequences
+            max_length:  Maximum length of the sequences
 
-            Outputs:
-            seqs: (batch_size, seq_length) The sampled sequences.
-            log_probs : (batch_size) Log likelihood for each sequence.
+        Outputs:
+        seqs: (batch_size, seq_length) The sampled sequences.
+        log_probs : (batch_size) Log likelihood for each sequence.
         """
 
         device = self.device
@@ -104,7 +104,7 @@ class RNN(nn.Module):
             x = torch.multinomial(prob, num_samples=1).view(-1)
             sequences[:, step][~finished] = x[~finished]
             log_probs += NLLLoss(log_prob, x)
-            EOS_sampled = (x == self.voc.vocab['EOS'])
+            EOS_sampled = x == self.voc.vocab["EOS"]
             finished = torch.ge(finished + EOS_sampled, 1)
             if torch.prod(finished) == 1:
                 break
@@ -114,15 +114,15 @@ class RNN(nn.Module):
 
 def NLLLoss(inputs, targets):
     """
-        Custom Negative Log Likelihood loss that returns loss per example,
-        rather than for the entire batch.
+    Custom Negative Log Likelihood loss that returns loss per example,
+    rather than for the entire batch.
 
-        Args:
-            inputs : (batch_size, num_classes) *Log probabilities of each class*
-            targets: (batch_size) *Target class index*
+    Args:
+        inputs : (batch_size, num_classes) *Log probabilities of each class*
+        targets: (batch_size) *Target class index*
 
-        Outputs:
-            loss : (batch_size) *Loss for each example*
+    Outputs:
+        loss : (batch_size) *Loss for each example*
     """
 
     target_expanded = torch.zeros(inputs.size()).to(targets.device)
@@ -134,8 +134,10 @@ def NLLLoss(inputs, targets):
 
 def create_reinvent_model(vocabulary, ckpt_path=None):
     model = RNN(vocabulary)
-    ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))
-    model.rnn.load_state_dict(ckpt)  # TODO: fix this, should be model.load_state_dict(ckpt)
+    ckpt = torch.load(ckpt_path, map_location=torch.device("cpu"))
+    model.rnn.load_state_dict(
+        ckpt
+    )  # TODO: fix this, should be model.load_state_dict(ckpt)
     td_model = TensorDictModule(
         model,
         in_keys=["observation"],
@@ -143,11 +145,13 @@ def create_reinvent_model(vocabulary, ckpt_path=None):
     )
     return td_model
 
+
 ## Replay buffer #######################################################################################################
+
 
 class Experience(object):
     """Class for prioritized experience replay that remembers the highest scored sequences
-       seen and samples from them with probabilities relative to their scores."""
+    seen and samples from them with probabilities relative to their scores."""
 
     def __init__(self, voc, max_size=100):
         self.memory = []
@@ -166,21 +170,30 @@ class Experience(object):
                     smiles.append(exp[0])
             self.memory = [self.memory[idx] for idx in idxs]
             self.memory.sort(key=lambda x: x[1], reverse=True)
-            self.memory = self.memory[:self.max_size]
+            self.memory = self.memory[: self.max_size]
 
     def sample(self, n, decode_smiles=True):
         """Sample a batch size n of experience"""
         if len(self.memory) < n:
-            raise IndexError('Size of memory ({}) is less than requested sample ({})'.format(len(self), n))
+            raise IndexError(
+                "Size of memory ({}) is less than requested sample ({})".format(
+                    len(self), n
+                )
+            )
         else:
             scores = [x[1].item() + 1e-10 for x in self.memory]
-            sample = np.random.choice(len(self), size=n, replace=False, p=scores/np.sum(scores))
+            sample = np.random.choice(
+                len(self), size=n, replace=False, p=scores / np.sum(scores)
+            )
             sample = [self.memory[i] for i in sample]
             smiles = [x[0] for x in sample]
             scores = [x[1] for x in sample]
             prior_likelihood = [x[2] for x in sample]
         if decode_smiles:
-            encoded = [torch.tensor(self.voc.encode(smile), dtype=torch.int32) for smile in smiles]
+            encoded = [
+                torch.tensor(self.voc.encode(smile), dtype=torch.int32)
+                for smile in smiles
+            ]
             smiles = collate_fn(encoded)
         return smiles, torch.tensor(scores), torch.tensor(prior_likelihood)
 
@@ -193,6 +206,5 @@ def collate_fn(arr):
     max_length = max([seq.size(0) for seq in arr])
     collated_arr = torch.zeros(len(arr), max_length)
     for i, seq in enumerate(arr):
-        collated_arr[i, :seq.size(0)] = seq
+        collated_arr[i, : seq.size(0)] = seq
     return collated_arr
-

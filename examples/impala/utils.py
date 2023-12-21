@@ -1,24 +1,26 @@
-import torch
 import random
 import warnings
-import numpy as np
-from rdkit import Chem
 from pathlib import Path
+
+import numpy as np
+import torch
+from rdkit import Chem
 
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+from torchrl.envs import ExplorationType, TensorDictPrimer
 
 from torchrl.modules import (
-    MLP,
-    GRUModule,
-    ValueOperator,
     ActorValueOperator,
+    GRUModule,
+    MLP,
     ProbabilisticActor,
+    ValueOperator,
 )
-from torchrl.envs import ExplorationType, TensorDictPrimer
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 ## Models #############################################################################################################
+
 
 class Embed(torch.nn.Module):
     """Implements a simple embedding layer."""
@@ -128,35 +130,35 @@ def create_shared_impala_models(vocabulary_size, batch_size, ckpt=None):
     actor_training.load_state_dict(ckpt)
 
     primers = {
-        ('recurrent_state',):
-            UnboundedContinuousTensorSpec(
-                shape=torch.Size([batch_size, 3, 512]),
-                dtype=torch.float32,
-            ),
+        ("recurrent_state",): UnboundedContinuousTensorSpec(
+            shape=torch.Size([batch_size, 3, 512]),
+            dtype=torch.float32,
+        ),
     }
     transform = TensorDictPrimer(primers)
 
     return actor_inference, actor_training, critic_inference, critic_training, transform
 
+
 def adapt_impala_ckpt(ckpt):
     """Adapt the IMPALA ckpt from the AceGen ckpt format."""
 
     keys_mapping = {
-        'embedding.weight': "module.0.module.0.module._embedding.weight",
-        'gru_1.weight_ih': "module.0.module.1.gru.weight_ih_l0",
-        'gru_1.weight_hh': "module.0.module.1.gru.weight_hh_l0",
-        'gru_1.bias_ih': "module.0.module.1.gru.bias_ih_l0",
-        'gru_1.bias_hh': "module.0.module.1.gru.bias_hh_l0",
-        'gru_2.weight_ih': "module.0.module.1.gru.weight_ih_l1",
-        'gru_2.weight_hh': "module.0.module.1.gru.weight_hh_l1",
-        'gru_2.bias_ih': "module.0.module.1.gru.bias_ih_l1",
-        'gru_2.bias_hh': "module.0.module.1.gru.bias_hh_l1",
-        'gru_3.weight_ih': "module.0.module.1.gru.weight_ih_l2",
-        'gru_3.weight_hh': "module.0.module.1.gru.weight_hh_l2",
-        'gru_3.bias_ih': "module.0.module.1.gru.bias_ih_l2",
-        'gru_3.bias_hh': "module.0.module.1.gru.bias_hh_l2",
-        'linear.weight': "module.1.module.0.weight",
-        'linear.bias': "module.1.module.0.bias",
+        "embedding.weight": "module.0.module.0.module._embedding.weight",
+        "gru_1.weight_ih": "module.0.module.1.gru.weight_ih_l0",
+        "gru_1.weight_hh": "module.0.module.1.gru.weight_hh_l0",
+        "gru_1.bias_ih": "module.0.module.1.gru.bias_ih_l0",
+        "gru_1.bias_hh": "module.0.module.1.gru.bias_hh_l0",
+        "gru_2.weight_ih": "module.0.module.1.gru.weight_ih_l1",
+        "gru_2.weight_hh": "module.0.module.1.gru.weight_hh_l1",
+        "gru_2.bias_ih": "module.0.module.1.gru.bias_ih_l1",
+        "gru_2.bias_hh": "module.0.module.1.gru.bias_hh_l1",
+        "gru_3.weight_ih": "module.0.module.1.gru.weight_ih_l2",
+        "gru_3.weight_hh": "module.0.module.1.gru.weight_hh_l2",
+        "gru_3.bias_ih": "module.0.module.1.gru.bias_ih_l2",
+        "gru_3.bias_hh": "module.0.module.1.gru.bias_hh_l2",
+        "linear.weight": "module.1.module.0.weight",
+        "linear.bias": "module.1.module.0.bias",
     }
 
     new_ckpt = {}
@@ -165,11 +167,13 @@ def adapt_impala_ckpt(ckpt):
 
     return new_ckpt
 
+
 ## Replay buffer #######################################################################################################
+
 
 class Experience(object):
     """Class for prioritized experience replay that remembers the highest scored sequences
-       seen and samples from them with probabilities relative to their scores."""
+    seen and samples from them with probabilities relative to their scores."""
 
     def __init__(self, voc, max_size=100):
         self.memory = []
@@ -188,34 +192,45 @@ class Experience(object):
                     smiles.append(exp[0])
             self.memory = [self.memory[idx] for idx in idxs]
             self.memory.sort(key=lambda x: x[1], reverse=True)
-            self.memory = self.memory[:self.max_size]
+            self.memory = self.memory[: self.max_size]
 
     def sample(self, n, decode_smiles=True):
         """Sample a batch size n of experience"""
         if len(self.memory) < n:
-            raise IndexError('Size of memory ({}) is less than requested sample ({})'.format(len(self), n))
+            raise IndexError(
+                "Size of memory ({}) is less than requested sample ({})".format(
+                    len(self), n
+                )
+            )
         else:
             scores = [x[1].item() + 1e-10 for x in self.memory]
-            sample = np.random.choice(len(self), size=n, replace=False, p=scores/np.sum(scores))
+            sample = np.random.choice(
+                len(self), size=n, replace=False, p=scores / np.sum(scores)
+            )
             sample = [self.memory[i] for i in sample]
             smiles = [x[0] for x in sample]
             scores = [x[1] for x in sample]
             prior_likelihood = [x[2] for x in sample]
         if decode_smiles:
-            encoded = [torch.tensor(self.voc.encode(smile), dtype=torch.int32) for smile in smiles]
+            encoded = [
+                torch.tensor(self.voc.encode(smile), dtype=torch.int32)
+                for smile in smiles
+            ]
             smiles = collate_fn(encoded)
         return smiles, torch.tensor(scores), torch.tensor(prior_likelihood)
 
     def __len__(self):
         return len(self.memory)
 
+
 def collate_fn(arr):
     """Function to take a list of encoded sequences and turn them into a batch"""
     max_length = max([seq.size(0) for seq in arr])
     collated_arr = torch.zeros(len(arr), max_length)
     for i, seq in enumerate(arr):
-        collated_arr[i, :seq.size(0)] = seq
+        collated_arr[i, : seq.size(0)] = seq
     return collated_arr
+
 
 def create_batch_from_replay_smiles(replay_smiles, replay_rewards, device, vocabulary):
     """Create a TensorDict data batch from replay data."""

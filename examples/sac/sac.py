@@ -1,37 +1,48 @@
-import os
-import tqdm
-import yaml
-import json
-import hydra
-import shutil
-import random
-import logging
 import datetime
-import numpy as np
+import json
+import logging
+import os
+import random
+import shutil
 from copy import deepcopy
 from pathlib import Path
-from omegaconf import OmegaConf
-from molscore.manager import MolScore
+
+import hydra
+import numpy as np
 
 import torch
-from torch.distributions.kl import kl_divergence
+import tqdm
+import yaml
+
+from acegen import (
+    BurnInTransform,
+    MultiStepDeNovoEnv,
+    PenaliseRepeatedSMILES,
+    SMILESReward,
+    SMILESVocabulary,
+)
+from molscore.manager import MolScore
+from omegaconf import OmegaConf
 from tensordict import TensorDict
+from torch.distributions.kl import kl_divergence
+from torchrl.collectors import SyncDataCollector
+from torchrl.data import (
+    LazyMemmapStorage,
+    TensorDictPrioritizedReplayBuffer,
+    TensorDictReplayBuffer,
+)
+from torchrl.data.replay_buffers.samplers import RandomSampler
 
 from torchrl.envs import (
     CatFrames,
     InitTracker,
+    RandomCropTensorDict,
     StepCounter,
     TransformedEnv,
     UnsqueezeTransform,
-    RandomCropTensorDict,
 )
-from torchrl.collectors import SyncDataCollector
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
-from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer, TensorDictPrioritizedReplayBuffer
-from torchrl.data.replay_buffers.samplers import RandomSampler
 from torchrl.record.loggers import get_logger
-
-from acegen import SMILESVocabulary, MultiStepDeNovoEnv, SMILESReward, PenaliseRepeatedSMILES, BurnInTransform
 from utils import create_sac_models
 
 
@@ -46,7 +57,7 @@ def main(cfg: "DictConfig"):
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
     os.makedirs(save_dir)
-    with open(Path(save_dir) / "config.yaml", 'w') as yaml_file:
+    with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
@@ -57,10 +68,16 @@ def main(cfg: "DictConfig"):
     torch.manual_seed(int(seed))
 
     # Get available device
-    device = torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
+    device = (
+        torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
+    )
 
     # Environment
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent_vocabulary.txt"
+    ckpt = (
+        Path(__file__).resolve().parent.parent.parent
+        / "priors"
+        / "reinvent_vocabulary.txt"
+    )
     vocabulary = SMILESVocabulary(ckpt)
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
@@ -75,9 +92,18 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    ckpt = torch.load(Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt")
-    (actor_inference, actor_training, critic_inference, critic_training, *transforms
-     ) = create_sac_models(vocabulary_size=len(vocabulary), batch_size=cfg.num_envs, ckpt=ckpt)
+    ckpt = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+    )
+    (
+        actor_inference,
+        actor_training,
+        critic_inference,
+        critic_training,
+        *transforms,
+    ) = create_sac_models(
+        vocabulary_size=len(vocabulary), batch_size=cfg.num_envs, ckpt=ckpt
+    )
 
     # TODO: check inputs and outputs of models are correct
 
@@ -93,10 +119,21 @@ def main(cfg: "DictConfig"):
         """Create a single RL smiles_environments."""
         env = MultiStepDeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(UnsqueezeTransform(in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1))
+        env.append_transform(
+            UnsqueezeTransform(
+                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
+            )
+        )
         env.append_transform(
             CatFrames(
-                N=100, dim=-1, padding="constant", in_keys=["observation"], out_keys=["SMILES"], padding_value=-1))
+                N=100,
+                dim=-1,
+                padding="constant",
+                in_keys=["observation"],
+                out_keys=["SMILES"],
+                padding_value=-1,
+            )
+        )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for transform in transforms:
@@ -108,9 +145,9 @@ def main(cfg: "DictConfig"):
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, 'r'))
-    data['output_dir'] = save_dir
-    json.dump(data, open(cfg.molscore, 'w'), indent=4)
+    data = json.load(open(cfg.molscore, "r"))
+    data["output_dir"] = save_dir
+    json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
     scoring = MolScore(model_name="sac", task_config=cfg.molscore)
@@ -118,7 +155,9 @@ def main(cfg: "DictConfig"):
     scoring_function = scoring.score
 
     # Create reward transform
-    rew_transform = SMILESReward(reward_function=scoring_function, vocabulary=vocabulary)
+    rew_transform = SMILESReward(
+        reward_function=scoring_function, vocabulary=vocabulary
+    )
 
     # Collector
     ####################################################################################################################
@@ -152,8 +191,12 @@ def main(cfg: "DictConfig"):
     # Buffer
     ####################################################################################################################
 
-    crop_seq = RandomCropTensorDict(sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1)
-    burn_in = BurnInTransform(rnn_modules=(actor_training, critic_training), burn_in=cfg.burn_in)
+    crop_seq = RandomCropTensorDict(
+        sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1
+    )
+    burn_in = BurnInTransform(
+        rnn_modules=(actor_training, critic_training), burn_in=cfg.burn_in
+    )
     # buffer = TensorDictReplayBuffer(
     #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
     #     batch_size=cfg.batch_size,
@@ -167,7 +210,6 @@ def main(cfg: "DictConfig"):
         prefetch=3,
         batch_size=cfg.batch_size,
         priority_key="loss_qvalue",
-
     )
     # buffer.append_transform(crop_seq)
     # buffer.append_transform(burn_in)
@@ -188,7 +230,10 @@ def main(cfg: "DictConfig"):
     logger = None
     if cfg.logger_backend:
         logger = get_logger(
-            cfg.logger_backend, logger_name="sac", experiment_name=cfg.agent_name, project_name=cfg.experiment_name
+            cfg.logger_backend,
+            logger_name="sac",
+            experiment_name=cfg.agent_name,
+            project_name=cfg.experiment_name,
         )
 
     # Training loop
@@ -260,9 +305,7 @@ def main(cfg: "DictConfig"):
             log_info = {}
             batch = buffer.sample()
             if batch.device != device:
-                batch = batch.to(
-                    device, non_blocking=True
-                )
+                batch = batch.to(device, non_blocking=True)
             else:
                 batch = batch.clone()
 
@@ -279,24 +322,31 @@ def main(cfg: "DictConfig"):
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
                 log_info.update({f"train/kl_div": kl_div.detach().item()})
-                log_info.update({f"train/loss_actor": loss["loss_actor"].detach().item()})
-                log_info.update({f"train/loss_alpha": loss["loss_alpha"].detach().item()})
+                log_info.update(
+                    {f"train/loss_actor": loss["loss_actor"].detach().item()}
+                )
+                log_info.update(
+                    {f"train/loss_alpha": loss["loss_alpha"].detach().item()}
+                )
 
             loss_sum.backward()
-            torch.nn.utils.clip_grad_norm_(loss_module.parameters(), max_norm=max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(
+                loss_module.parameters(), max_norm=max_grad_norm
+            )
             optim.step()
             optim.zero_grad()
 
             target_net_updater.step()
             num_updates += 1
-            buffer.update_priority(index=batch.get("index"), priority=batch.get("td_error"))
+            buffer.update_priority(
+                index=batch.get("index"), priority=batch.get("td_error")
+            )
 
             if logger:
                 for key, value in log_info.items():
                     logger.log_scalar(key, value, collected_frames)
 
         collector.update_policy_weights_()
-
 
     collector.shutdown()
     print("Success!")
