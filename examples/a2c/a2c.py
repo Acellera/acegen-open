@@ -15,11 +15,13 @@ import torch
 import tqdm
 import yaml
 from acegen import (
-    MultiStepDeNovoEnv as DeNovoEnv,
+    MultiStepSMILESEnv as DeNovoEnv,
     PenaliseRepeatedSMILES,
     SMILESReward,
     SMILESVocabulary,
 )
+from acegen.experience_replay.replay_buffer import Experience
+from acegen.models import adapt_state_dict, create_gru_actor_critic
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from tensordict import TensorDict
@@ -27,18 +29,19 @@ from torch.distributions.kl import kl_divergence
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
     CatFrames,
     InitTracker,
     StepCounter,
+    TensorDictPrimer,
     TransformedEnv,
     UnsqueezeTransform,
 )
 from torchrl.objectives import A2CLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
-from utils import create_batch_from_replay_smiles, create_shared_a2c_models, Experience
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -72,31 +75,50 @@ def main(cfg: "DictConfig"):
         / "priors"
         / "reinvent_vocabulary.txt"
     )
-    vocabulary = SMILESVocabulary(ckpt)
+    with open(ckpt, "r") as f:
+        tokens = f.read().splitlines()
+    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
 
     # Models
     ####################################################################################################################
 
+    # Create GRU model
+    (
+        actor_training,
+        actor_inference,
+        critic_training,
+        critic_inference,
+    ) = create_gru_actor_critic(vocabulary_size=len(vocabulary))
+
+    # Load pretrained weights
     ckpt = torch.load(
         Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
     )
-    (
-        actor_inference,
-        actor_training,
-        critic_inference,
-        critic_training,
-        *transforms,
-    ) = create_shared_a2c_models(
-        vocabulary_size=len(vocabulary), ckpt=ckpt, batch_size=cfg.num_envs
+    actor_inference.load_state_dict(
+        adapt_state_dict(ckpt, actor_inference.state_dict())
     )
-
+    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
+
+    # Define prior
     prior = deepcopy(actor_training)
 
     # Environment
     ####################################################################################################################
+
+    # TODO: don't hardcode it or will break! get it from the actor spec for example
+    # Create transform to populate initial tensordict with recurrent states equal to 0.0
+    num_layers = 3
+    hidden_size = 512
+    primers = {
+        ("recurrent_state",): UnboundedContinuousTensorSpec(
+            shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+            dtype=torch.float32,
+        ),
+    }
+    rhs_primer = TensorDictPrimer(primers)
 
     env_kwargs = {
         "start_token": vocabulary.vocab["GO"],
@@ -127,9 +149,11 @@ def main(cfg: "DictConfig"):
         )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        for transform in transforms:
-            env.append_transform(transform)
+        env.append_transform(rhs_primer)
         return env
+
+    # Scoring transform - more efficient to do it outside the environment
+    ####################################################################################################################
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -138,7 +162,7 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="a2c", task_config=cfg.molscore)
+    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
