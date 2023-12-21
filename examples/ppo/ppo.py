@@ -14,7 +14,7 @@ import torch
 import tqdm
 import yaml
 from acegen import (
-    MultiStepDeNovoEnv as DeNovoEnv,
+    MultiStepSMILESEnv as DeNovoEnv,
     PenaliseRepeatedSMILES,
     SMILESReward,
     SMILESVocabulary,
@@ -75,7 +75,9 @@ def main(cfg: "DictConfig"):
         / "priors"
         / "reinvent_vocabulary.txt"
     )
-    vocabulary = SMILESVocabulary(ckpt)
+    with open(ckpt, "r") as f:
+        tokens = f.read().splitlines()
+    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
 
     # Models
     ####################################################################################################################

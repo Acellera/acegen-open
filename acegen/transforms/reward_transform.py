@@ -4,7 +4,7 @@ import torch
 from tensordict import TensorDictBase
 from torchrl.envs.transforms.transforms import Transform
 
-from acegen.vocabulary.vocabulary_old import DeNovoVocabulary
+from acegen.vocabulary.base import Vocabulary
 
 
 class SMILESReward(Transform):
@@ -21,7 +21,7 @@ class SMILESReward(Transform):
     def __init__(
         self,
         reward_function: Callable,
-        vocabulary: DeNovoVocabulary,
+        vocabulary: Vocabulary,
         in_keys=None,
         out_keys=None,
         reward_scale=1.0,
