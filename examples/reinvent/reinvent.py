@@ -151,23 +151,14 @@ def main(cfg: "DictConfig"):
 
         data = env.step(model(env.reset()))
 
-        import ipdb
-
-        ipdb.set_trace()
-        data = rew_transform(data)
-
         log_info = {}
         frames_in_batch = data.numel()
         total_done += data.get(("next", "done")).sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Calculate reward
-        smiles_list = []
-        for index, seq in enumerate(data.get("action")):
-            smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
-            smiles_list.append(smiles)
-        score = torch.tensor(scoring_function(smiles_list), device=device)
+        # Compute reward
+        data = rew_transform(data)
 
         # Identify unique sequences
         arr = data.get("action").cpu().numpy()
@@ -177,7 +168,7 @@ def main(cfg: "DictConfig"):
         _, idxs = np.unique(arr_, return_index=True)
         unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
         data = data[unique_idxs]
-        score = score[unique_idxs]
+        score = data.get(("next", "reward")).squeeze(-1)
 
         # Compute loss
         seqs = data.get("action")
@@ -213,6 +204,10 @@ def main(cfg: "DictConfig"):
 
         # Then add new experience to replay buffer
         if cfg.experience_replay is True:
+            smiles_list = []
+            for index, seq in enumerate(data.get("action")):
+                smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
+                smiles_list.append(smiles)
             new_experience = zip(
                 smiles_list, score.cpu().numpy(), prior_likelihood.cpu().numpy()
             )
