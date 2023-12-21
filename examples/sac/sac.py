@@ -16,14 +16,19 @@ import yaml
 
 from acegen import (
     BurnInTransform,
-    MultiStepDeNovoEnv,
+    MultiStepSMILESEnv,
     PenaliseRepeatedSMILES,
     SMILESReward,
     SMILESVocabulary,
 )
+from acegen.models import (
+    adapt_state_dict,
+    create_gru_actor,
+    create_gru_actor_critic,
+    create_gru_critic,
+)
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
-from tensordict import TensorDict
 from torch.distributions.kl import kl_divergence
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import (
@@ -31,19 +36,20 @@ from torchrl.data import (
     TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
-from torchrl.data.replay_buffers.samplers import RandomSampler
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
     CatFrames,
     InitTracker,
     RandomCropTensorDict,
     StepCounter,
+    TensorDictPrimer,
     TransformedEnv,
     UnsqueezeTransform,
 )
+from torchrl.modules.distributions import OneHotCategorical
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
 from torchrl.record.loggers import get_logger
-from utils import create_sac_models
 
 
 logging.basicConfig(level=logging.WARNING)
@@ -72,40 +78,58 @@ def main(cfg: "DictConfig"):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Environment
+    # Load Vocabulary
     ckpt = (
         Path(__file__).resolve().parent.parent.parent
         / "priors"
         / "reinvent_vocabulary.txt"
     )
-    vocabulary = SMILESVocabulary(ckpt)
-    env_kwargs = {
-        "start_token": vocabulary.vocab["GO"],
-        "end_token": vocabulary.vocab["EOS"],
-        "length_vocabulary": len(vocabulary),
-        "batch_size": cfg.num_envs,
-        "device": device,
-        "max_length": 80,
-        "one_hot_action_encoding": True,
-    }
+    with open(ckpt, "r") as f:
+        tokens = f.read().splitlines()
+    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
 
     # Models
     ####################################################################################################################
 
+    # Create GRU model
+    if cfg.shared_nets:
+        (
+            actor_training,
+            actor_inference,
+            critic_training,
+            critic_inference,
+        ) = create_gru_actor_critic(
+            vocabulary_size=len(vocabulary),
+            distribution_class=OneHotCategorical,
+            critic_value_per_action=True,
+        )
+    else:
+        actor_training, actor_inference = create_gru_actor(
+            len(vocabulary), distribution_class=OneHotCategorical
+        )
+        critic_training, critic_inference = create_gru_critic(
+            len(vocabulary), critic_value_per_action=True
+        )
+
+    # Load pretrained weights
     ckpt = torch.load(
         Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
     )
-    (
-        actor_inference,
-        actor_training,
-        critic_inference,
-        critic_training,
-        *transforms,
-    ) = create_sac_models(
-        vocabulary_size=len(vocabulary), batch_size=cfg.num_envs, ckpt=ckpt
+    actor_inference.load_state_dict(
+        adapt_state_dict(ckpt, actor_inference.state_dict())
     )
+    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
+    actor_inference = actor_inference.to(device)
+    actor_training = actor_training.to(device)
+    critic_training = critic_training.to(device)
 
-    # TODO: check inputs and outputs of models are correct
+    # Load weights
+    actor_inference.load_state_dict(
+        adapt_state_dict(ckpt, actor_inference.state_dict())
+    )
+    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
+    # critic_inference.load_state_dict(adapt_state_dict(ckpt, critic_inference.state_dict()))
+    # critic_training.load_state_dict(adapt_state_dict(ckpt, critic_training.state_dict()))
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -115,9 +139,48 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
+    # Create transform to populate initial tensordict with recurrent states equal to 0.0
+    num_layers = 3
+    hidden_size = 512
+    if cfg.shared_nets:
+        primers = {
+            ("recurrent_state",): UnboundedContinuousTensorSpec(
+                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                dtype=torch.float32,
+            ),
+        }
+        rhs_primers = [TensorDictPrimer(primers)]
+    else:
+        actor_primers = {
+            ("recurrent_state_actor",): UnboundedContinuousTensorSpec(
+                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                dtype=torch.float32,
+            ),
+        }
+        critic_primers = {
+            ("recurrent_state_critic",): UnboundedContinuousTensorSpec(
+                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                dtype=torch.float32,
+            ),
+        }
+        rhs_primers = [
+            TensorDictPrimer(actor_primers),
+            TensorDictPrimer(critic_primers),
+        ]
+
+    env_kwargs = {
+        "start_token": vocabulary.vocab[vocabulary.start_token],
+        "end_token": vocabulary.vocab[vocabulary.end_token],
+        "length_vocabulary": len(vocabulary),
+        "batch_size": cfg.num_envs,
+        "device": device,
+        "max_length": 80,
+        "one_hot_action_encoding": True,
+    }
+
     def create_env_fn():
         """Create a single RL rl_environments."""
-        env = MultiStepDeNovoEnv(**env_kwargs)
+        env = MultiStepSMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
             UnsqueezeTransform(
@@ -136,12 +199,16 @@ def main(cfg: "DictConfig"):
         )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        for transform in transforms:
-            env.append_transform(transform)
+        for rhs_primer in rhs_primers:
+            env.append_transform(rhs_primer)
         return env
 
-    # tests env
-    test_env = MultiStepDeNovoEnv(**env_kwargs)
+        # tests env
+
+    test_env = MultiStepSMILESEnv(**env_kwargs)
+
+    # Scoring transform - more efficient to do it outside the environment
+    ####################################################################################################################
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -150,7 +217,7 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="sac", task_config=cfg.molscore)
+    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 

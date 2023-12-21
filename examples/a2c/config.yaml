@@ -21,7 +21,7 @@ eps: 1.0e-08
 weight_decay: 1.0e-08
 
 
-# IMPALA configuration
+# A2C configuration
 gamma: 0.999
 lmbda: 0.95
 critic_coef: 0.5

@@ -120,8 +120,8 @@ def main(cfg: "DictConfig"):
     rhs_primer = TensorDictPrimer(primers)
 
     env_kwargs = {
-        "start_token": vocabulary.start_token,
-        "end_token": vocabulary.end_token,
+        "start_token": vocabulary.vocab[vocabulary.start_token],
+        "end_token": vocabulary.vocab[vocabulary.end_token],
         "length_vocabulary": len(vocabulary),
         "batch_size": 1,
         "device": device,
