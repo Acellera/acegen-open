@@ -4,7 +4,9 @@ import torch
 from tensordict.tensordict import TensorDict, TensorDictBase
 from torchrl.data import (
     CompositeSpec,
+    DiscreteTensorSpec,
     MultiDiscreteTensorSpec,
+    OneHotDiscreteTensorSpec,
     UnboundedContinuousTensorSpec,
 )
 from torchrl.data.utils import DEVICE_TYPING
@@ -71,11 +73,11 @@ class SingleStepSMILESEnv(EnvBase):
             start_obs = torch.zeros(
                 batch_size, length_vocabulary, device=self.device, dtype=torch.int32
             )
-            start_obs[:, self.start_token - 1] = 1
+            start_obs[:, self.start_token] = 1
         else:
             start_obs = (
-                torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
-                * self.start_token
+                    torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
+                    * self.start_token
             )
 
         self._reset_tensordict = TensorDict(
@@ -112,17 +114,20 @@ class SingleStepSMILESEnv(EnvBase):
         torch.manual_seed(seed)
 
     def _set_specs(self) -> None:
+        obs_spec = (
+            OneHotDiscreteTensorSpec
+            if self.one_hot_obs_encoding
+            else DiscreteTensorSpec
+        )
         self.observation_spec = CompositeSpec(
             {
-                "observation": MultiDiscreteTensorSpec(
-                    nvec=torch.ones(self.num_envs) * self.length_vocabulary,
-                    shape=torch.Size([self.num_envs]),
-                    device=self.device,
+                "observation": obs_spec(
+                    n=self.length_vocabulary,
                     dtype=torch.int32,
+                    device=self.device,
                 ),
-            },
-            shape=torch.Size([self.num_envs]),
-        )
+            }
+        ).expand(self.num_envs)
         self.action_spec = CompositeSpec(
             {
                 "action": MultiDiscreteTensorSpec(

@@ -87,7 +87,6 @@ def test_single_step_smiles_env(
         one_hot_action_encoding=one_hot_action_encoding,
         one_hot_obs_encoding=one_hot_obs_encoding,
     )
-    import ipdb; ipdb.set_trace()
     policy = RandomPolicy(env.action_spec)
     td = env.reset()
     if one_hot_obs_encoding:
