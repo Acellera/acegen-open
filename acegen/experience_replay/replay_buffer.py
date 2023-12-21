@@ -4,8 +4,11 @@ from tensordict import TensorDict
 
 
 class Experience(object):
-    """Class for prioritized experience replay that remembers the highest scored sequences
-    seen and samples from them with probabilities relative to their scores."""
+    """Class for prioritized experience replay.
+
+    This class remembers the highest scored sequences seen and samples
+    from them with probabilities relative to their scores.
+    """
 
     def __init__(self, voc, max_size=100):
         self.memory = []
@@ -13,7 +16,7 @@ class Experience(object):
         self.voc = voc
 
     def add_experience(self, experience):
-        """Experience should be a list of (smiles, score, prior likelihood) tuples"""
+        """Experience should be a list of (smiles, score, prior likelihood) tuples."""
         self.memory.extend(experience)
         if len(self.memory) > self.max_size:
             # Remove duplicates
@@ -27,7 +30,7 @@ class Experience(object):
             self.memory = self.memory[: self.max_size]
 
     def sample_smiles(self, n, decode_smiles=False):
-        """Sample a batch size n of experience"""
+        """Sample a batch size n of experience."""
         if len(self.memory) < n:
             raise IndexError(
                 "Size of memory ({}) is less than requested sample ({})".format(
@@ -53,7 +56,6 @@ class Experience(object):
 
     def sample_replay_batch(self, batch_size, decode_smiles=False, device="cpu"):
         """Create a TensorDict data batch from replay data."""
-
         replay_smiles, replay_rewards, _ = self.sample_smiles(batch_size, decode_smiles)
 
         td_list = []
@@ -133,7 +135,7 @@ class Experience(object):
 
 
 def collate_fn(arr):
-    """Function to take a list of encoded sequences and turn them into a batch"""
+    """Function to take a list of encoded sequences and turn them into a batch."""
     max_length = max([seq.size(0) for seq in arr])
     collated_arr = torch.zeros(len(arr), max_length)
     for i, seq in enumerate(arr):

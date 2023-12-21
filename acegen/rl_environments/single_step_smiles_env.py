@@ -6,8 +6,8 @@ from torchrl.data import (
     CompositeSpec,
     DiscreteTensorSpec,
     MultiDiscreteTensorSpec,
-    OneHotDiscreteTensorSpec,
     MultiOneHotDiscreteTensorSpec,
+    OneHotDiscreteTensorSpec,
     UnboundedContinuousTensorSpec,
 )
 from torchrl.data.utils import DEVICE_TYPING
@@ -77,8 +77,8 @@ class SingleStepSMILESEnv(EnvBase):
             start_obs[:, self.start_token] = 1
         else:
             start_obs = (
-                    torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
-                    * self.start_token
+                torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
+                * self.start_token
             )
 
         self._reset_tensordict = TensorDict(
@@ -133,7 +133,7 @@ class SingleStepSMILESEnv(EnvBase):
         if self.one_hot_action_encoding:
             action_spec = MultiOneHotDiscreteTensorSpec(
                 nvec=[self.length_vocabulary],
-                shape=[self.num_envs,self.max_length, self.length_vocabulary],
+                shape=[self.num_envs, self.max_length, self.length_vocabulary],
                 device=self.device,
                 dtype=torch.int32,
             )

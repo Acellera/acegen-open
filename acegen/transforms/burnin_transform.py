@@ -3,6 +3,8 @@ from torchrl.envs import Transform
 
 
 class BurnInTransform(Transform):
+    """Transform to burn in the recurrent state of an RNN."""
+
     def __init__(self, rnn_modules, burn_in):
         super().__init__()
         self.rnn_modules = rnn_modules

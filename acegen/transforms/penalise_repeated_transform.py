@@ -5,6 +5,17 @@ from torchrl.envs.transforms.transforms import Transform
 
 
 class PenaliseRepeatedSMILES(Transform):
+    """Penalise repeated smiles and add unique smiles to the diversity buffer.
+
+    Args:
+        check_duplicate_key: The key in the tensordict that contains the smiles.
+        in_key: The key in the tensordict that contains the reward.
+        out_key: The key in the tensordict to store the penalised reward.
+        penalty: The penalty to apply to the reward.
+        device: The device to store the diversity buffer on.
+        max_tracked_smiles: number of SMILES to track for repetition checking.
+    """
+
     def __init__(
         self,
         check_duplicate_key,
@@ -14,16 +25,6 @@ class PenaliseRepeatedSMILES(Transform):
         device=None,
         max_tracked_smiles=10_000,
     ):
-        """Penalise repeated smiles and add unique smiles to the diversity buffer.
-
-        Args:
-            check_duplicate_key: The key in the tensordict that contains the smiles.
-            in_key: The key in the tensordict that contains the reward.
-            out_key: The key in the tensordict to store the penalised reward.
-            penalty: The penalty to apply to the reward.
-            device: The device to store the diversity buffer on.
-            max_tracked_smiles: number of SMILES to track for repetition checking..
-        """
         self.penalty = penalty
         self.check_duplicate_key = check_duplicate_key
         self._repeated_smiles = 0

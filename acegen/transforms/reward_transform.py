@@ -8,6 +8,16 @@ from acegen.vocabulary.vocabulary_old import DeNovoVocabulary
 
 
 class SMILESReward(Transform):
+    """Transform to add a reward to a SMILES.
+
+    Args:
+        reward_function: A callable that takes a list of SMILES and returns a list of rewards.
+        vocabulary: A vocabulary object.
+        in_keys: The key in the tensordict that contains the smiles.
+        out_keys: The key in the tensordict to store the reward.
+        reward_scale: The scale to apply to the reward.
+    """
+
     def __init__(
         self,
         reward_function: Callable,
@@ -47,7 +57,7 @@ class SMILESReward(Transform):
 
         # Get smiles as strings
         smiles_list = []
-        for i, smi in enumerate(smiles):
+        for smi in smiles:
             smiles_list.append(
                 self.vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1])
             )
