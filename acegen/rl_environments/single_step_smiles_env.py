@@ -12,6 +12,34 @@ from torchrl.envs import EnvBase
 
 
 class SingleStepSMILESEnv(EnvBase):
+    """Reinforcement learning environment for SMILES generation.
+
+    Given a start token, end token, and length of vocabulary, this environment generates SMILES strings
+    in a single step. Reset provides a start token, and step expects the rest of the SMILES string as an
+    action.
+
+    Args:
+        start_token (int): Start token for SMILES.
+        end_token (int): End token for SMILES.
+        length_vocabulary (int): Length of vocabulary.
+        max_length (int, optional): Maximum length of SMILES. Defaults to 140.
+        device (DEVICE_TYPING, optional): Device to use. Defaults to None.
+        batch_size (int, optional): number of SMILES to generate in parallel. Defaults to 1.
+        one_hot_action_encoding (bool, optional): Whether to use one-hot encoding for actions. Defaults to False.
+        one_hot_obs_encoding (bool, optional): Whether to use one-hot encoding for observations. Defaults to False.
+
+    Examples:
+        >>> from acegen.rl_environments import MultiStepSMILESEnv
+        >>> env = SingleStepSMILESEnv(
+        ...     start_token=0,
+        ...     end_token=1,
+        ...     length_vocabulary=2,
+        ...     max_length=10,
+        ...     batch_size=2,
+        ... )
+        >>> obs = env.reset()
+    """
+
     def __init__(
         self,
         start_token: int,

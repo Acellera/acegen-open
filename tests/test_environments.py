@@ -1,7 +1,7 @@
 import pytest
 import torch
-from acegen.smiles_environments.multi_step_smiles_env import MultiStepSMILESEnv
-from acegen.smiles_environments.single_step_smiles_env import SingleStepSMILESEnv
+from acegen.rl_environments.multi_step_smiles_env import MultiStepSMILESEnv
+from acegen.rl_environments.single_step_smiles_env import SingleStepSMILESEnv
 from tests.utils import get_default_devices
 from torchrl.collectors import RandomPolicy
 from torchrl.envs.utils import step_mdp
