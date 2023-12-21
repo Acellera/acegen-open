@@ -50,9 +50,6 @@ class SMILESReward(Transform):
         if len(done) == 0:
             return tensordict
 
-        # td_next = tensordict.get("next")
-        # done = td_next.get("done").squeeze(-1)
-
         sub_tensordict = tensordict.get_sub_tensordict(done)
 
         # Get reward and smiles

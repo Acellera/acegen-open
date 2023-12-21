@@ -59,12 +59,14 @@ def test_reward_transform(
         batch_size,
         sequence_length,
         max_smiles_length,
-        (in_key,),
-        (out_key,),
+        in_key,
+        out_key,
     )
-    reward_transform = SMILESReward(dummy_reward_function, vocabulary)
+    reward_transform = SMILESReward(
+        dummy_reward_function, vocabulary, in_keys=[in_key], out_keys=[out_key]
+    )
     data = reward_transform(data)
-    assert out_key in data.keys()
+    assert out_key in data.keys(include_nested=True)
     done = data.get(("next", "done")).squeeze(-1)
-    assert done[done].get(out_key).sum().item() == done.sum().item()
-    assert done[~done].get(out_key).sum().item() == 0.0
+    assert data[done].get(out_key).sum().item() == done.sum().item()
+    assert data[~done].get(out_key).sum().item() == 0.0
