@@ -11,29 +11,33 @@ class SMILESTokenizer(Tokenizer):
     Deals with the tokenization and untokenization of SMILES.
     """
 
+    def __init__(self, start_token: str = "GO", end_token: str = "EOS"):
+        self.start_token = start_token
+        self.end_token = end_token
+
     def tokenize(self, smiles: str) -> list[str]:
         """Takes a SMILES and return a list of characters/tokens."""
         regex = "(\[[^\[\]]{1,6}\])"
         smiles = replace_halogen(smiles)
         char_list = re.split(regex, smiles)
         tokenized = []
-        tokenized.append("GO")
+        tokenized.append(self.start_token)
         for char in char_list:
             if char.startswith("["):
                 tokenized.append(char)
             else:
                 chars = list(char)
                 [tokenized.append(unit) for unit in chars]
-        tokenized.append("EOS")
+        tokenized.append(self.end_token)
         return tokenized
 
     def untokenize(self, tokens):
         """Untokenizes a SMILES string."""
         smi = ""
         for i, token in enumerate(tokens):
-            if token == "$":
+            if token == self.end_token:
                 break
-            if token == "^" and i == 0:
+            if token == self.start_token and i == 0:
                 continue
             smi += token
         return smi
@@ -50,14 +54,14 @@ class SMILESVocabulary(Vocabulary):
     ):
         self.start_token = start_token
         self.end_token = end_token
-        self.special_tokens = [start_token, end_token]
+        self.special_tokens = [end_token, start_token]
         self.additional_chars = set()
         self.chars = self.special_tokens
         self.vocab_size = len(self.chars)
         self.vocab = dict(zip(self.chars, range(len(self.chars))))
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}
         self.max_length = max_length
-        self.tokenizer = SMILESTokenizer()
+        self.tokenizer = SMILESTokenizer(self.start_token, self.end_token)
 
     def encode(self, smiles):
         """Takes a list of characters (eg '[NH]') and encodes to array of indices."""
@@ -85,7 +89,7 @@ class SMILESVocabulary(Vocabulary):
     def add_characters(self, chars):
         """Adds characters to the vocabulary."""
         for char in chars:
-            self.additional_chars.add(char)
+            self.additional_chars.update(char)
         char_list = list(self.additional_chars)
         char_list.sort()
         self.chars = char_list + self.special_tokens
@@ -112,7 +116,7 @@ class SMILESVocabulary(Vocabulary):
         vocabulary = cls()
         tokens = set()
         for smi in smiles_list:
-            tokens.update(vocabulary.tokenizer.tokenize(smi, with_begin_and_end=False))
+            tokens.update(vocabulary.tokenizer.tokenize(smi))
         vocabulary = cls()
         vocabulary.add_characters(sorted(tokens))
         return vocabulary
