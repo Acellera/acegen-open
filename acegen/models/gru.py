@@ -160,7 +160,6 @@ def create_gru_critic(
     dropout: float = 0.0,
     critic_value_per_action=False,
     in_key: str = "observation",
-    out_key: str = "action_value",
     recurrent_state: str = "recurrent_state_critic",
 ):
     """Create one GRU-based critic model for inference and one for training.
@@ -174,7 +173,6 @@ def create_gru_critic(
         critic_value_per_action (bool): Whether the critic should output a
             value per action or a single value.
         in_key (Union[str, List[str]]): The input key name.
-        out_key (Union[str, List[str]]): The output key name.
         recurrent_state (str): The name of the recurrent state.
 
     Example:
@@ -183,6 +181,7 @@ def create_gru_critic(
     ```
     """
     output_size = vocabulary_size if critic_value_per_action else 1
+    out_key = "action_value" if critic_value_per_action else "state_value"
 
     embedding, gru, head = create_gru_components(
         vocabulary_size,

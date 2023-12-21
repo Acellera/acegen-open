@@ -7,7 +7,6 @@ import shutil
 from copy import deepcopy
 from pathlib import Path
 
-import acegen
 import hydra
 import numpy as np
 
@@ -320,32 +319,23 @@ def main(cfg: "DictConfig"):
             ("next", "SMILES"),
         )
 
-        # Add data from the replay buffer
-        if num_updates % cfg.replay_frequency == 0:
-            if (
-                experience_replay_buffer is not None
-                and len(experience_replay_buffer) > 10
-            ):
-                data = data.exclude(
-                    "advantage", "state_value", "value_target", ("next", "state_value")
+        if experience_replay_buffer is not None and len(experience_replay_buffer) > 20:
+            to_cat = [data.clone()]
+            for _ in range(cfg.replay_batches):
+                # TODO: fix, dont loop, sample a real batch from the replay buffer!!
+                replay_batch = experience_replay_buffer.sample_replay_batch(
+                    batch_size=20, device=device
                 )
-                for _ in range(cfg.replay_batches):
-                    row = random.randint(0, cfg.num_envs - 1)
-                    (
-                        exp_seqs,
-                        exp_reward,
-                        exp_prior_likelihood,
-                    ) = experience_replay_buffer.sample(10, decode_smiles=False)
-                    replay_batch = create_batch_from_replay_smiles(
-                        exp_seqs, exp_reward, device, vocabulary=vocabulary
-                    )
-                    data[row] = replay_batch[0, : data.shape[1]]
+                to_cat.append(replay_batch[..., 0 : data.shape[1]])
+            extended_data = torch.cat(to_cat)
+        else:
+            extended_data = data
 
         # Compute advantage - only once or per mini-batch?
         with torch.no_grad():
-            data = adv_module(data)
+            extended_data = adv_module(extended_data)
 
-        buffer.extend(data)
+        buffer.extend(extended_data)
 
         for j, batch in enumerate(buffer):
 
