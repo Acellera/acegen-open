@@ -58,6 +58,9 @@ class SMILESReward(Transform):
 
         # Get smiles as strings
         smiles_list = []
+        import ipdb
+
+        ipdb.set_trace()
         for smi in smiles:
             smiles_list.append(
                 self.vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1])

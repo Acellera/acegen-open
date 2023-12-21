@@ -12,8 +12,8 @@ from tests.utils import get_default_devices
 def generate_valid_data_batch(
     vocabulary_size: int, batch_size: int, sequence_length: int
 ):
-    tokens = torch.randint(0, vocabulary_size, (batch_size, sequence_length + 1, 1))
-    done = torch.randint(0, 2, (batch_size, sequence_length + 1, 1))
+    tokens = torch.randint(0, vocabulary_size, (batch_size, sequence_length + 1))
+    done = torch.randint(0, 2, (batch_size, sequence_length + 1, 1), dtype=torch.bool)
     batch = TensorDict(
         {
             "observation": tokens[:, :-1],
@@ -22,7 +22,7 @@ def generate_valid_data_batch(
             "next": TensorDict(
                 {
                     "observation": tokens[:, 1:],
-                    "done": done[:, 0:-1],
+                    "done": done[:, :-1],
                 },
                 batch_size=[batch_size, sequence_length],
             ),
