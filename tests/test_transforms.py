@@ -42,19 +42,18 @@ def generate_valid_data_batch(
     return batch
 
 
-def test_reward_transform():
+@pytest.mark.parametrize("batch_size", [2])
+@pytest.mark.parametrize("sequence_length", [5])
+@pytest.mark.parametrize("max_smiles_length", [10])
+def test_reward_transform(batch_size, sequence_length, max_smiles_length):
     vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
-    data = generate_valid_data_batch(len(vocabulary))
+    data = generate_valid_data_batch(
+        len(vocabulary), batch_size, sequence_length, max_smiles_length
+    )
     reward_transform = SMILESReward(dummy_reward_function, vocabulary)
-    import ipdb
-
-    ipdb.set_trace()
     data = reward_transform(data)
-    import ipdb
-
-    ipdb.set_trace()
-    assert "reward" in data.keys()
+    assert "reward" in data.get("next").keys()
     data_next = data.get("next")
     done = data_next.get("done").squeeze(-1)
-    sub_tensordict_done = data_next.get_sub_tensordict(done)
-    sub_tensordict_not_done = data_next.get_sub_tensordict(~done)
+    assert data_next[done].get("reward").sum().item() == done.sum().item()
+    assert data_next[~done].get("reward").sum().item() == 0.0
