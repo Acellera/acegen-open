@@ -12,11 +12,11 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen import SingleStepDeNovoEnv, SMILESVocabulary
+
+from acegen import SingleStepSMILESEnv, SMILESReward, SMILESVocabulary
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from torchrl.record.loggers import get_logger
-
 from utils import create_reinvent_model, Experience
 
 logging.basicConfig(level=logging.WARNING)
@@ -57,34 +57,15 @@ def main(cfg: "DictConfig"):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Create tests rl_environments to get action specs
+    # Load Vocabulary
     ckpt = (
         Path(__file__).resolve().parent.parent.parent
         / "priors"
         / "reinvent_vocabulary.txt"
     )
-    vocabulary = SMILESVocabulary(ckpt)
-
-    # Save molscore output. Also redirect output to save_dir
-    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, "r"))
-    data["output_dir"] = save_dir
-    json.dump(data, open(cfg.molscore, "w"), indent=4)
-
-    # Create scoring function
-    scoring = MolScore(model_name="reinvent", task_config=cfg.molscore)
-    scoring.configs["save_dir"] = save_dir
-    scoring_function = scoring.score
-
-    env_kwargs = {
-        "start_token": vocabulary.vocab["GO"],
-        "end_token": vocabulary.vocab["EOS"],
-        "length_vocabulary": len(vocabulary),
-        "vocabulary": vocabulary,
-        "reward_function": scoring_function,
-        "batch_size": cfg.num_envs,
-        "device": device,
-    }
+    with open(ckpt, "r") as f:
+        tokens = f.read().splitlines()
+    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
 
     # Models
     ####################################################################################################################
@@ -98,10 +79,37 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
+    env_kwargs = {
+        "start_token": vocabulary.vocab[vocabulary.start_token],
+        "end_token": vocabulary.vocab[vocabulary.end_token],
+        "length_vocabulary": len(vocabulary),
+        "batch_size": cfg.num_envs,
+        "device": device,
+    }
+
     def create_env_fn():
         """Create a single RL rl_environments."""
-        env = SingleStepDeNovoEnv(**env_kwargs)
+        env = SingleStepSMILESEnv(**env_kwargs)
         return env
+
+    # Scoring transform - more efficient to do it outside the environment
+    ####################################################################################################################
+
+    # Save molscore output. Also redirect output to save_dir
+    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+    data = json.load(open(cfg.molscore, "r"))
+    data["output_dir"] = save_dir
+    json.dump(data, open(cfg.molscore, "w"), indent=4)
+
+    # Create scoring function
+    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
+    scoring.configs["save_dir"] = save_dir
+    scoring_function = scoring.score
+
+    # Create reward transform
+    rew_transform = SMILESReward(
+        reward_function=scoring_function, vocabulary=vocabulary, in_keys=["action"]
+    )
 
     # Replay buffer
     ####################################################################################################################
@@ -142,6 +150,11 @@ def main(cfg: "DictConfig"):
     while collected_frames < cfg.total_frames:
 
         data = env.step(model(env.reset()))
+
+        import ipdb
+
+        ipdb.set_trace()
+        data = rew_transform(data)
 
         log_info = {}
         frames_in_batch = data.numel()

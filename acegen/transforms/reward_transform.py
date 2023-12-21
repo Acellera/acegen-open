@@ -31,9 +31,9 @@ class SMILESReward(Transform):
             raise ValueError("reward_function must be a callable.")
 
         if out_keys is None:
-            out_keys = ["reward"]
+            out_keys = [("next", "reward")]
         if in_keys is None:
-            in_keys = ["SMILES"]
+            in_keys = [("next", "SMILES")]
         self.reward_scale = reward_scale
 
         super().__init__(in_keys, out_keys)
@@ -45,15 +45,18 @@ class SMILESReward(Transform):
 
         # Get steps where trajectories end
         device = tensordict.device
-        td_next = tensordict.get("next")
-        done = td_next.get("done").squeeze(-1)
-        sub_tensordict = td_next.get_sub_tensordict(done)
+        done = tensordict.get(("next", "done")).squeeze(-1)
 
-        if len(sub_tensordict) == 0:
+        if len(done) == 0:
             return tensordict
 
+        # td_next = tensordict.get("next")
+        # done = td_next.get("done").squeeze(-1)
+
+        sub_tensordict = tensordict.get_sub_tensordict(done)
+
         # Get reward and smiles
-        reward = sub_tensordict.get("reward")
+        reward = sub_tensordict.get(self.out_keys[0])
         smiles = sub_tensordict.get(self.in_keys[0])
 
         # Get smiles as strings
@@ -82,6 +85,6 @@ class SMILESReward(Transform):
                     )
                     continue
 
-        sub_tensordict.set("reward", reward * self.reward_scale, inplace=True)
+        sub_tensordict.set(self.out_keys[0], reward * self.reward_scale, inplace=True)
 
         return tensordict
