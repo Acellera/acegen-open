@@ -310,8 +310,9 @@ if __name__ == "__main__":
                                     list_num_tokens
                                 ),
                                 "pretrain_avg_entropy": np.mean(list_entropy),
-                                "pretrain_valid_molecules": valid_molecules
-                                / total_molecules,
+                                "pretrain_valid_molecules": (
+                                    valid_molecules / total_molecules
+                                ),
                                 "pretrain_ratio_repeated": ratio_repeated,
                             }
                         )

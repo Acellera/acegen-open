@@ -51,11 +51,9 @@ class SMILESTokenizer:
 class Vocabulary(Protocol):
     """An interface for handling encoding/decoding from SMILES to an array of indices"""
 
-    def encode(self, smiles: list[str]) -> np.ndarray:
-        ...
+    def encode(self, smiles: list[str]) -> np.ndarray: ...
 
-    def decode(self, vocab_index: np.ndarray, ignore_indices=[]) -> list[str]:
-        ...
+    def decode(self, vocab_index: np.ndarray, ignore_indices=[]) -> list[str]: ...
 
 
 class SMILESVocabulary(Vocabulary):

@@ -248,8 +248,9 @@ def main(cfg: "DictConfig"):
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
                     "train/q_values": data["chosen_action_value"].mean().item(),
-                    "train/episode_length": episode_length.sum().item()
-                    / len(episode_length),
+                    "train/episode_length": episode_length.sum().item() / len(
+                        episode_length
+                    ),
                 }
             )
 
