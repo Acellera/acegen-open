@@ -14,7 +14,7 @@ import torch
 import tqdm
 import yaml
 from acegen import (
-    MultiStepDeNovoEnv as DeNovoEnv,
+    MultiStepSMILESEnv as DeNovoEnv,
     PenaliseRepeatedSMILES,
     SMILESReward,
     SMILESVocabulary,
@@ -41,11 +41,6 @@ from torchrl.envs import (
 from torchrl.objectives import A2CLoss
 from torchrl.objectives.value.advantages import VTrace
 from torchrl.record.loggers import get_logger
-from utils import (
-    create_batch_from_replay_smiles,
-    create_shared_impala_models,
-    Experience,
-)
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -118,17 +113,17 @@ def main(cfg: "DictConfig"):
     hidden_size = 512
     primers = {
         ("recurrent_state",): UnboundedContinuousTensorSpec(
-            shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+            shape=torch.Size([1, num_layers, hidden_size]),
             dtype=torch.float32,
         ),
     }
     rhs_primer = TensorDictPrimer(primers)
 
     env_kwargs = {
-        "start_token": vocabulary.vocab["GO"],
-        "end_token": vocabulary.vocab["EOS"],
+        "start_token": vocabulary.start_token,
+        "end_token": vocabulary.end_token,
         "length_vocabulary": len(vocabulary),
-        "batch_size": cfg.num_envs,
+        "batch_size": 1,
         "device": device,
     }
 
@@ -366,34 +361,6 @@ def main(cfg: "DictConfig"):
             for batch in buffer:
 
                 batch = batch.to(device, non_blocking=True)
-
-                if num_updates % cfg.replay_frequency == 0:
-                    if (
-                        experience_replay_buffer is not None
-                        and len(experience_replay_buffer) > 10
-                    ):
-                        batch = batch.exclude(
-                            "advantage",
-                            "state_value",
-                            "value_target",
-                            ("next", "state_value"),
-                        )
-                        for _ in range(cfg.replay_batches):
-                            row = random.randint(0, cfg.batch_size - 1)
-                            (
-                                exp_seqs,
-                                exp_reward,
-                                exp_prior_likelihood,
-                            ) = experience_replay_buffer.sample(6, decode_smiles=False)
-                            replay_batch = create_batch_from_replay_smiles(
-                                exp_seqs, exp_reward, device, vocabulary=vocabulary
-                            )
-                            batch[row] = replay_batch[0, 0 : cfg.frames_per_batch]
-
-                # Compute advantage
-                with torch.no_grad():
-                    batch = adv_module(batch)
-
                 loss = loss_module(batch)
                 loss_sum = (
                     loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]

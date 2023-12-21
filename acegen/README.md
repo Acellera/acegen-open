@@ -4,12 +4,12 @@
 
 We provide 2 types of environments for reinforcement learning:
     
-    single step: SingleStepDeNovoEnv
+    single step: SingleStepSMILESEnv
         - each episode lasts for a single step
         - reset provides a initial token as observation
         - step expects a sequence of tokens anding with a final token as action
 
-    multi step: MultiStepDeNovoEnv
+    multi step: MultiStepSMILESEnv
         - each episode lasts for a sequence of steps
         - reset provides a initial token as observation
         - each step expects a single token as action, and returns a single token as observation (the previous action)

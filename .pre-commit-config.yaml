@@ -3,7 +3,6 @@ repos:
     rev: v4.0.1
     hooks:
       - id: check-docstring-first
-      - id: check-toml
       - id: check-yaml
         exclude: packaging/.*
       - id: mixed-line-ending

@@ -82,10 +82,6 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    import ipdb
-
-    ipdb.set_trace()
-
     # Create GRU model
     (
         actor_training,
@@ -125,8 +121,8 @@ def main(cfg: "DictConfig"):
     rhs_primer = TensorDictPrimer(primers)
 
     env_kwargs = {
-        "start_token": vocabulary.vocab["GO"],
-        "end_token": vocabulary.vocab["EOS"],
+        "start_token": vocabulary.start_token,
+        "end_token": vocabulary.end_token,
         "length_vocabulary": len(vocabulary),
         "batch_size": cfg.num_envs,
         "device": device,
