@@ -7,6 +7,7 @@ from torchrl.data import (
     DiscreteTensorSpec,
     MultiDiscreteTensorSpec,
     OneHotDiscreteTensorSpec,
+    MultiOneHotDiscreteTensorSpec,
     UnboundedContinuousTensorSpec,
 )
 from torchrl.data.utils import DEVICE_TYPING
@@ -128,17 +129,30 @@ class SingleStepSMILESEnv(EnvBase):
                 ),
             }
         ).expand(self.num_envs)
+        import ipdb; ipdb.set_trace()
+
+        if self.one_hot_action_encoding:
+            action_spec = MultiOneHotDiscreteTensorSpec(
+                nvec=[self.length_vocabulary],
+                shape=[self.num_envs,self.max_length, self.length_vocabulary],
+                device=self.device,
+                dtype=torch.int32,
+            )
+        else:
+            action_spec = MultiDiscreteTensorSpec(
+                nvec=[self.length_vocabulary],
+                shape=torch.Size([self.num_envs, self.max_length]),
+                device=self.device,
+                dtype=torch.int32,
+            )
+
         self.action_spec = CompositeSpec(
             {
-                "action": MultiDiscreteTensorSpec(
-                    nvec=self.max_length * [self.length_vocabulary],
-                    shape=torch.Size([self.num_envs, self.max_length]),
-                    device=self.device,
-                    dtype=torch.int32,
-                ),
+                "action": action_spec,
             },
-            shape=torch.Size([self.num_envs, self.max_length]),
+            # shape=torch.Size([self.num_envs, self.max_length]),
         )
+
         self.reward_spec = CompositeSpec(
             {
                 "reward": UnboundedContinuousTensorSpec(
