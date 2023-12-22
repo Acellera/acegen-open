@@ -14,8 +14,6 @@ model: reinvent
 
 # Collector configuration
 total_frames: 12800
-frames_per_batch: 64
-
 
 # Reinforce configuration
 lr: 0.0005

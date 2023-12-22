@@ -88,7 +88,7 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL rl_environments."""
+        """Create a single RL env."""
         env = SingleStepSMILESEnv(**env_kwargs)
         return env
 

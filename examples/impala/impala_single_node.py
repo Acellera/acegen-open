@@ -13,14 +13,16 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen import (
-    MultiStepSMILESEnv as DeNovoEnv,
-    PenaliseRepeatedSMILES,
-    SMILESReward,
-    SMILESVocabulary,
-)
+from acegen.env import SMILESEnv
 from acegen.experience_replay.replay_buffer import Experience
-from acegen.models import adapt_state_dict, create_gru_actor_critic
+from acegen.models import (
+    adapt_state_dict,
+    create_gru_actor,
+    create_gru_actor_critic,
+    create_gru_critic,
+)
+from acegen.transforms import PenaliseRepeatedSMILES, SMILESReward
+from acegen.vocabulary import SMILESVocabulary
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from tensordict import TensorDict
@@ -150,8 +152,8 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL rl_environments."""
-        env = DeNovoEnv(**env_kwargs)
+        """Create a single RL env."""
+        env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
             UnsqueezeTransform(

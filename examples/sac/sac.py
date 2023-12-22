@@ -16,8 +16,8 @@ import yaml
 
 from acegen import (
     BurnInTransform,
-    MultiStepSMILESEnv,
     PenaliseRepeatedSMILES,
+    SMILESEnv,
     SMILESReward,
     SMILESVocabulary,
 )
@@ -179,8 +179,8 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL rl_environments."""
-        env = MultiStepSMILESEnv(**env_kwargs)
+        """Create a single RL env."""
+        env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
             UnsqueezeTransform(
@@ -205,7 +205,7 @@ def main(cfg: "DictConfig"):
 
         # tests env
 
-    test_env = MultiStepSMILESEnv(**env_kwargs)
+    test_env = SMILESEnv(**env_kwargs)
 
     # Scoring transform - more efficient to do it outside the environment
     ####################################################################################################################

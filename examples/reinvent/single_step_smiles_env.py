@@ -5,6 +5,8 @@ from tensordict.tensordict import TensorDict, TensorDictBase
 from torchrl.data import (
     CompositeSpec,
     DiscreteTensorSpec,
+    MultiDiscreteTensorSpec,
+    MultiOneHotDiscreteTensorSpec,
     OneHotDiscreteTensorSpec,
     UnboundedContinuousTensorSpec,
 )
@@ -12,12 +14,12 @@ from torchrl.data.utils import DEVICE_TYPING
 from torchrl.envs import EnvBase
 
 
-class MultiStepSMILESEnv(EnvBase):
+class SingleStepSMILESEnv(EnvBase):
     """Reinforcement learning environment for SMILES generation.
 
     Given a start token, end token, and length of vocabulary, this environment generates SMILES strings
-        step-by-step, one token at a time. The environment terminates when the end token is provided as
-        an action. The environment also terminates if the maximum length of the SMILES string is reached.
+    in a single step. Reset provides a start token, and step expects the rest of the SMILES string as an
+    action.
 
     Args:
         start_token (int): Start token for SMILES.
@@ -30,8 +32,8 @@ class MultiStepSMILESEnv(EnvBase):
         one_hot_obs_encoding (bool, optional): Whether to use one-hot encoding for observations. Defaults to False.
 
     Examples:
-        >>> from acegen.rl_environments import MultiStepSMILESEnv
-        >>> env = MultiStepSMILESEnv(
+        >>> from acegen.env import MultiStepSMILESEnv
+        >>> env = SingleStepSMILESEnv(
         ...     start_token=0,
         ...     end_token=1,
         ...     length_vocabulary=2,
@@ -88,44 +90,25 @@ class MultiStepSMILESEnv(EnvBase):
         self._set_specs()
 
     def _reset(self, tensordict: TensorDictBase, **kwargs) -> TensorDictBase:
-        if tensordict is not None:
-            next_tensordict = tensordict
-            next_tensordict.update(self._reset_tensordict.clone())
-        else:
-            next_tensordict = self._reset_tensordict.clone()
+        next_tensordict = self._reset_tensordict.clone()
         return next_tensordict
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
-        # Get actions
         actions = tensordict.get("action")
         if self.one_hot_action_encoding:
             actions = torch.argmax(actions, dim=-1)
-
-        # Update episode length
-        self.episode_length += 1
-
-        # Create termination flags
-        terminated = actions == self.end_token
-        truncated = self.episode_length == self.max_length
-        done = terminated | truncated
-        self.episode_length[done] = 1
-
-        # Create next_tensordict
-        obs = actions.clone().long()
-        if self.one_hot_obs_encoding:
-            obs = torch.nn.functional.one_hot(obs, num_classes=self.length_vocabulary)
+        reward = torch.zeros(self.num_envs, device=self.device)
+        done = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+        terminated = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         next_tensordict = TensorDict(
             {
                 "done": done,
-                "truncated": truncated,
                 "terminated": terminated,
-                "reward": torch.zeros(self.num_envs, device=self.device),
-                "observation": obs,
+                "reward": reward,
             },
             device=self.device,
             batch_size=self.batch_size,
         )
-        next_tensordict.update(tensordict.get("next", {}))
         return next_tensordict
 
     def _set_seed(self, seed: Optional[int] = -1) -> None:
@@ -146,26 +129,33 @@ class MultiStepSMILESEnv(EnvBase):
                 ),
             }
         ).expand(self.num_envs)
-        action_spec = (
-            OneHotDiscreteTensorSpec
-            if self.one_hot_action_encoding
-            else DiscreteTensorSpec
-        )
+
+        if self.one_hot_action_encoding:
+            action_spec = MultiOneHotDiscreteTensorSpec(
+                nvec=[self.length_vocabulary],
+                shape=[self.num_envs, self.max_length, self.length_vocabulary],
+                device=self.device,
+                dtype=torch.int32,
+            )
+        else:
+            action_spec = MultiDiscreteTensorSpec(
+                nvec=self.max_length * [self.length_vocabulary],
+                shape=torch.Size([self.num_envs, self.max_length]),
+                device=self.device,
+                dtype=torch.int32,
+            )
+
         self.action_spec = CompositeSpec(
             {
-                "action": action_spec(
-                    n=self.length_vocabulary,
-                    dtype=torch.int32,
-                    device=self.device,
-                )
-            }
-        ).expand(self.num_envs)
+                "action": action_spec,
+            },
+            shape=torch.Size([self.num_envs, self.max_length]),
+        )
+
         self.reward_spec = CompositeSpec(
             {
                 "reward": UnboundedContinuousTensorSpec(
-                    shape=(1,),
-                    dtype=torch.float32,
-                    device=self.device,
+                    shape=(1,), dtype=torch.float32, device=self.device
                 )
             }
         ).expand(self.num_envs)

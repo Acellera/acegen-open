@@ -11,13 +11,14 @@ import hydra
 import numpy as np
 
 import torch
+
+import torch.nn.functional as F
 import tqdm
 import yaml
-
-from acegen import MultiStepSMILESEnv, SMILESReward, SMILESVocabulary
-
+from acegen.env import sample_completed_smiles, SMILESEnv
 from acegen.models import adapt_state_dict, create_gru_actor
-from acegen.rl_environments import sample_completed_smiles
+from acegen.transforms import BurnInTransform, PenaliseRepeatedSMILES, SMILESReward
+from acegen.vocabulary import SMILESVocabulary
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
@@ -34,18 +35,6 @@ from torchrl.record.loggers import get_logger
 from utils import Experience
 
 logging.basicConfig(level=logging.WARNING)
-
-
-def unique(arr):
-    # Finds unique rows in arr and return their indices
-    arr = arr.cpu().numpy()
-    arr_ = np.ascontiguousarray(arr).view(
-        np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
-    )
-    _, idxs = np.unique(arr_, return_index=True)
-    if torch.cuda.is_available():
-        return torch.LongTensor(np.sort(idxs)).cuda()
-    return torch.LongTensor(np.sort(idxs))
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -84,11 +73,13 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
-    actor_training = create_gru_actor(len(vocabulary))
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
-    actor_training = actor_training.to(device)
-    prior = deepcopy(actor_training)
+    ckpt = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+    )
+    _, actor = create_gru_actor(len(vocabulary))
+    actor.load_state_dict(adapt_state_dict(ckpt, actor.state_dict()))
+    actor = actor.to(device)
+    prior = deepcopy(actor)
 
     # Environment
     ####################################################################################################################
@@ -96,7 +87,7 @@ def main(cfg: "DictConfig"):
     num_layers = 3
     hidden_size = 512
     primers = {
-        ("recurrent_state",): UnboundedContinuousTensorSpec(
+        ("recurrent_state_actor",): UnboundedContinuousTensorSpec(
             shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
             dtype=torch.float32,
         ),
@@ -112,7 +103,7 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL rl_environments."""
+        """Create a single RL env."""
         env = MultiStepSMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
@@ -152,7 +143,8 @@ def main(cfg: "DictConfig"):
 
     # Create reward transform
     rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary, in_keys=["action"]
+        reward_function=scoring_function,
+        vocabulary=vocabulary,
     )
 
     # Replay buffer
@@ -164,7 +156,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     optim = torch.optim.Adam(
-        actor_training.parameters(),
+        actor.parameters(),
         lr=cfg.lr,
         eps=cfg.eps,
         weight_decay=cfg.weight_decay,
@@ -187,26 +179,17 @@ def main(cfg: "DictConfig"):
 
     total_done = 0
     collected_frames = 0
-    pbar = tqdm.tqdm(total=cfg.total_frames)
     env = create_env_fn()
     sigma = cfg.sigma
+    frames_in_batch = cfg.num_envs
 
-    while collected_frames < cfg.total_frames:
+    for _ in tqdm.tqdm(range(0, cfg.total_frames, frames_in_batch)):
 
-        import ipdb
-
-        ipdb.set_trace()
-
-        data = sample_completed_smiles(
-            policy=actor_training, initial_observation=env.reset()
-        )
-        data = env.step(actor_training(env.reset()))
+        data = sample_completed_smiles(policy=actor, environment=env)
 
         log_info = {}
-        frames_in_batch = data.numel()
         total_done += data.get(("next", "done")).sum()
         collected_frames += frames_in_batch
-        pbar.update(data.numel())
 
         # Compute reward
         data = rew_transform(data)
@@ -219,13 +202,18 @@ def main(cfg: "DictConfig"):
         _, idxs = np.unique(arr_, return_index=True)
         unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
         data = data[unique_idxs]
-        score = data.get(("next", "reward")).squeeze(-1)
 
         # Compute loss
-        seqs = data.get("action")
-        agent_likelihood = data.get("log_probs")
         with torch.no_grad():
-            prior_likelihood = prior.likelihood(seqs)
+            prior_logits = prior(data.select(*prior.in_keys).clone()).get("logits")
+            prior_log_prob = F.log_softmax(prior_logits, dim=-1)
+            prior_log_prob = prior_log_prob.gather(
+                -1, data.get("action").unsqueeze(-1)
+            ).squeeze(-1)
+
+        agent_likelihood = data.get("sample_log_prob").sum(-1)
+        prior_likelihood = prior_log_prob.sum(-1)
+        score = data.get(("next", "reward")).squeeze(-1).sum(-1)
         augmented_likelihood = prior_likelihood + sigma * score
         loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
 
@@ -235,7 +223,7 @@ def main(cfg: "DictConfig"):
             exp_seqs = exp_seqs.to(device)
             exp_score = exp_score.to(device)
             exp_prior_likelihood = exp_prior_likelihood.to(device)
-            exp_agent_likelihood = actor_training.likelihood(exp_seqs.long())
+            exp_agent_likelihood = actor.likelihood(exp_seqs.long())
             exp_augmented_likelihood = exp_prior_likelihood + sigma * exp_score
             exp_loss = torch.pow((exp_augmented_likelihood - exp_agent_likelihood), 2)
             loss = torch.cat((loss, exp_loss), 0)
