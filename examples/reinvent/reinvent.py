@@ -14,6 +14,7 @@ import tqdm
 import yaml
 
 from acegen import SingleStepSMILESEnv, SMILESReward, SMILESVocabulary
+from acegen.rl_environments import sample_completed_smiles
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from torchrl.record.loggers import get_logger
@@ -149,6 +150,7 @@ def main(cfg: "DictConfig"):
 
     while collected_frames < cfg.total_frames:
 
+        data = sample_completed_smiles(policy=model, initial_observation=env.reset())
         data = env.step(model(env.reset()))
 
         log_info = {}

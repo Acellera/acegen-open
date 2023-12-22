@@ -15,6 +15,9 @@ total_frames: 1_000_000
 frames_per_batch: 60
 num_workers: 12
 
+# Architecture configuration
+shared_nets: False
+
 # Optimizer
 lr: 0.0005
 eps: 1.0e-08

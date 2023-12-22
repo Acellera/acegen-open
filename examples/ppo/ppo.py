@@ -20,7 +20,12 @@ from acegen import (
     SMILESVocabulary,
 )
 from acegen.experience_replay.replay_buffer import Experience
-from acegen.models import adapt_state_dict, create_gru_actor_critic
+from acegen.models import (
+    adapt_state_dict,
+    create_gru_actor,
+    create_gru_actor_critic,
+    create_gru_critic,
+)
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from tensordict import TensorDict
@@ -83,12 +88,16 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     # Create GRU model
-    (
-        actor_training,
-        actor_inference,
-        critic_training,
-        critic_inference,
-    ) = create_gru_actor_critic(vocabulary_size=len(vocabulary))
+    if cfg.shared_nets:
+        (
+            actor_training,
+            actor_inference,
+            critic_training,
+            critic_inference,
+        ) = create_gru_actor_critic(vocabulary_size=len(vocabulary))
+    else:
+        actor_training, actor_inference = create_gru_actor(len(vocabulary))
+        critic_training, critic_inference = create_gru_critic(len(vocabulary))
 
     # Load pretrained weights
     ckpt = torch.load(
@@ -112,13 +121,31 @@ def main(cfg: "DictConfig"):
     # Create transform to populate initial tensordict with recurrent states equal to 0.0
     num_layers = 3
     hidden_size = 512
-    primers = {
-        ("recurrent_state",): UnboundedContinuousTensorSpec(
-            shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
-            dtype=torch.float32,
-        ),
-    }
-    rhs_primer = TensorDictPrimer(primers)
+    if cfg.shared_nets:
+        primers = {
+            ("recurrent_state",): UnboundedContinuousTensorSpec(
+                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                dtype=torch.float32,
+            ),
+        }
+        rhs_primers = [TensorDictPrimer(primers)]
+    else:
+        actor_primers = {
+            ("recurrent_state_actor",): UnboundedContinuousTensorSpec(
+                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                dtype=torch.float32,
+            ),
+        }
+        critic_primers = {
+            ("recurrent_state_critic",): UnboundedContinuousTensorSpec(
+                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                dtype=torch.float32,
+            ),
+        }
+        rhs_primers = [
+            TensorDictPrimer(actor_primers),
+            TensorDictPrimer(critic_primers),
+        ]
 
     env_kwargs = {
         "start_token": vocabulary.vocab[vocabulary.start_token],
@@ -149,7 +176,8 @@ def main(cfg: "DictConfig"):
         )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        env.append_transform(rhs_primer)
+        for rhs_primer in rhs_primers:
+            env.append_transform(rhs_primer)
         return env
 
     # Scoring transform - more efficient to do it outside the environment

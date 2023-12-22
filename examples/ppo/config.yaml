@@ -15,6 +15,9 @@ repetition_penalty: 0.5
 total_frames: 1_000_000
 frames_per_batch: 3200
 
+# Architecture configuration
+shared_nets: False
+
 # PPO configuration
 lr: 0.0005
 eps: 1.0e-06
