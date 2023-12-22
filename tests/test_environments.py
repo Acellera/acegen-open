@@ -103,8 +103,5 @@ def test_sample_smiles(
     if finished.all():
         assert done.sum() >= batch_size
         assert done[mask].sum() == batch_size
-    import ipdb
-
-    ipdb.set_trace()
-    assert (action[done] == end_token).all()
+    assert (action[terminated] == end_token).all()
     # assert mask.sum() >= done.sum()
