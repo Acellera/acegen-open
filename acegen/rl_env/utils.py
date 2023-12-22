@@ -34,7 +34,9 @@ def sample_completed_smiles(
         exploration_type (ExplorationType, optional): Exploration type to use. Defaults to
         :class:`~torchrl.envs.utils.ExplorationType.RANDOM`.
     """
+    env_device = environment.device
     initial_observation = environment.reset()
+    batch_size = initial_observation.batch_size
 
     # Check that the initial observation contains the keys required by the policy
     if policy:
@@ -43,15 +45,12 @@ def sample_completed_smiles(
                 raise ValueError(
                     f"Key {key}, required by the policy, is missing in the provided initial_observation."
                 )
+        policy_device = policy.device
     else:
         policy = RandomPolicy(environment.action_spec)
+        policy_device = env_device
 
-    tensordict_device = initial_observation.device
-    policy_device = policy.device
-    batch_size = initial_observation.batch_size
     initial_observation = initial_observation.to(policy_device)
-
-    # Reset environment
     tensordict_ = initial_observation
     finished = torch.zeros(batch_size, dtype=torch.bool).unsqueeze(-1).to(policy_device)
 
@@ -61,10 +60,12 @@ def sample_completed_smiles(
 
             # Mask out finished environments
             mask = torch.logical_not(finished)
-            tensordict_.set("mask", mask)
+            tensordict_.set(("next", "mask"), mask)
 
             # Execute policy
+            tensordict_ = tensordict_.to(policy_device)
             policy(tensordict_)
+            tensordict_ = tensordict_.to(env_device)
 
             # Extend list of tensordicts
             tensordicts.append(tensordict_)
@@ -86,7 +87,10 @@ def sample_completed_smiles(
             if finished.all():
                 break
 
-    stacked_tensordicts = torch.stack(tensordicts, dim=-1)
-    stacked_tensordicts = stacked_tensordicts.to(tensordict_device)
+    if not finished.all():
+        tensordicts[-1][("next", "done")] = ~finished.clone()
+        tensordicts[-1][("next", "truncated")] = ~finished.clone()
 
-    return stacked_tensordicts
+    stack_data = torch.stack(tensordicts, dim=-1)
+
+    return stack_data

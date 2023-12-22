@@ -88,9 +88,23 @@ def test_sample_smiles(
         one_hot_action_encoding=one_hot_action_encoding,
         one_hot_obs_encoding=one_hot_obs_encoding,
     )
-    policy = RandomPolicy(env.action_spec)
-    policy.device = policy_device
-    smiles = sample_completed_smiles(env, policy, max_length=10)
+    smiles = sample_completed_smiles(env, policy=None, max_length=10)
+    terminated = smiles.get(("next", "terminated")).squeeze(-1)
+    done = smiles.get(("next", "done")).squeeze(-1)
+    finished = done.any(-1)
+    mask = smiles.get(("next", "mask")).squeeze(-1)
+    obs = smiles.get("observation")
+    if one_hot_obs_encoding:
+        obs = torch.argmax(obs, dim=-1)
+    action = smiles.get("action")
+    if one_hot_action_encoding:
+        action = torch.argmax(action, dim=-1)
+    assert (obs[..., 0] == start_token).all()
+    if finished.all():
+        assert done.sum() >= batch_size
+        assert done[mask].sum() == batch_size
     import ipdb
 
     ipdb.set_trace()
+    assert (action[done] == end_token).all()
+    # assert mask.sum() >= done.sum()

@@ -80,7 +80,18 @@ class SMILESEnv(EnvBase):
             )
 
         self._reset_tensordict = TensorDict(
-            {"observation": start_obs},
+            {
+                "observation": start_obs,
+                "done": torch.zeros(
+                    self.num_envs, 1, device=self.device, dtype=torch.bool
+                ),
+                "truncated": torch.zeros(
+                    self.num_envs, 1, device=self.device, dtype=torch.bool
+                ),
+                "terminated": torch.zeros(
+                    self.num_envs, 1, device=self.device, dtype=torch.bool
+                ),
+            },
             device=self.device,
             batch_size=self.batch_size,
         )
@@ -117,7 +128,7 @@ class SMILESEnv(EnvBase):
         next_tensordict = TensorDict(
             {
                 "done": done,
-                # "truncated": truncated,
+                "truncated": truncated,
                 "terminated": terminated,
                 "reward": torch.zeros(self.num_envs, device=self.device),
                 "observation": obs,
