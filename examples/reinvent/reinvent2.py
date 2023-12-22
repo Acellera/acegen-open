@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 import hydra
@@ -13,11 +14,24 @@ import torch
 import tqdm
 import yaml
 
-from acegen import SingleStepSMILESEnv, SMILESReward, SMILESVocabulary
+from acegen import MultiStepSMILESEnv, SMILESReward, SMILESVocabulary
+
+from acegen.models import adapt_state_dict, create_gru_actor
+from acegen.rl_environments import sample_completed_smiles
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+from torchrl.envs import (
+    CatFrames,
+    ExplorationType,
+    InitTracker,
+    StepCounter,
+    TensorDictPrimer,
+    TransformedEnv,
+    UnsqueezeTransform,
+)
 from torchrl.record.loggers import get_logger
-from utils import create_reinvent_model, Experience
+from utils import Experience
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -37,6 +51,12 @@ def unique(arr):
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
+    # Set seeds
+    seed = cfg.seed
+    random.seed(int(seed))
+    np.random.seed(int(seed))
+    torch.manual_seed(int(seed))
+
     # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
@@ -45,12 +65,6 @@ def main(cfg: "DictConfig"):
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
-
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
 
     # Get available device
     device = (
@@ -71,13 +85,23 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
-    prior = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
-    model = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
-    prior = prior.to(device)
-    model = model.to(device)
+    actor_training = create_gru_actor(len(vocabulary))
+    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
+    actor_training = actor_training.to(device)
+    prior = deepcopy(actor_training)
 
     # Environment
     ####################################################################################################################
+
+    num_layers = 3
+    hidden_size = 512
+    primers = {
+        ("recurrent_state",): UnboundedContinuousTensorSpec(
+            shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+            dtype=torch.float32,
+        ),
+    }
+    rhs_primers = [TensorDictPrimer(primers)]
 
     env_kwargs = {
         "start_token": vocabulary.vocab[vocabulary.start_token],
@@ -89,7 +113,27 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn():
         """Create a single RL rl_environments."""
-        env = SingleStepSMILESEnv(**env_kwargs)
+        env = MultiStepSMILESEnv(**env_kwargs)
+        env = TransformedEnv(env)
+        env.append_transform(
+            UnsqueezeTransform(
+                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
+            )
+        )
+        env.append_transform(
+            CatFrames(
+                N=100,
+                dim=-1,
+                padding="constant",
+                in_keys=["observation"],
+                out_keys=["SMILES"],
+                padding_value=-1,
+            )
+        )
+        env.append_transform(StepCounter())
+        env.append_transform(InitTracker())
+        for rhs_primer in rhs_primers:
+            env.append_transform(rhs_primer)
         return env
 
     # Scoring transform - more efficient to do it outside the environment
@@ -120,7 +164,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     optim = torch.optim.Adam(
-        model.parameters(),
+        actor_training.parameters(),
         lr=cfg.lr,
         eps=cfg.eps,
         weight_decay=cfg.weight_decay,
@@ -149,7 +193,14 @@ def main(cfg: "DictConfig"):
 
     while collected_frames < cfg.total_frames:
 
-        data = env.step(model(env.reset()))
+        import ipdb
+
+        ipdb.set_trace()
+
+        data = sample_completed_smiles(
+            policy=actor_training, initial_observation=env.reset()
+        )
+        data = env.step(actor_training(env.reset()))
 
         log_info = {}
         frames_in_batch = data.numel()
@@ -184,7 +235,7 @@ def main(cfg: "DictConfig"):
             exp_seqs = exp_seqs.to(device)
             exp_score = exp_score.to(device)
             exp_prior_likelihood = exp_prior_likelihood.to(device)
-            exp_agent_likelihood = model.likelihood(exp_seqs.long())
+            exp_agent_likelihood = actor_training.likelihood(exp_seqs.long())
             exp_augmented_likelihood = exp_prior_likelihood + sigma * exp_score
             exp_loss = torch.pow((exp_augmented_likelihood - exp_agent_likelihood), 2)
             loss = torch.cat((loss, exp_loss), 0)
