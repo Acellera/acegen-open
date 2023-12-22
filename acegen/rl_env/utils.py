@@ -38,8 +38,8 @@ def sample_completed_smiles(
     initial_observation = environment.reset()
     batch_size = initial_observation.batch_size
 
-    # Check that the initial observation contains the keys required by the policy
     if policy:
+        # Check that the initial observation contains the keys required by the policy
         for key in policy.in_keys:
             if key not in initial_observation.keys():
                 raise ValueError(

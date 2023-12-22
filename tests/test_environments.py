@@ -90,14 +90,12 @@ def test_sample_smiles(
     )
     smiles = sample_completed_smiles(env, policy=None, max_length=10)
     terminated = smiles.get(("next", "terminated")).squeeze(
-        -1
+        dim=-1
     )  # if max_length is reached is False
     truncated = smiles.get(("next", "truncated")).squeeze(
-        -1
+        dim=-1
     )  # if max_length is reached is True
-    done = smiles.get(("next", "done")).squeeze(
-        -1
-    )  # if max_length is reached if True (truncated)
+    done = smiles.get(("next", "done")).squeeze(dim=-1)
     assert ((terminated | truncated) == done).all()
     finished = done.any(-1)
     mask = smiles.get(("next", "mask")).squeeze(-1)
