@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/rl_env python3
 """
 Pretrain a GRU or LSTM model.
 """
@@ -16,11 +16,11 @@ import wandb
 
 from acegen.de_novo_design.ppo.dataset import DeNovoDataset, load_dataset
 from acegen.de_novo_design.ppo.train_rnn_model import get_args
-from acegen.env.de_novo.generative_chemistry_env_factory import (
+from acegen.networks.lstm import LstmNet
+from acegen.rl_env.de_novo.generative_chemistry_env_factory import (
     de_novo_train_env_factory,
 )
-from acegen.env.vocabulary import ReinventVocabulary
-from acegen.networks.lstm import LstmNet
+from acegen.rl_env.vocabulary import ReinventVocabulary
 from pytorchrl.agent.actors import OnPolicyActor
 from pytorchrl.agent.env import VecEnv
 from pytorchrl.utils import save_argparse
@@ -170,7 +170,7 @@ if __name__ == "__main__":
         collate_fn=dataset.collate_fn,
     )
 
-    # Define env
+    # Define rl_env
     test_env, action_space, obs_space = VecEnv.create_factory(
         env_fn=de_novo_train_env_factory,
         env_kwargs={

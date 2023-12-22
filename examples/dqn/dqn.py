@@ -109,7 +109,7 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL env."""
+        """Create a single RL rl_env."""
         env = MultiStepDeNovoEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(

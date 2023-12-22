@@ -15,8 +15,8 @@ import torch
 import torch.nn.functional as F
 import tqdm
 import yaml
-from acegen.env import sample_completed_smiles, SMILESEnv
 from acegen.models import adapt_state_dict, create_gru_actor
+from acegen.rl_env import sample_completed_smiles, SMILESEnv
 from acegen.transforms import BurnInTransform, PenaliseRepeatedSMILES, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
 from molscore.manager import MolScore
@@ -103,7 +103,7 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL env."""
+        """Create a single RL rl_env."""
         env = MultiStepSMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(

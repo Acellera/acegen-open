@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.env import SMILESEnv
 from acegen.experience_replay.replay_buffer import Experience
 from acegen.models import (
     adapt_state_dict,
@@ -21,6 +20,7 @@ from acegen.models import (
     create_gru_actor_critic,
     create_gru_critic,
 )
+from acegen.rl_env import SMILESEnv
 from acegen.transforms import PenaliseRepeatedSMILES, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
 from molscore.manager import MolScore
@@ -152,7 +152,7 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL env."""
+        """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(

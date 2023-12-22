@@ -179,7 +179,7 @@ def main(cfg: "DictConfig"):
     }
 
     def create_env_fn():
-        """Create a single RL env."""
+        """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
@@ -203,7 +203,7 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-        # tests env
+        # tests rl_env
 
     test_env = SMILESEnv(**env_kwargs)
 

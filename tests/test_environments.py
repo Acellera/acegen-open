@@ -1,7 +1,6 @@
 import pytest
 import torch
-from acegen.env.smiles_env import SMILESEnv
-from acegen.env.utils import sample_completed_smiles
+from acegen.rl_env import sample_completed_smiles, SMILESEnv
 from tests.utils import get_default_devices
 from torchrl.collectors import RandomPolicy
 from torchrl.envs.utils import step_mdp
@@ -14,7 +13,7 @@ from torchrl.envs.utils import step_mdp
 @pytest.mark.parametrize("batch_size", [2, 4])
 @pytest.mark.parametrize("one_hot_action_encoding", [False, True])
 @pytest.mark.parametrize("one_hot_obs_encoding", [False, True])
-def test_multi_step_smiles_env(
+def test_smiles_env(
     start_token,
     end_token,
     length_vocabulary,
@@ -92,3 +91,6 @@ def test_sample_smiles(
     policy = RandomPolicy(env.action_spec)
     policy.device = policy_device
     smiles = sample_completed_smiles(env, policy, max_length=10)
+    import ipdb
+
+    ipdb.set_trace()
