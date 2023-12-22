@@ -89,8 +89,16 @@ def test_sample_smiles(
         one_hot_obs_encoding=one_hot_obs_encoding,
     )
     smiles = sample_completed_smiles(env, policy=None, max_length=10)
-    terminated = smiles.get(("next", "terminated")).squeeze(-1)
-    done = smiles.get(("next", "done")).squeeze(-1)
+    terminated = smiles.get(("next", "terminated")).squeeze(
+        -1
+    )  # if max_length is reached is False
+    truncated = smiles.get(("next", "truncated")).squeeze(
+        -1
+    )  # if max_length is reached is True
+    done = smiles.get(("next", "done")).squeeze(
+        -1
+    )  # if max_length is reached if True (truncated)
+    assert ((terminated | truncated) == done).all()
     finished = done.any(-1)
     mask = smiles.get(("next", "mask")).squeeze(-1)
     obs = smiles.get("observation")
@@ -104,4 +112,3 @@ def test_sample_smiles(
         assert done.sum() >= batch_size
         assert done[mask].sum() == batch_size
     assert (action[terminated] == end_token).all()
-    # assert mask.sum() >= done.sum()
