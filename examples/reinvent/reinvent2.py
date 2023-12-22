@@ -104,7 +104,7 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn():
         """Create a single RL rl_env."""
-        env = MultiStepSMILESEnv(**env_kwargs)
+        env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
             UnsqueezeTransform(
@@ -203,7 +203,7 @@ def main(cfg: "DictConfig"):
         unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
         data = data[unique_idxs]
 
-        # Compute loss
+        # Compute prior likelihood
         with torch.no_grad():
             prior_logits = prior(data.select(*prior.in_keys).clone()).get("logits")
             prior_log_prob = F.log_softmax(prior_logits, dim=-1)
@@ -211,6 +211,7 @@ def main(cfg: "DictConfig"):
                 -1, data.get("action").unsqueeze(-1)
             ).squeeze(-1)
 
+        # Compute loss
         agent_likelihood = data.get("sample_log_prob").sum(-1)
         prior_likelihood = prior_log_prob.sum(-1)
         score = data.get(("next", "reward")).squeeze(-1).sum(-1)
