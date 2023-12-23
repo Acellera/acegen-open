@@ -88,6 +88,7 @@ class Experience(object):
             reward[0, -1] = rew
             done = torch.zeros(tensor_shape, device=device, dtype=torch.bool)
             terminated = done.clone()
+            truncated = done.clone()
             sample_log_prob = torch.zeros(tensor_shape, device=device).reshape(1, -1)
             is_init = torch.zeros(tensor_shape, device=device, dtype=torch.bool)
             is_init[0, 0] = True
@@ -108,6 +109,7 @@ class Experience(object):
                         "action": action,
                         "is_init": is_init,
                         "terminated": terminated,
+                        "truncated": truncated,
                         "observation": observation,
                         "sample_log_prob": sample_log_prob,
                         "recurrent_state": recurrent_states,

@@ -252,7 +252,7 @@ def main(cfg: "DictConfig"):
 
     experience_replay_buffer = None
     if cfg.experience_replay is True:
-        experience_replay_buffer = Experience(voc=vocabulary)
+        experience_replay_buffer = Experience(vocabulary)
 
     # Optimizer
     ####################################################################################################################
