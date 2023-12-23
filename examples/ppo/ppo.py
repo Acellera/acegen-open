@@ -319,7 +319,7 @@ def main(cfg: "DictConfig"):
         if penalty_transform is not None:
             data = penalty_transform(data)
             repeated_smiles = penalty_transform.repeated_smiles
-            episode_rewards = data["next", "reward"][data["next", "terminated"]]
+            episode_rewards = data["next", "reward"][data["next", "done"]]
             log_info.update(
                 {
                     "train/repeated_smiles": repeated_smiles,
