@@ -120,7 +120,7 @@ def main(cfg: "DictConfig"):
     if cfg.shared_nets:
         primers = {
             ("recurrent_state",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                shape=torch.Size([1, num_layers, hidden_size]),
                 dtype=torch.float32,
             ),
         }
@@ -128,13 +128,13 @@ def main(cfg: "DictConfig"):
     else:
         actor_primers = {
             ("recurrent_state_actor",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                shape=torch.Size([1, num_layers, hidden_size]),
                 dtype=torch.float32,
             ),
         }
         critic_primers = {
             ("recurrent_state_critic",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
+                shape=torch.Size([1, num_layers, hidden_size]),
                 dtype=torch.float32,
             ),
         }
@@ -147,7 +147,7 @@ def main(cfg: "DictConfig"):
         "start_token": vocabulary.vocab[vocabulary.start_token],
         "end_token": vocabulary.vocab[vocabulary.end_token],
         "length_vocabulary": len(vocabulary),
-        "batch_size": cfg.num_envs,
+        "batch_size": 1,
         "device": device,
     }
 
