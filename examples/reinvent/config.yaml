@@ -20,4 +20,4 @@ lr: 0.0005
 eps: 1.0e-08
 weight_decay: 0.0
 sigma: 500
-experience_replay: True
+experience_replay: False

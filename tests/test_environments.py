@@ -108,5 +108,5 @@ def test_sample_smiles(
     assert (obs[..., 0] == start_token).all()
     if finished.all():
         assert done.sum() >= batch_size
-        assert done[mask].sum() == batch_size
+        assert (done * mask).sum() == batch_size
     assert (action[terminated] == end_token).all()
