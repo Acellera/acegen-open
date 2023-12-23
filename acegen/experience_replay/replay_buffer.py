@@ -2,6 +2,8 @@ import numpy as np
 import torch
 from tensordict import TensorDict
 
+from acegen.vocabulary.base import Vocabulary
+
 
 class Experience(object):
     """Class for prioritized experience replay.
@@ -10,10 +12,10 @@ class Experience(object):
     from them with probabilities relative to their scores.
     """
 
-    def __init__(self, voc, max_size=100):
+    def __init__(self, vocabulary: Vocabulary, max_size: int = 100):
         self.memory = []
         self.max_size = max_size
-        self.voc = voc
+        self.voc = vocabulary
 
     def add_experience(self, experience):
         """Experience should be a list of (smiles, score, prior likelihood) tuples."""

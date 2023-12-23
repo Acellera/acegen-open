@@ -11,7 +11,6 @@ import hydra
 import numpy as np
 
 import torch
-
 import torch.nn.functional as F
 import tqdm
 import yaml
@@ -21,6 +20,8 @@ from acegen.transforms import BurnInTransform, PenaliseRepeatedSMILES, SMILESRew
 from acegen.vocabulary import SMILESVocabulary
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
+
+from tensordict import TensorDict
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 from torchrl.envs import (
     CatFrames,
@@ -203,7 +204,7 @@ def main(cfg: "DictConfig"):
         unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
         data = data[unique_idxs]
 
-        # Compute prior likelihood
+        # Compute prior log_probs
         with torch.no_grad():
             prior_logits = prior(data.select(*prior.in_keys).clone()).get("logits")
             prior_log_prob = F.log_softmax(prior_logits, dim=-1)
@@ -221,10 +222,20 @@ def main(cfg: "DictConfig"):
         # Compute experience replay loss
         if cfg.experience_replay and len(experience) > 4:
             exp_seqs, exp_score, exp_prior_likelihood = experience.sample(4)
-            exp_seqs = exp_seqs.to(device)
+            is_init = torch.zeros_like(exp_seqs, dtype=torch.bool).unsqueeze(-1)
+            is_init[:, 0] = True
+            replay_data = TensorDict(
+                {
+                    "observation": exp_seqs.unsqueeze(-1).long(),
+                    "is_init": is_init,
+                    "recurrent_state": torch.zeros(*exp_seqs.shape, 3, 512),
+                },
+                batch_size=exp_seqs.shape,
+                device=device,
+            )
             exp_score = exp_score.to(device)
             exp_prior_likelihood = exp_prior_likelihood.to(device)
-            exp_agent_likelihood = actor.likelihood(exp_seqs.long())
+            exp_agent_likelihood = actor(replay_data).get("sample_log_prob").sum(-1)
             exp_augmented_likelihood = exp_prior_likelihood + sigma * exp_score
             exp_loss = torch.pow((exp_augmented_likelihood - exp_agent_likelihood), 2)
             loss = torch.cat((loss, exp_loss), 0)

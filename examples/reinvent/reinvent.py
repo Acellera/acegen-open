@@ -13,9 +13,10 @@ import torch
 import tqdm
 import yaml
 
-from acegen import SingleStepSMILESEnv, SMILESReward, SMILESVocabulary
+from acegen import SMILESReward, SMILESVocabulary
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
+from single_step_smiles_env import SingleStepSMILESEnv
 from torchrl.record.loggers import get_logger
 from utils import create_reinvent_model, Experience
 

@@ -60,7 +60,7 @@ def sample_completed_smiles(
 
             # Mask out finished environments
             mask = torch.logical_not(finished)
-            tensordict_.set(("next", "mask"), mask)
+            tensordict_.set("mask", mask)
 
             # Execute policy
             tensordict_ = tensordict_.to(policy_device)
@@ -88,8 +88,11 @@ def sample_completed_smiles(
                 break
 
     if not finished.all():
-        tensordicts[-1][("next", "done")] = ~finished.clone()
         tensordicts[-1][("next", "truncated")] = ~finished.clone()
+        tensordicts[-1][("next", "done")] = (
+            tensordicts[-1][("next", "truncated")]
+            | tensordicts[-1][("next", "terminated")]
+        )
 
     stack_data = torch.stack(tensordicts, dim=-1)
 

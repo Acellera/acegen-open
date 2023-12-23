@@ -16,7 +16,7 @@ frames_per_batch: 60
 num_workers: 12
 
 # Architecture configuration
-shared_nets: False
+shared_nets: True
 
 # Optimizer
 lr: 0.0005

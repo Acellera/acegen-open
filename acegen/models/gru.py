@@ -136,8 +136,13 @@ def create_gru_actor(
         out_key,
         recurrent_state,
     )
-    policy_head = ProbabilisticActor(
-        module=head,
+    actor_inference_model = TensorDictSequential(embedding, gru, head)
+    actor_training_model = TensorDictSequential(
+        embedding, gru.set_recurrent_mode(True), head
+    )
+
+    actor_inference_model = ProbabilisticActor(
+        module=actor_inference_model,
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=distribution_class,
@@ -145,10 +150,15 @@ def create_gru_actor(
         default_interaction_type=ExplorationType.RANDOM,
     )
 
-    actor_inference_model = TensorDictSequential(embedding, gru, policy_head)
-    actor_training_model = TensorDictSequential(
-        embedding, gru.set_recurrent_mode(True), policy_head
+    actor_training_model = ProbabilisticActor(
+        module=actor_training_model,
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=distribution_class,
+        return_log_prob=return_log_prob,
+        default_interaction_type=ExplorationType.RANDOM,
     )
+
     return actor_training_model, actor_inference_model
 
 
