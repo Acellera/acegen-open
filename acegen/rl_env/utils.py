@@ -9,6 +9,7 @@ from torchrl.envs import EnvBase
 from torchrl.envs.utils import ExplorationType, step_mdp
 
 
+@torch.no_grad()
 def sample_completed_smiles(
     environment: EnvBase,
     policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]] = None,
@@ -95,5 +96,6 @@ def sample_completed_smiles(
         )
 
     stack_data = torch.stack(tensordicts, dim=-1)
+    stack_data["next"]["done"] = stack_data["next"]["done"] * stack_data["mask"]
 
     return stack_data

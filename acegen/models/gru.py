@@ -44,6 +44,7 @@ def create_gru_components(
     in_key: str = "observation",
     out_key: str = "logits",
     recurrent_state: str = "recurrent_state",
+    python_based: bool = False,
 ):
     """Create all GRU model components: embedding, GRU, and head.
 
@@ -60,6 +61,8 @@ def create_gru_components(
         in_key (str): The input key name.
         out_key (str): The output key name.
         recurrent_state (str): The name of the recurrent state.
+        python_based (bool): Whether to use the Python-based GRU module.
+            Default is False, a CuDNN-based GRU module is used.
 
     Example:
     ```python
@@ -78,6 +81,7 @@ def create_gru_components(
         num_layers=num_layers,
         in_keys=["embed", recurrent_state, "is_init"],
         out_keys=["features", ("next", recurrent_state)],
+        python_based=python_based,
     )
     head = TensorDictModule(
         MLP(
@@ -103,6 +107,7 @@ def create_gru_actor(
     in_key: str = "observation",
     out_key: str = "logits",
     recurrent_state: str = "recurrent_state_actor",
+    python_based: bool = False,
 ):
     """Create one GRU-based actor model for inference and one for training.
 
@@ -119,6 +124,8 @@ def create_gru_actor(
         in_key (str): The input key name.
         out_key (str):): The output key name.
         recurrent_state (str): The name of the recurrent state.
+        python_based (bool): Whether to use the Python-based GRU module.
+            Default is False, a CuDNN-based GRU module is used.
 
     Example:
     ```python
@@ -135,6 +142,7 @@ def create_gru_actor(
         in_key,
         out_key,
         recurrent_state,
+        python_based,
     )
     actor_inference_model = TensorDictSequential(embedding, gru, head)
     actor_training_model = TensorDictSequential(
@@ -171,6 +179,7 @@ def create_gru_critic(
     critic_value_per_action=False,
     in_key: str = "observation",
     recurrent_state: str = "recurrent_state_critic",
+    python_based: bool = False,
 ):
     """Create one GRU-based critic model for inference and one for training.
 
@@ -184,6 +193,8 @@ def create_gru_critic(
             value per action or a single value.
         in_key (Union[str, List[str]]): The input key name.
         recurrent_state (str): The name of the recurrent state.
+        python_based (bool): Whether to use the Python-based GRU module.
+            Default is False, a CuDNN-based GRU module is used.
 
     Example:
     ```python
@@ -203,6 +214,7 @@ def create_gru_critic(
         in_key,
         out_key,
         recurrent_state,
+        python_based,
     )
 
     critic_inference_model = TensorDictSequential(embedding, gru, head)
@@ -224,6 +236,7 @@ def create_gru_actor_critic(
     in_key: str = "observation",
     out_key: str = "logits",
     recurrent_state: str = "recurrent_state",
+    python_based: bool = False,
 ):
     """Create a GRU-based actor-critic model for inference and one for training.
 
@@ -242,6 +255,8 @@ def create_gru_actor_critic(
         in_key (str): The input key name.
         out_key (str): The output key name.
         recurrent_state (str): The name of the recurrent state.
+        python_based (bool): Whether to use the Python-based GRU module.
+            Default is False, a CuDNN-based GRU module is used.
 
     Example:
     ```python
@@ -259,6 +274,7 @@ def create_gru_actor_critic(
         in_key,
         out_key,
         recurrent_state,
+        python_based,
     )
     actor_head = ProbabilisticActor(
         module=actor_head,

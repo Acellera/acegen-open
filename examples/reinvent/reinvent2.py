@@ -77,10 +77,14 @@ def main(cfg: "DictConfig"):
     ckpt = torch.load(
         Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
     )
-    _, actor = create_gru_actor(len(vocabulary))
-    actor.load_state_dict(adapt_state_dict(ckpt, actor.state_dict()))
-    actor = actor.to(device)
-    prior = deepcopy(actor)
+    actor_training, actor_inference = create_gru_actor(len(vocabulary))
+    actor_inference.load_state_dict(
+        adapt_state_dict(ckpt, actor_inference.state_dict())
+    )
+    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
+    actor_inference = actor_inference.to(device)
+    actor_training = actor_training.to(device)
+    prior = deepcopy(actor_training)
 
     # Environment
     ####################################################################################################################
@@ -157,7 +161,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     optim = torch.optim.Adam(
-        actor.parameters(),
+        actor_training.parameters(),
         lr=cfg.lr,
         eps=cfg.eps,
         weight_decay=cfg.weight_decay,
@@ -186,7 +190,7 @@ def main(cfg: "DictConfig"):
 
     for _ in tqdm.tqdm(range(0, cfg.total_frames, frames_in_batch)):
 
-        data = sample_completed_smiles(policy=actor, environment=env)
+        data = sample_completed_smiles(policy=actor_inference, environment=env)
 
         log_info = {}
         total_done += frames_in_batch
@@ -194,6 +198,15 @@ def main(cfg: "DictConfig"):
 
         # Compute reward
         data = rew_transform(data)
+
+        # Identify unique sequences
+        arr = data.get("action").cpu().numpy()
+        arr_ = np.ascontiguousarray(arr).view(
+            np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
+        )
+        _, idxs = np.unique(arr_, return_index=True)
+        unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
+        data = data[unique_idxs]
 
         # Register smiles lengths and real rewards
         mask = data.get("mask").squeeze(-1)
@@ -213,15 +226,6 @@ def main(cfg: "DictConfig"):
                 }
             )
 
-        # Identify unique sequences
-        arr = data.get("action").cpu().numpy()
-        arr_ = np.ascontiguousarray(arr).view(
-            np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
-        )
-        _, idxs = np.unique(arr_, return_index=True)
-        unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
-        data = data[unique_idxs]
-
         # Compute prior log_probs
         with torch.no_grad():
             prior_logits = prior(data.select(*prior.in_keys).clone()).get("logits")
@@ -231,8 +235,17 @@ def main(cfg: "DictConfig"):
             ).squeeze(-1)
 
         # Compute loss
-        agent_likelihood = data.get("sample_log_prob").sum(-1)
-        prior_likelihood = prior_log_prob.sum(-1)
+        # agent_likelihood = (data.get("sample_log_prob") * mask).sum(-1)
+        agent_logits = actor_training(data.select(*actor_training.in_keys).clone()).get(
+            "logits"
+        )
+        agent_log_prob = F.log_softmax(agent_logits, dim=-1)
+        agent_log_prob = agent_log_prob.gather(
+            -1, data.get("action").unsqueeze(-1)
+        ).squeeze(-1)
+
+        agent_likelihood = (agent_log_prob * mask).sum(-1)
+        prior_likelihood = (prior_log_prob * mask).sum(-1)
         score = data.get(("next", "reward")).squeeze(-1).sum(-1)
         augmented_likelihood = prior_likelihood + sigma * score
         loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
@@ -253,7 +266,9 @@ def main(cfg: "DictConfig"):
             )
             exp_score = exp_score.to(device)
             exp_prior_likelihood = exp_prior_likelihood.to(device)
-            exp_agent_likelihood = actor(replay_data).get("sample_log_prob").sum(-1)
+            exp_agent_likelihood = (
+                actor_training(replay_data).get("sample_log_prob").sum(-1)
+            )
             exp_augmented_likelihood = exp_prior_likelihood + sigma * exp_score
             exp_loss = torch.pow((exp_augmented_likelihood - exp_agent_likelihood), 2)
             loss = torch.cat((loss, exp_loss), 0)

@@ -102,6 +102,7 @@ def main(cfg: "DictConfig"):
             vocabulary_size=len(vocabulary),
             distribution_class=OneHotCategorical,
             critic_value_per_action=True,
+            python_based=True,
         )
     else:
         actor_training, actor_inference = create_gru_actor(

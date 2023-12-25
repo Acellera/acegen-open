@@ -34,9 +34,14 @@ def generate_valid_data_batch(
 
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
-def test_gru_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
+@pytest.mark.parametrize("python_based", [True, False])
+def test_gru_actor(
+    vocabulary_size, device, python_based, sequence_length=5, batch_size=10
+):
     # Create the model and a data batch
-    training_actor, inference_actor = create_gru_actor(vocabulary_size)
+    training_actor, inference_actor = create_gru_actor(
+        vocabulary_size, python_based=python_based
+    )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
@@ -64,12 +69,20 @@ def test_gru_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
 @pytest.mark.parametrize("critic_value_per_action", [True, False])
+@pytest.mark.parametrize("python_based", [True, False])
 def test_gru_critic(
-    vocabulary_size, device, critic_value_per_action, sequence_length=5, batch_size=10
+    vocabulary_size,
+    device,
+    critic_value_per_action,
+    python_based,
+    sequence_length=5,
+    batch_size=10,
 ):
     # Create the model and a data batch
     training_critic, inference_critic = create_gru_critic(
-        vocabulary_size, critic_value_per_action=critic_value_per_action
+        vocabulary_size,
+        critic_value_per_action=critic_value_per_action,
+        python_based=python_based,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
@@ -104,8 +117,14 @@ def test_gru_critic(
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
 @pytest.mark.parametrize("critic_value_per_action", [True, False])
+@pytest.mark.parametrize("python_based", [True, False])
 def test_gru_actor_critic(
-    vocabulary_size, device, critic_value_per_action, sequence_length=5, batch_size=10
+    vocabulary_size,
+    device,
+    critic_value_per_action,
+    python_based,
+    sequence_length=5,
+    batch_size=10,
 ):
     # Create the model and a data batch
     (
@@ -114,7 +133,9 @@ def test_gru_actor_critic(
         training_critic,
         inference_critic,
     ) = create_gru_actor_critic(
-        vocabulary_size, critic_value_per_action=critic_value_per_action
+        vocabulary_size,
+        critic_value_per_action=critic_value_per_action,
+        python_based=python_based,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
