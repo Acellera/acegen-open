@@ -47,6 +47,8 @@ from torchrl.record.loggers import get_logger
 
 logging.basicConfig(level=logging.WARNING)
 
+# TODO: Fix prior!
+
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
@@ -109,7 +111,9 @@ def main(cfg: "DictConfig"):
     critic_training = critic_training.to(device)
 
     # Define prior
-    prior = deepcopy(actor_training)
+    prior, _ = create_gru_actor(len(vocabulary))
+    prior = prior.to(device)
+    prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 
     # Environment
     ####################################################################################################################

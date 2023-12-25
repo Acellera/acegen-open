@@ -32,4 +32,4 @@ burn_in: 10
 batch_size: 4
 kl_coef: 0.5
 max_grad_norm: 1.0
-num_loss_updates: 1
+num_loss_updates: 500

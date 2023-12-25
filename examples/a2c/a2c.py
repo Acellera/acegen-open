@@ -108,7 +108,9 @@ def main(cfg: "DictConfig"):
     critic_training = critic_training.to(device)
 
     # Define prior
-    prior = deepcopy(actor_training)
+    prior, _ = create_gru_actor(len(vocabulary))
+    prior = prior.to(device)
+    prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 
     # Environment
     ####################################################################################################################

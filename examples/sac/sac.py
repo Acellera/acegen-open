@@ -135,7 +135,10 @@ def main(cfg: "DictConfig"):
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
-    prior = deepcopy(actor_training)
+
+    prior, _ = create_gru_actor(len(vocabulary), distribution_class=OneHotCategorical)
+    prior = prior.to(device)
+    prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 
     # Environment
     ####################################################################################################################
@@ -250,7 +253,7 @@ def main(cfg: "DictConfig"):
         num_qvalue_nets=2,
         target_entropy_weight=cfg.target_entropy_weight,
         target_entropy="auto",
-        loss_function="smooth_l1",
+        loss_function="l2",
         action_space=test_env.action_spec,
     )
     loss_module.make_value_estimator(gamma=cfg.gamma)
@@ -382,7 +385,7 @@ def main(cfg: "DictConfig"):
             loss_sum = loss["loss_qvalue"]
             log_info.update({f"train/loss_qvalue": loss["loss_qvalue"].detach().item()})
 
-            if num_updates % 5 == 0:
+            if num_updates % 1 == 0:
                 loss_sum += loss["loss_actor"] + loss["loss_alpha"]
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
