@@ -38,13 +38,12 @@ class SMILESReward(Transform):
                 "Either reward_function or reward_function_creator must be provided."
             )
 
-        if not isinstance(reward_function_creator, Callable):
-            raise ValueError(
-                "A reward_function_creator was provided but it must be a callable"
-                "that returns a reward function."
-            )
-
         if not reward_function:
+            if not isinstance(reward_function_creator, Callable):
+                raise ValueError(
+                    "A reward_function_creator was provided but it must be a callable"
+                    "that returns a reward function."
+                )
             reward_function = reward_function_creator()
 
         if not isinstance(reward_function, Callable):
@@ -65,14 +64,20 @@ class SMILESReward(Transform):
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
 
+        self._call(tensordict.get("next"))
+
+        return tensordict
+
+    def _call(self, tensordict: TensorDictBase, _reset=None) -> TensorDictBase:
+
         # Get steps where trajectories end
         device = tensordict.device
-        done = tensordict.get(("next", "done")).squeeze(-1)
-
-        if len(done) == 0:
-            return tensordict
+        done = tensordict.get("done").squeeze(-1)
 
         sub_tensordict = tensordict.get_sub_tensordict(done)
+
+        if len(sub_tensordict) == 0:
+            return tensordict
 
         # Get reward and smiles
         reward = sub_tensordict.get(self.out_keys[0])
@@ -89,9 +94,10 @@ class SMILESReward(Transform):
         max_attempts = 3
         for i in range(max_attempts):
             try:
-                reward[:, 0] += torch.tensor(
-                    self.reward_function(smiles_list), device=device
-                )
+                import ipdb
+
+                ipdb.set_trace()
+                reward += torch.tensor(self.reward_function(smiles_list), device=device)
                 break
             except RuntimeError:
                 if i == max_attempts - 1:

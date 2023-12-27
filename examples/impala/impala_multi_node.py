@@ -25,7 +25,7 @@ from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
 from torch.distributions.kl import kl_divergence
-from torchrl.collectors import MultiaSyncDataCollector
+from torchrl.collectors import MultiaSyncDataCollector, SyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
@@ -140,18 +140,26 @@ def main(cfg: "DictConfig"):
         # data = json.load(open(cfg.molscore, "r"))
         # data["output_dir"] = save_dir
         # json.dump(data, open(cfg.molscore, "w"), indent=4)
-        from molscore.manager import MolScore
-
-        # Create scoring function
-        scoring = MolScore(model_name="impala", task_config=cfg.molscore)
-        scoring.configs["save_dir"] = save_dir
-        scoring_function = scoring.score
+        # from molscore.manager import MolScore
+        #
+        # # Create scoring function
+        # scoring = MolScore(model_name="impala", task_config=cfg.molscore)
+        # scoring.configs["save_dir"] = save_dir
+        # scoring_function = scoring.score
+        def scoring_function(smiles):
+            return np.zeros(len(smiles))
 
         return scoring_function
 
+    def scoring_function(smiles):
+        return np.zeros(len(smiles))
+
     # Create reward transform
     rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary
+        reward_function=scoring_function,
+        vocabulary=vocabulary,
+        in_keys=["SMILES"],
+        out_keys=["reward"],
     )
 
     # Environment
@@ -218,20 +226,30 @@ def main(cfg: "DictConfig"):
         env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
+        env.append_transform(rew_transform)
         return env
 
     # Collector
     ####################################################################################################################
 
-    collector = MultiaSyncDataCollector(
-        create_env_fn=[create_env_fn()] * cfg.num_workers,
+    # collector = MultiaSyncDataCollector(
+    #     create_env_fn=[create_env_fn()] * cfg.num_workers,
+    #     policy=actor_inference,
+    #     frames_per_batch=cfg.frames_per_batch,
+    #     total_frames=cfg.total_frames,
+    #     device=device,
+    #     storing_device=device,
+    #     max_frames_per_traj=-1,
+    #     update_at_each_batch=True,
+    # )
+
+    collector = SyncDataCollector(
         policy=actor_inference,
+        create_env_fn=create_env_fn,
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
-        device=device,
         storing_device=device,
-        max_frames_per_traj=-1,
-        update_at_each_batch=True,
+        device=device,
     )
 
     # Loss modules
@@ -316,6 +334,10 @@ def main(cfg: "DictConfig"):
     accumulator = []
 
     for data in collector:
+
+        import ipdb
+
+        ipdb.set_trace()
 
         log_info = {}
         frames_in_batch = data.numel()
