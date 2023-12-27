@@ -4,48 +4,39 @@ import logging
 import os
 import random
 import shutil
-from copy import deepcopy
 from pathlib import Path
 
 import hydra
 import numpy as np
 
 import torch
-import torch.nn.functional as F
 import tqdm
 import yaml
-from acegen.models import adapt_state_dict, create_gru_actor
-from acegen.rl_env import sample_completed_smiles, SMILESEnv
-from acegen.transforms import BurnInTransform, PenaliseRepeatedSMILES, SMILESReward
-from acegen.vocabulary import SMILESVocabulary
+
+from acegen import SMILESReward, SMILESVocabulary
 from molscore.manager import MolScore
 from omegaconf import OmegaConf
-
-from tensordict import TensorDict
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
-from torchrl.envs import (
-    CatFrames,
-    ExplorationType,
-    InitTracker,
-    StepCounter,
-    TensorDictPrimer,
-    TransformedEnv,
-    UnsqueezeTransform,
-)
+from single_step_smiles_env import SingleStepSMILESEnv
 from torchrl.record.loggers import get_logger
-from utils import Experience
+from utils import create_reinvent_model, Experience
 
 logging.basicConfig(level=logging.WARNING)
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
-def main(cfg: "DictConfig"):
+def unique(arr):
+    # Finds unique rows in arr and return their indices
+    arr = arr.cpu().numpy()
+    arr_ = np.ascontiguousarray(arr).view(
+        np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
+    )
+    _, idxs = np.unique(arr_, return_index=True)
+    if torch.cuda.is_available():
+        return torch.LongTensor(np.sort(idxs)).cuda()
+    return torch.LongTensor(np.sort(idxs))
 
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
+
+@hydra.main(config_path="../reinvent", config_name="config", version_base="1.2")
+def main(cfg: "DictConfig"):
 
     # Save config
     current_time = datetime.datetime.now()
@@ -55,6 +46,12 @@ def main(cfg: "DictConfig"):
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+
+    # Set seeds
+    seed = cfg.seed
+    random.seed(int(seed))
+    np.random.seed(int(seed))
+    torch.manual_seed(int(seed))
 
     # Get available device
     device = (
@@ -74,30 +71,14 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
-    )
-    actor_training, actor_inference = create_gru_actor(len(vocabulary))
-    actor_inference.load_state_dict(
-        adapt_state_dict(ckpt, actor_inference.state_dict())
-    )
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
-    actor_inference = actor_inference.to(device)
-    actor_training = actor_training.to(device)
-    prior = deepcopy(actor_training)
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+    prior = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
+    model = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
+    prior = prior.to(device)
+    model = model.to(device)
 
     # Environment
     ####################################################################################################################
-
-    num_layers = 3
-    hidden_size = 512
-    primers = {
-        ("recurrent_state_actor",): UnboundedContinuousTensorSpec(
-            shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
-            dtype=torch.float32,
-        ),
-    }
-    rhs_primers = [TensorDictPrimer(primers)]
 
     env_kwargs = {
         "start_token": vocabulary.vocab[vocabulary.start_token],
@@ -109,27 +90,7 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn():
         """Create a single RL rl_env."""
-        env = SMILESEnv(**env_kwargs)
-        env = TransformedEnv(env)
-        env.append_transform(
-            UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
-            )
-        )
-        env.append_transform(
-            CatFrames(
-                N=100,
-                dim=-1,
-                padding="constant",
-                in_keys=["observation"],
-                out_keys=["SMILES"],
-                padding_value=-1,
-            )
-        )
-        env.append_transform(StepCounter())
-        env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        env = SingleStepSMILESEnv(**env_kwargs)
         return env
 
     # Scoring transform - more efficient to do it outside the environment
@@ -148,8 +109,7 @@ def main(cfg: "DictConfig"):
 
     # Create reward transform
     rew_transform = SMILESReward(
-        reward_function=scoring_function,
-        vocabulary=vocabulary,
+        reward_function=scoring_function, vocabulary=vocabulary, in_keys=["action"]
     )
 
     # Replay buffer
@@ -161,7 +121,7 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     optim = torch.optim.Adam(
-        actor_training.parameters(),
+        model.parameters(),
         lr=cfg.lr,
         eps=cfg.eps,
         weight_decay=cfg.weight_decay,
@@ -184,17 +144,19 @@ def main(cfg: "DictConfig"):
 
     total_done = 0
     collected_frames = 0
+    pbar = tqdm.tqdm(total=cfg.total_frames)
     env = create_env_fn()
     sigma = cfg.sigma
-    frames_in_batch = cfg.num_envs
 
-    for _ in tqdm.tqdm(range(0, cfg.total_frames, frames_in_batch)):
+    while collected_frames < cfg.total_frames:
 
-        data = sample_completed_smiles(policy=actor_inference, environment=env)
+        data = env.step(model(env.reset()))
 
         log_info = {}
-        total_done += frames_in_batch
+        frames_in_batch = data.numel()
+        total_done += data.get(("next", "done")).sum()
         collected_frames += frames_in_batch
+        pbar.update(data.numel())
 
         # Compute reward
         data = rew_transform(data)
@@ -207,68 +169,25 @@ def main(cfg: "DictConfig"):
         _, idxs = np.unique(arr_, return_index=True)
         unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
         data = data[unique_idxs]
-
-        # Register smiles lengths and real rewards
-        mask = data.get("mask").squeeze(-1)
-        done = data.get(("next", "done")).squeeze(-1) * mask
-        episode_rewards = data["next", "reward"][done]
-        episode_length = data["next", "step_count"][done]
-        if len(episode_rewards) > 0:
-            log_info.update(
-                {
-                    "train/total_smiles": total_done,
-                    "train/reward": episode_rewards.mean().item(),
-                    "train/min_reward": episode_rewards.min().item(),
-                    "train/max_reward": episode_rewards.max().item(),
-                    "train/episode_length": episode_length.sum().item() / len(
-                        episode_length
-                    ),
-                }
-            )
-
-        # Compute prior log_probs
-        with torch.no_grad():
-            prior_logits = prior(data.select(*prior.in_keys).clone()).get("logits")
-            prior_log_prob = F.log_softmax(prior_logits, dim=-1)
-            prior_log_prob = prior_log_prob.gather(
-                -1, data.get("action").unsqueeze(-1)
-            ).squeeze(-1)
+        score = data.get(("next", "reward")).squeeze(-1)
 
         # Compute loss
-        # agent_likelihood = (data.get("sample_log_prob") * mask).sum(-1)
-        agent_logits = actor_training(data.select(*actor_training.in_keys).clone()).get(
-            "logits"
-        )
-        agent_log_prob = F.log_softmax(agent_logits, dim=-1)
-        agent_log_prob = agent_log_prob.gather(
-            -1, data.get("action").unsqueeze(-1)
-        ).squeeze(-1)
-
-        agent_likelihood = (agent_log_prob * mask).sum(-1)
-        prior_likelihood = (prior_log_prob * mask).sum(-1)
-        score = data.get(("next", "reward")).squeeze(-1).sum(-1)
+        seqs = data.get("action")
+        agent_likelihood = data.get("log_probs")
+        with torch.no_grad():
+            prior_likelihood = prior.likelihood(seqs)
         augmented_likelihood = prior_likelihood + sigma * score
         loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
 
         # Compute experience replay loss
-        if cfg.experience_replay and len(experience) > 4:
-            exp_seqs, exp_score, exp_prior_likelihood = experience.sample(4)
-            is_init = torch.zeros_like(exp_seqs, dtype=torch.bool).unsqueeze(-1)
-            is_init[:, 0] = True
-            replay_data = TensorDict(
-                {
-                    "observation": exp_seqs.unsqueeze(-1).long(),
-                    "is_init": is_init,
-                    "recurrent_state": torch.zeros(*exp_seqs.shape, 3, 512),
-                },
-                batch_size=exp_seqs.shape,
-                device=device,
+        if cfg.experience_replay and len(experience) > cfg.replay_batch_size:
+            exp_seqs, exp_score, exp_prior_likelihood = experience.sample(
+                cfg.replay_batch_size
             )
+            exp_seqs = exp_seqs.to(device)
             exp_score = exp_score.to(device)
             exp_prior_likelihood = exp_prior_likelihood.to(device)
-            exp_agent_likelihood = (
-                actor_training(replay_data).get("sample_log_prob").sum(-1)
-            )
+            exp_agent_likelihood = model.likelihood(exp_seqs.long())
             exp_augmented_likelihood = exp_prior_likelihood + sigma * exp_score
             exp_loss = torch.pow((exp_augmented_likelihood - exp_agent_likelihood), 2)
             loss = torch.cat((loss, exp_loss), 0)
@@ -299,6 +218,14 @@ def main(cfg: "DictConfig"):
 
         # Log
         if logger:
+            log_info.update(
+                {
+                    "train/total_smiles": total_done,
+                    "train/reward": score.cpu().mean().item(),
+                    "train/min_reward": score.cpu().min().item(),
+                    "train/max_reward": score.cpu().max().item(),
+                }
+            )
             for key, value in log_info.items():
                 logger.log_scalar(key, value, collected_frames)
 
