@@ -67,12 +67,7 @@ class SMILESReward(Transform):
         self.reward_function = reward_function
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
-
-        import ipdb
-
-        ipdb.set_trace()
         self._call(tensordict.get("next"))
-
         return tensordict
 
     def _call(self, tensordict: TensorDictBase, _reset=None) -> TensorDictBase:
