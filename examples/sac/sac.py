@@ -26,7 +26,6 @@ from acegen.models import (
     create_gru_actor_critic,
     create_gru_critic,
 )
-from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from torch.distributions.kl import kl_divergence
 from torchrl.collectors import SyncDataCollector
@@ -51,7 +50,14 @@ from torchrl.objectives import DiscreteSACLoss, SoftUpdate
 from torchrl.record.loggers import get_logger
 
 
-logging.basicConfig(level=logging.WARNING)
+try:
+    import molscore
+    from molscore.manager import MolScore
+
+    _has_molscore = True
+except ImportError as err:
+    _has_molscore = False
+    MOLSCORE_ERR = err
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -212,6 +218,18 @@ def main(cfg: "DictConfig"):
 
     # Scoring transform - more efficient to do it outside the environment
     ####################################################################################################################
+
+    if not _has_molscore:
+        raise RuntimeError(
+            "MolScore library not found, unable to create a scoring function. "
+        ) from MOLSCORE_ERR
+
+    if cfg.molscore is None:
+        raise RuntimeError(
+            "MolScore config file not provided, unable to create a scoring function. "
+            "Please provide a config file,"
+            "e.g. ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json "
+        )
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)

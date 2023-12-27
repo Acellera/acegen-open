@@ -22,7 +22,6 @@ from acegen.models import (
 from acegen.rl_env import SMILESEnv
 from acegen.transforms import PenaliseRepeatedSMILES, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
-from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from tensordict import TensorDict
 from torch.distributions.kl import kl_divergence
@@ -43,7 +42,14 @@ from torchrl.objectives import A2CLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
 
-logging.basicConfig(level=logging.WARNING)
+try:
+    import molscore
+    from molscore.manager import MolScore
+
+    _has_molscore = True
+except ImportError as err:
+    _has_molscore = False
+    MOLSCORE_ERR = err
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -179,6 +185,18 @@ def main(cfg: "DictConfig"):
 
     # Scoring transform - more efficient to do it outside the environment
     ####################################################################################################################
+
+    if not _has_molscore:
+        raise RuntimeError(
+            "MolScore library not found, unable to create a scoring function. "
+        ) from MOLSCORE_ERR
+
+    if cfg.molscore is None:
+        raise RuntimeError(
+            "MolScore config file not provided, unable to create a scoring function. "
+            "Please provide a config file,"
+            "e.g. ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json "
+        )
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)

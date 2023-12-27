@@ -14,13 +14,21 @@ import tqdm
 import yaml
 
 from acegen import SMILESReward, SMILESVocabulary
-from molscore.manager import MolScore
 from omegaconf import OmegaConf
 from single_step_smiles_env import SingleStepSMILESEnv
 from torchrl.record.loggers import get_logger
 from utils import create_reinvent_model, Experience
 
 logging.basicConfig(level=logging.WARNING)
+
+try:
+    import molscore
+    from molscore.manager import MolScore
+
+    _has_molscore = True
+except ImportError as err:
+    _has_molscore = False
+    MOLSCORE_ERR = err
 
 
 def unique(arr):
@@ -96,11 +104,23 @@ def main(cfg: "DictConfig"):
     # Scoring transform - more efficient to do it outside the environment
     ####################################################################################################################
 
+    if not _has_molscore:
+        raise RuntimeError(
+            "MolScore library not found, unable to create a scoring function. "
+        ) from MOLSCORE_ERR
+
+    if cfg.molscore is None:
+        raise RuntimeError(
+            "MolScore config file not provided, unable to create a scoring function. "
+            "Please provide a config file,"
+            "e.g. ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json "
+        )
+
     # Save molscore output. Also redirect output to save_dir
-    # cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    # data = json.load(open(cfg.molscore, "r"))
-    # data["output_dir"] = save_dir
-    # json.dump(data, open(cfg.molscore, "w"), indent=4)
+    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+    data = json.load(open(cfg.molscore, "r"))
+    data["output_dir"] = save_dir
+    json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
     scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
