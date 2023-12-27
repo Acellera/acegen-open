@@ -42,13 +42,17 @@ class SMILESReward(Transform):
             if not isinstance(reward_function_creator, Callable):
                 raise ValueError(
                     "A reward_function_creator was provided but it must be a callable"
-                    "that returns a reward function."
+                    "that returns a reward function, not a {}".format(
+                        type(reward_function_creator)
+                    )
                 )
             reward_function = reward_function_creator()
 
         if not isinstance(reward_function, Callable):
             raise ValueError(
-                "A reward_function was provided but it must be a callable."
+                "A reward_function was provided but it must be a callable, not a {}".format(
+                    type(reward_function)
+                )
             )
 
         if out_keys is None:
@@ -64,6 +68,9 @@ class SMILESReward(Transform):
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
 
+        import ipdb
+
+        ipdb.set_trace()
         self._call(tensordict.get("next"))
 
         return tensordict
@@ -94,10 +101,8 @@ class SMILESReward(Transform):
         max_attempts = 3
         for i in range(max_attempts):
             try:
-                import ipdb
-
-                ipdb.set_trace()
-                reward += torch.tensor(self.reward_function(smiles_list), device=device)
+                _reward = torch.tensor(self.reward_function(smiles_list), device=device)
+                reward += _reward.reshape(reward.shape)
                 break
             except RuntimeError:
                 if i == max_attempts - 1:

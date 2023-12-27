@@ -17,8 +17,8 @@ def generate_valid_data_batch(
     batch_size: int = 2,
     sequence_length: int = 5,
     max_smiles_length: int = 10,
-    smiles_key: tuple = ("next", "SMILES"),
-    reward_key: tuple = ("next", "reward"),
+    smiles_key: str = "SMILES",
+    reward_key: str = "reward",
 ):
     tokens = torch.randint(0, vocabulary_size, (batch_size, sequence_length + 1))
     smiles = torch.randint(
@@ -40,13 +40,13 @@ def generate_valid_data_batch(
         },
         batch_size=[batch_size, sequence_length],
     )
-    batch.set(reward_key, reward)
-    batch.set(smiles_key, smiles)
+    batch.set(("next", reward_key), reward)
+    batch.set(("next", smiles_key), smiles)
     return batch
 
 
-@pytest.mark.parametrize("in_key", [("next", "SMILES"), "SMILES"])
-@pytest.mark.parametrize("out_key", [("next", "reward"), "reward_key2"])
+@pytest.mark.parametrize("in_key", ["SMILES"])
+@pytest.mark.parametrize("out_key", ["reward", "reward2"])
 @pytest.mark.parametrize("batch_size", [2])
 @pytest.mark.parametrize("sequence_length", [5])
 @pytest.mark.parametrize("max_smiles_length", [10])
@@ -63,10 +63,14 @@ def test_reward_transform(
         out_key,
     )
     reward_transform = SMILESReward(
-        dummy_reward_function, vocabulary, in_keys=[in_key], out_keys=[out_key]
+        vocabulary=vocabulary,
+        reward_function=dummy_reward_function,
+        in_keys=[in_key],
+        out_keys=[out_key],
     )
     data = reward_transform(data)
+    data = data.get("next")
     assert out_key in data.keys(include_nested=True)
-    done = data.get(("next", "done")).squeeze(-1)
+    done = data.get("done").squeeze(-1)
     assert data[done].get(out_key).sum().item() == done.sum().item()
     assert data[~done].get(out_key).sum().item() == 0.0
