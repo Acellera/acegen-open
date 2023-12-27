@@ -27,8 +27,8 @@ weight_decay: 0.0
 gamma: 0.999
 target_update_polyak: 0.995
 target_entropy_weight: 0.1
-sampled_sequence_length: 20
-burn_in: 10
+sampled_sequence_length: 20  # Unused
+burn_in: 10  # Unused
 batch_size: 4
 kl_coef: 0.5
 max_grad_norm: 1.0
