@@ -56,9 +56,9 @@ class SMILESReward(Transform):
             )
 
         if out_keys is None:
-            out_keys = [("next", "reward")]
+            out_keys = ["reward"]
         if in_keys is None:
-            in_keys = [("next", "SMILES")]
+            in_keys = ["SMILES"]
         self.reward_scale = reward_scale
 
         super().__init__(in_keys, out_keys)
