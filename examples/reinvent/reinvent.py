@@ -163,7 +163,7 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
+    scoring = MolScore(model_name="reinvent", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 

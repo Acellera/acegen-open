@@ -33,3 +33,5 @@ batch_size: 4
 kl_coef: 0.5
 max_grad_norm: 1.0
 num_loss_updates: 500
+value_loss_function: l2
+actor_updates_frequency: 1

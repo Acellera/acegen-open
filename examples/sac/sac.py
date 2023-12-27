@@ -238,7 +238,7 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
+    scoring = MolScore(model_name="sac", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
@@ -257,7 +257,7 @@ def main(cfg: "DictConfig"):
         total_frames=cfg.total_frames,
         device=device,
         storing_device="cpu",
-        reset_at_each_iter=True,
+        reset_at_each_iter=True,  # To avoid burn in issues
     )
 
     # Loss
@@ -270,7 +270,7 @@ def main(cfg: "DictConfig"):
         num_qvalue_nets=2,
         target_entropy_weight=cfg.target_entropy_weight,
         target_entropy="auto",
-        loss_function="l2",
+        loss_function=cfg.value_loss_function,
         action_space=test_env.action_spec,
     )
     loss_module.make_value_estimator(gamma=cfg.gamma)
@@ -376,14 +376,6 @@ def main(cfg: "DictConfig"):
             ("next", "SMILES"),
         )
 
-        # # Zero out recurrent states
-        # rhs = (
-        #     "recurrent_state_actor", ("next", "recurrent_state_actor"),
-        #     "recurrent_state_critic", ("next", "recurrent_state_critic"),
-        # )
-        # for i in rhs:
-        #     data.get(i).zero_()
-
         buffer.extend(data.cpu())
 
         if total_done < cfg.init_random_smiles:
@@ -402,7 +394,7 @@ def main(cfg: "DictConfig"):
             loss_sum = loss["loss_qvalue"]
             log_info.update({f"train/loss_qvalue": loss["loss_qvalue"].detach().item()})
 
-            if num_updates % 1 == 0:
+            if num_updates % cfg.actor_updates_frequency == 0:
                 loss_sum += loss["loss_actor"] + loss["loss_alpha"]
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
