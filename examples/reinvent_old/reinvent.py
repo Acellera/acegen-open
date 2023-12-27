@@ -35,7 +35,7 @@ def unique(arr):
     return torch.LongTensor(np.sort(idxs))
 
 
-@hydra.main(config_path="../reinvent", config_name="config", version_base="1.2")
+@hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -97,10 +97,10 @@ def main(cfg: "DictConfig"):
     ####################################################################################################################
 
     # Save molscore output. Also redirect output to save_dir
-    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, "r"))
-    data["output_dir"] = save_dir
-    json.dump(data, open(cfg.molscore, "w"), indent=4)
+    # cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+    # data = json.load(open(cfg.molscore, "r"))
+    # data["output_dir"] = save_dir
+    # json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
     scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
