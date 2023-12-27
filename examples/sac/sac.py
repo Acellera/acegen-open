@@ -1,6 +1,5 @@
 import datetime
 import json
-import logging
 import os
 import random
 import shutil
@@ -142,8 +141,8 @@ def main(cfg: "DictConfig"):
     critic_training = critic_training.to(device)
 
     prior, _ = create_gru_actor(len(vocabulary), distribution_class=OneHotCategorical)
-    prior = prior.to(device)
     prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
+    prior = prior.to(device)
 
     # Environment
     ####################################################################################################################

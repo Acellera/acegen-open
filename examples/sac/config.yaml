@@ -21,7 +21,7 @@ replay_buffer_size: 10_000
 shared_nets: True
 
 # Discrete SAC configuration
-lr: 0.0001
+lr: 0.0005
 eps: 1e-06
 weight_decay: 0.0
 gamma: 0.999
