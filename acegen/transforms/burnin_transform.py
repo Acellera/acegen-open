@@ -63,7 +63,9 @@ class BurnInTransform(Transform):
         if out_keys is None:
             out_keys = set()
             for module in self.modules:
-                out_keys.update(module.out_keys)
+                for key in module.out_keys:
+                    if key[0] == "next":
+                        out_keys.add(key[1])
 
         super().__init__(in_keys=in_keys, out_keys=out_keys)
 
@@ -81,6 +83,7 @@ class BurnInTransform(Transform):
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
         td_device = tensordict.device or "cpu"
+        B, T, *extra_dims = tensordict.batch_size
 
         # Split the tensor dict into the burn in and the rest.
         td_burn_in = tensordict[..., : self.burn_in]
@@ -94,13 +97,16 @@ class BurnInTransform(Transform):
                 td_burn_in = module(td_burn_in)
         td_burn_in = td_burn_in.to(td_device)
 
-        # Update the next state.
-        import ipdb
-
-        ipdb.set_trace()
-        td_out[..., 0] = td_burn_in["next"][..., -1]
-        # for out_key in self.out_keys:
-        #     td_out[..., 0][out_key] = td_burn_in["next"][..., -1][out_key]
+        # Update out TensorDict with the burnt in data.
+        for out_key in self.out_keys:
+            if out_key not in td_out.keys():
+                td_out.set(
+                    out_key,
+                    torch.zeros(
+                        B, T - self.burn_in, *tensordict.get(out_key).shape[2:]
+                    ),
+                )
+            td_out[..., 0][out_key].copy_(td_burn_in["next"][..., -1][out_key])
 
         return td_out
 

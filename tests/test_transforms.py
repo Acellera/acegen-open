@@ -124,7 +124,6 @@ def test_burn_in_transform(
 @pytest.mark.parametrize("vocabulary_size", [4])
 @pytest.mark.parametrize("max_smiles_length", [10])
 @pytest.mark.parametrize("out_keys", [None, ["hidden"]])
-@pytest.mark.parametrize("out_keys", [None])
 def test_burn_in_transform_with_buffer(
     vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys
 ):
