@@ -88,7 +88,8 @@ class BurnInTransform(Transform):
         td_burn_in = td_burn_in.to(td_device)
 
         # Update the next state.
-        td_out[..., 0].update(td_burn_in["next"][..., -1])
+        td_out[..., 0] = td_burn_in["next"][..., -1]
+
         return td_out
 
     def __repr__(self) -> str:

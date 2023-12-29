@@ -110,6 +110,6 @@ def test_burn_in_transform(
         out_keys=["hidden"],
     )
     data = burn_in_transform(data)
-    import ipdb
 
-    ipdb.set_trace()
+    assert data.shape[-1] == sequence_length - 2
+    assert data.get("hidden").sum() > 0.0
