@@ -282,7 +282,7 @@ def main(cfg: "DictConfig"):
         sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1
     )
     burn_in = BurnInTransform(
-        rnn_modules=(actor_training, critic_training), burn_in=cfg.burn_in
+        modules=(actor_training, critic_training), burn_in=cfg.burn_in
     )
     # buffer = TensorDictReplayBuffer(
     #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
@@ -299,7 +299,7 @@ def main(cfg: "DictConfig"):
         priority_key="loss_qvalue",
     )
     # buffer.append_transform(crop_seq)
-    # buffer.append_transform(burn_in)
+    buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################

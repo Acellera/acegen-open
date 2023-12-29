@@ -82,6 +82,10 @@ class BurnInTransform(Transform):
         )
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+
+        if self.burn_in == 0:
+            return tensordict
+
         td_device = tensordict.device or "cpu"
         B, T, *extra_dims = tensordict.batch_size
 
