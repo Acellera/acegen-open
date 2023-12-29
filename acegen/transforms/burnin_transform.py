@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from typing import Sequence
+
 import torch
-from tensodict import TensorDictBase
+from tensordict import TensorDictBase
+from tensordict.utils import NestedKey
 from torchrl.envs import Transform
 
 
@@ -14,24 +19,41 @@ class BurnInTransform(Transform):
     Args:
         modules (list): A list of modules to burn in.
         burn_in (int): The number of time steps to burn in.
+        in_keys (sequence of NestedKey, optional): keys to be updated.
+            default: ["recurrent_state"]
+        out_keys (sequence of NestedKey, optional): destination keys.
+            Defaults to ``in_keys``.
 
     Examples:
         >>> import torch
         >>> from torchrl.envs import TensorDict
         >>> from torchrl.envs.transforms import BurnInTransform
-        >>> from torchrl.modules import LSTM
+        >>> from torchrl.modules import GRUModule
 
         >>> burn_in_transform = BurnInTransform(
-        ...     modules=[LSTM(1, 1, batch_first=True)],
+        ...     modules=[GRUModule(1, 1, batch_first=True)],
         ...     burn_in=5,
         ... )
 
     """
 
-    def __init__(self, modules, burn_in):
-        super().__init__()
+    def __init__(
+        self,
+        modules: Sequence[torch.nn.Module],
+        burn_in: int,
+        in_keys: Sequence[NestedKey] | None = None,
+        out_keys: Sequence[NestedKey] | None = None,
+    ):
         self.modules = modules
         self.burn_in = burn_in
+
+        if in_keys is None:
+            in_keys = ["recurrent_state"]
+
+        if out_keys is None:
+            out_keys = in_keys
+
+        super().__init__(in_keys=in_keys, out_keys=out_keys)
 
     def __call__(self, tensordict: TensorDictBase) -> TensorDictBase:
         raise RuntimeError(

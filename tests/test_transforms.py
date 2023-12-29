@@ -77,14 +77,13 @@ def test_reward_transform(
 
 
 def test_burn_in_transform(
-    vocabulary_size: int,
+    vocabulary_size: int = 4,
     batch_size: int = 2,
     sequence_length: int = 5,
     max_smiles_length: int = 10,
 ):
-    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
     data = generate_valid_data_batch(
-        len(vocabulary),
+        vocabulary_size,
         batch_size,
         sequence_length,
         max_smiles_length,

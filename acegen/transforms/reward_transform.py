@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import warnings
-from typing import Callable
+from typing import Callable, Sequence
 
 import torch
 from tensordict import TensorDictBase
+from tensordict.utils import NestedKey
 from torchrl.envs.transforms.transforms import Transform
 
 from acegen.vocabulary.base import Vocabulary
@@ -15,12 +18,15 @@ class SMILESReward(Transform):
     the reward_function will be used. If neither are provided, a ValueError will be raised.
 
     Args:
-        vocabulary: A vocabulary object with at least encode and decode methods.
-        reward_function: A callable that takes a list of SMILES and returns a list of rewards.
-        reward_function_creator: A callable that creates a reward function.
-        in_keys: The key in the tensordict that contains the encoded SMILES.
-        out_keys: The key in the tensordict to store the reward.
-        reward_scale: The scale to apply to the reward.
+        vocabulary (Vocabulary): A vocabulary object with at least encode and decode methods.
+        reward_function (callable, optional): A callable that takes a list of SMILES and returns
+        a list of rewards.
+        reward_function_creator (callable, optional): A callable that creates a reward function.
+        in_keys (sequence of NestedKey, optional): keys to be updated.
+            default: ["observation", "reward"]
+        out_keys (sequence of NestedKey, optional): destination keys.
+            Defaults to ``in_keys``.
+        reward_scale (int, optional): The scale to apply to the reward.
     """
 
     def __init__(
@@ -28,8 +34,8 @@ class SMILESReward(Transform):
         vocabulary: Vocabulary,
         reward_function: Callable = None,
         reward_function_creator: Callable = None,
-        in_keys: tuple = None,
-        out_keys: tuple = None,
+        in_keys: Sequence[NestedKey] | None = None,
+        out_keys: Sequence[NestedKey] | None = None,
         reward_scale=1.0,
     ):
 
