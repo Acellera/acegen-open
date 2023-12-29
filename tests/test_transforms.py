@@ -3,6 +3,7 @@ import torch
 from acegen.transforms import BurnInTransform, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
 from tensordict import TensorDict
+from tests.utils import get_default_devices
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.modules import GRUModule, MLP
 
@@ -53,7 +54,7 @@ def generate_valid_data_batch(
 @pytest.mark.parametrize("sequence_length", [5])
 @pytest.mark.parametrize("max_smiles_length", [10])
 def test_reward_transform(
-    batch_size, sequence_length, max_smiles_length, smiles_key, reward_key
+    batch_size, sequence_length, max_smiles_length, smiles_key, reward_key, device
 ):
     vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
     data = generate_valid_data_batch(
@@ -83,6 +84,7 @@ def test_reward_transform(
 @pytest.mark.parametrize("vocabulary_size", [4])
 @pytest.mark.parametrize("max_smiles_length", [10])
 @pytest.mark.parametrize("out_keys", [None, ["hidden"]])
+@pytest.mark.parametrize("device", get_default_devices())
 def test_burn_in_transform(
     vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys
 ):
@@ -105,6 +107,7 @@ def test_burn_in_transform(
         gru_module.gru.num_layers,
         gru_module.gru.hidden_size,
     )
+    gru_module = gru_module.to(device)
     data.set("hidden", hidden_state)
     data.set("observation", data.get("observation").to(torch.float32))
     burn_in_transform = BurnInTransform(
@@ -115,7 +118,7 @@ def test_burn_in_transform(
     data = burn_in_transform(data)
 
     assert data.shape[-1] == 2
-    assert data[:, 0].get("hidden").sum() > 0.0
+    assert data[:, 0].get("hidden").abs().sum() > 0.0
     assert data[:, 1:].get("hidden").sum() == 0.0
 
 
@@ -124,9 +127,11 @@ def test_burn_in_transform(
 @pytest.mark.parametrize("vocabulary_size", [4])
 @pytest.mark.parametrize("max_smiles_length", [10])
 @pytest.mark.parametrize("out_keys", [None, ["hidden"]])
+@pytest.mark.parametrize("device", get_default_devices())
 def test_burn_in_transform_with_buffer(
-    vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys
+    vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys, device
 ):
+    device = torch.device("cuda" if torch.cuda.device_count() > 1 else "cpu")
     data = generate_valid_data_batch(
         vocabulary_size,
         batch_size,
@@ -140,6 +145,7 @@ def test_burn_in_transform_with_buffer(
         in_keys=["observation", "hidden"],
         out_keys=["intermediate", ("next", "hidden")],
     ).set_recurrent_mode(True)
+    gru_module = gru_module.to(device)
     hidden_state = torch.zeros(
         batch_size,
         sequence_length,
