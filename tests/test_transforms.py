@@ -54,7 +54,7 @@ def generate_valid_data_batch(
 @pytest.mark.parametrize("sequence_length", [5])
 @pytest.mark.parametrize("max_smiles_length", [10])
 def test_reward_transform(
-    batch_size, sequence_length, max_smiles_length, smiles_key, reward_key, device
+    batch_size, sequence_length, max_smiles_length, smiles_key, reward_key
 ):
     vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
     data = generate_valid_data_batch(
@@ -86,7 +86,7 @@ def test_reward_transform(
 @pytest.mark.parametrize("out_keys", [None, ["hidden"]])
 @pytest.mark.parametrize("device", get_default_devices())
 def test_burn_in_transform(
-    vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys
+    vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys, device
 ):
     data = generate_valid_data_batch(
         vocabulary_size,
