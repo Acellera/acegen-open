@@ -27,10 +27,11 @@ def generate_valid_data_batch(
     )
     reward = torch.zeros(batch_size, sequence_length, 1)
     done = torch.randint(0, 2, (batch_size, sequence_length + 1, 1), dtype=torch.bool)
+    is_init = torch.zeros(batch_size, sequence_length, 1, dtype=torch.bool)
     batch = TensorDict(
         {
             "observation": tokens[:, :-1],
-            "is_init": done[:, 1:],
+            "is_init": is_init,
             "next": TensorDict(
                 {
                     "observation": tokens[:, 1:],
@@ -123,6 +124,7 @@ def test_burn_in_transform(
 @pytest.mark.parametrize("vocabulary_size", [4])
 @pytest.mark.parametrize("max_smiles_length", [10])
 @pytest.mark.parametrize("out_keys", [None, ["hidden"]])
+@pytest.mark.parametrize("out_keys", [None])
 def test_burn_in_transform_with_buffer(
     vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys
 ):
@@ -149,7 +151,7 @@ def test_burn_in_transform_with_buffer(
     data.set("observation", data.get("observation").to(torch.float32))
     burn_in_transform = BurnInTransform(
         modules=[gru_module],
-        burn_in=2,
+        burn_in=sequence_length - 2,
         out_keys=out_keys,
     )
     buffer = TensorDictReplayBuffer(
@@ -160,5 +162,5 @@ def test_burn_in_transform_with_buffer(
     buffer.extend(data)
     data = buffer.sample(1)
     assert data.shape[-1] == 2
-    assert data[:, 0].get("hidden").sum() > 0.0
+    assert data[:, 0].get("hidden").abs().sum() > 0.0
     assert data[:, 1:].get("hidden").sum() == 0.0

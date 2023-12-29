@@ -4,7 +4,7 @@ from typing import Sequence
 
 import torch
 from tensordict import TensorDictBase
-from tensordict.nn import TensorDictModule
+from tensordict.nn import TensorDictModuleBase
 from tensordict.utils import NestedKey
 from torchrl.envs import Transform
 
@@ -51,7 +51,7 @@ class BurnInTransform(Transform):
         self.burn_in = burn_in
 
         for module in self.modules:
-            if not isinstance(module, TensorDictModule):
+            if not isinstance(module, TensorDictModuleBase):
                 raise ValueError(
                     f"All modules must be TensorDictModules, not {type(module)}."
                 )
@@ -80,7 +80,6 @@ class BurnInTransform(Transform):
         )
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
-
         td_device = tensordict.device or "cpu"
 
         # Split the tensor dict into the burn in and the rest.
@@ -96,10 +95,12 @@ class BurnInTransform(Transform):
         td_burn_in = td_burn_in.to(td_device)
 
         # Update the next state.
-        # import ipdb; ipdb.set_trace()
-        # td_out[..., 0] = td_burn_in["next"][..., -1]
-        for out_key in self.out_keys:
-            td_out[..., 0][out_key] = td_burn_in["next"][..., -1][out_key]
+        import ipdb
+
+        ipdb.set_trace()
+        td_out[..., 0] = td_burn_in["next"][..., -1]
+        # for out_key in self.out_keys:
+        #     td_out[..., 0][out_key] = td_burn_in["next"][..., -1][out_key]
 
         return td_out
 
