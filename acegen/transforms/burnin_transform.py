@@ -10,46 +10,84 @@ from torchrl.envs import Transform
 
 
 class BurnInTransform(Transform):
-    """Transform to partially burn in data sequences.
+    """Transform to partially burn-in data sequences.
 
-    This transform is useful for obtaining up-to-date recurrent states when
-    they are not available by burning in a few steps along the time dimension
-    from sampled data slices. It is intended to be used as a replay buffer
-    transform, not as an environment transform.
-
-    Note:
-        This transform expects TensorDicts with its last dimension being the
-        time dimension. It also  assumes that the modules can process the
-        sequential data.
+    This transform is useful to obtain up-to-date recurrent states when
+    they are not available. It burns-in a number of steps along the time dimension
+    from sampled sequential data slices and returs the remaining data sequence with
+    the burnt in data in its initial time step. It is intended to be used as a
+    replay buffer transform, not as an environment transform.
 
     Args:
         modules (sequence of TensorDictModule): A list of modules to burn in.
         burn_in (int): The number of time steps to burn in.
         out_keys (sequence of NestedKey, optional): destination keys. defaults to
-        all out keys of the modules.
+        all the modules out keys that point to the next time step (e.g. ("next", "hidden")).
+
+    .. note::
+        This transform expects TensorDicts with its last dimension being the
+        time dimension. It also  assumes that all provided modules can process
+        sequential data.
 
     Examples:
         >>> import torch
-        >>> from torchrl.envs import TensorDict
+        >>> from tensordict import TensorDict
         >>> from torchrl.envs.transforms import BurnInTransform
         >>> from torchrl.modules import GRUModule
 
+        >>> gru_module = GRUModule(
+        ...     input_size=10,
+        ...     hidden_size=10,
+        ...     in_keys=["observation", "hidden"],
+        ...     out_keys=["intermediate", ("next", "hidden")],
+        ... ).set_recurrent_mode(True)
         >>> burn_in_transform = BurnInTransform(
-        ...     modules=[GRUModule(1, 1, batch_first=True).set_recurrent_mode(True)],
+        ...     modules=[gru_module],
         ...     burn_in=5,
         ... )
+        >>> td = TensorDict({
+        ...     "observation": torch.randn(2, 10, 10),
+        ...      "hidden": torch.randn(2, 10, gru_module.gru.num_layers, 10),
+        ...      "is_init": torch.zeros(2, 10, 1),
+        ... }, batch_size=[2, 10])
+        >>> td = burn_in_transform(td)
+        >>> td.shape
+        torch.Size([2, 5])
+        >>> td.get("hidden").abs().sum()
+        tensor(86.3008)
 
+        >>> from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
+        >>> buffer = TensorDictReplayBuffer(
+        ...     storage=LazyMemmapStorage(2),
+        ...     batch_size=1,
+        ... )
+        >>> buffer.append_transform(burn_in_transform)
+        >>> td = TensorDict({
+        ...     "observation": torch.randn(2, 10, 10),
+        ...      "hidden": torch.randn(2, 10, gru_module.gru.num_layers, 10),
+        ...      "is_init": torch.zeros(2, 10, 1),
+        ... }, batch_size=[2, 10])
+        >>> buffer.extend(td)
+        >>> td = buffer.sample(1)
+        >>> td.shape
+        torch.Size([1, 5])
+        >>> td.get("hidden").abs().sum()
+        tensor(37.0344)
     """
+
+    invertible = False
 
     def __init__(
         self,
-        modules: Sequence[torch.nn.Module],
+        modules: Sequence[TensorDictModuleBase],
         burn_in: int,
         out_keys: Sequence[NestedKey] | None = None,
     ):
         self.modules = modules
         self.burn_in = burn_in
 
+        if not isinstance(modules, Sequence):
+            self.modules = [modules]
         for module in self.modules:
             if not isinstance(module, TensorDictModuleBase):
                 raise ValueError(
@@ -115,4 +153,4 @@ class BurnInTransform(Transform):
         return td_out
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(burn_in={self.burn_in})"
+        return f"{self.__class__.__name__}(burn_in={self.burn_in}, in_keys={self.in_keys}, out_keys={self.out_keys})"
