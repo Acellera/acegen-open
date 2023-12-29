@@ -3,7 +3,7 @@ import torch
 from acegen.transforms import BurnInTransform, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
 from tensordict import TensorDict
-from torchrl.modules import GRUModule
+from torchrl.modules import GRUModule, MLP
 
 tokens = ["(", ")", "1", "=", "C", "N", "O"]
 
@@ -20,7 +20,7 @@ def generate_valid_data_batch(
     smiles_key: str = "SMILES",
     reward_key: str = "reward",
 ):
-    tokens = torch.randint(0, vocabulary_size, (batch_size, sequence_length + 1))
+    tokens = torch.randint(0, vocabulary_size, (batch_size, sequence_length + 1, 1))
     smiles = torch.randint(
         0, vocabulary_size, (batch_size, sequence_length, max_smiles_length)
     )
@@ -88,16 +88,28 @@ def test_burn_in_transform(
         sequence_length,
         max_smiles_length,
     )
-    gru = GRUModule(
+    gru_module = GRUModule(
         input_size=1,
         hidden_size=10,
         batch_first=True,
+        in_keys=["observation", "hidden"],
+        out_keys=["intermediate", ("next", "hidden")],
+    ).set_recurrent_mode(True)
+    hidden_state = torch.zeros(
+        batch_size,
+        sequence_length,
+        gru_module.gru.num_layers,
+        gru_module.gru.hidden_size,
     )
+    data.set("hidden", hidden_state)
+    data.set("observation", data.get("observation").to(torch.float32))
     burn_in_transform = BurnInTransform(
-        modules=[gru],
+        modules=[gru_module],
         burn_in=2,
+        in_keys=["hidden"],
+        out_keys=["hidden"],
     )
+    data = burn_in_transform(data)
     import ipdb
 
     ipdb.set_trace()
-    data = burn_in_transform(data)

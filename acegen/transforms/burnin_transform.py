@@ -16,6 +16,10 @@ class BurnInTransform(Transform):
     It is intended to be used as a replay buffer transform, not as an environment
     transform.
 
+    Note:
+        This transform assumed that the modules can process TensorDicts with a time
+        dimension.
+
     Args:
         modules (list): A list of modules to burn in.
         burn_in (int): The number of time steps to burn in.
@@ -55,7 +59,7 @@ class BurnInTransform(Transform):
 
         super().__init__(in_keys=in_keys, out_keys=out_keys)
 
-    def __call__(self, tensordict: TensorDictBase) -> TensorDictBase:
+    def _call(self, tensordict: TensorDictBase) -> TensorDictBase:
         raise RuntimeError(
             "BurnInTransform can only be used when appended to a ReplayBuffer."
         )
@@ -78,7 +82,8 @@ class BurnInTransform(Transform):
         # Burn in the recurrent state.
         with torch.no_grad():
             for module in self.modules:
-                td_burn_in = td_burn_in.to(module.device)
+                module_device = next(module.parameters()).device or "cpu"
+                td_burn_in = td_burn_in.to(module_device)
                 td_burn_in = module(td_burn_in)
         td_burn_in = td_burn_in.to(td_device)
 
