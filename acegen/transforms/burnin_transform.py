@@ -4,29 +4,29 @@ from typing import Sequence
 
 import torch
 from tensordict import TensorDictBase
+from tensordict.nn import TensorDictModule
 from tensordict.utils import NestedKey
 from torchrl.envs import Transform
 
 
 class BurnInTransform(Transform):
-    """Transform to burn in the recurrent state of an RNN.
+    """Transform to partially burn in data sequences.
 
     This transform is useful for obtaining up-to-date recurrent states when
-    they are not available by burning in a few steps along the time dimension.
-    It is intended to be used as a replay buffer transform, not as an environment
-    transform.
+    they are not available by burning in a few steps along the time dimension
+    from sampled data slices. It is intended to be used as a replay buffer
+    transform, not as an environment transform.
 
     Note:
-        This transform assumed that the modules can process TensorDicts with a time
-        dimension.
+        This transform expects TensorDicts with its last dimension being the
+        time dimension. It also  assumes that the modules can process the
+        sequential data.
 
     Args:
-        modules (list): A list of modules to burn in.
+        modules (sequence of TensorDictModule): A list of modules to burn in.
         burn_in (int): The number of time steps to burn in.
-        in_keys (sequence of NestedKey, optional): keys to be updated.
-            default: ["recurrent_state"]
-        out_keys (sequence of NestedKey, optional): destination keys.
-            Defaults to ``in_keys``.
+        out_keys (sequence of NestedKey, optional): destination keys. defaults to
+        all out keys of the modules.
 
     Examples:
         >>> import torch
@@ -35,7 +35,7 @@ class BurnInTransform(Transform):
         >>> from torchrl.modules import GRUModule
 
         >>> burn_in_transform = BurnInTransform(
-        ...     modules=[GRUModule(1, 1, batch_first=True)],
+        ...     modules=[GRUModule(1, 1, batch_first=True).set_recurrent_mode(True)],
         ...     burn_in=5,
         ... )
 
@@ -45,17 +45,25 @@ class BurnInTransform(Transform):
         self,
         modules: Sequence[torch.nn.Module],
         burn_in: int,
-        in_keys: Sequence[NestedKey] | None = None,
         out_keys: Sequence[NestedKey] | None = None,
     ):
         self.modules = modules
         self.burn_in = burn_in
 
-        if in_keys is None:
-            in_keys = ["recurrent_state"]
+        for module in self.modules:
+            if not isinstance(module, TensorDictModule):
+                raise ValueError(
+                    f"All modules must be TensorDictModules, not {type(module)}."
+                )
+
+        in_keys = set()
+        for module in self.modules:
+            in_keys.update(module.in_keys)
 
         if out_keys is None:
-            out_keys = in_keys
+            out_keys = set()
+            for module in self.modules:
+                out_keys.update(module.out_keys)
 
         super().__init__(in_keys=in_keys, out_keys=out_keys)
 
@@ -88,7 +96,10 @@ class BurnInTransform(Transform):
         td_burn_in = td_burn_in.to(td_device)
 
         # Update the next state.
-        td_out[..., 0] = td_burn_in["next"][..., -1]
+        # import ipdb; ipdb.set_trace()
+        # td_out[..., 0] = td_burn_in["next"][..., -1]
+        for out_key in self.out_keys:
+            td_out[..., 0][out_key] = td_burn_in["next"][..., -1][out_key]
 
         return td_out
 

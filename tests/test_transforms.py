@@ -3,6 +3,7 @@ import torch
 from acegen.transforms import BurnInTransform, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
 from tensordict import TensorDict
+from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.modules import GRUModule, MLP
 
 tokens = ["(", ")", "1", "=", "C", "N", "O"]
@@ -76,11 +77,54 @@ def test_reward_transform(
     assert data[~done].get(reward_key).sum().item() == 0.0
 
 
+@pytest.mark.parametrize("batch_size", [2])
+@pytest.mark.parametrize("sequence_length", [5])
+@pytest.mark.parametrize("vocabulary_size", [4])
+@pytest.mark.parametrize("max_smiles_length", [10])
+@pytest.mark.parametrize("out_keys", [None, ["hidden"]])
 def test_burn_in_transform(
-    vocabulary_size: int = 4,
-    batch_size: int = 2,
-    sequence_length: int = 5,
-    max_smiles_length: int = 10,
+    vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys
+):
+    data = generate_valid_data_batch(
+        vocabulary_size,
+        batch_size,
+        sequence_length,
+        max_smiles_length,
+    )
+    gru_module = GRUModule(
+        input_size=1,
+        hidden_size=10,
+        batch_first=True,
+        in_keys=["observation", "hidden"],
+        out_keys=["intermediate", ("next", "hidden")],
+    ).set_recurrent_mode(True)
+    hidden_state = torch.zeros(
+        batch_size,
+        sequence_length,
+        gru_module.gru.num_layers,
+        gru_module.gru.hidden_size,
+    )
+    data.set("hidden", hidden_state)
+    data.set("observation", data.get("observation").to(torch.float32))
+    burn_in_transform = BurnInTransform(
+        modules=[gru_module],
+        burn_in=sequence_length - 2,
+        out_keys=out_keys,
+    )
+    data = burn_in_transform(data)
+
+    assert data.shape[-1] == 2
+    assert data[:, 0].get("hidden").sum() > 0.0
+    assert data[:, 1:].get("hidden").sum() == 0.0
+
+
+@pytest.mark.parametrize("batch_size", [2])
+@pytest.mark.parametrize("sequence_length", [5])
+@pytest.mark.parametrize("vocabulary_size", [4])
+@pytest.mark.parametrize("max_smiles_length", [10])
+@pytest.mark.parametrize("out_keys", [None, ["hidden"]])
+def test_burn_in_transform_with_buffer(
+    vocabulary_size, batch_size, sequence_length, max_smiles_length, out_keys
 ):
     data = generate_valid_data_batch(
         vocabulary_size,
@@ -106,10 +150,15 @@ def test_burn_in_transform(
     burn_in_transform = BurnInTransform(
         modules=[gru_module],
         burn_in=2,
-        in_keys=["hidden"],
-        out_keys=["hidden"],
+        out_keys=out_keys,
     )
-    data = burn_in_transform(data)
-
-    assert data.shape[-1] == sequence_length - 2
-    assert data.get("hidden").sum() > 0.0
+    buffer = TensorDictReplayBuffer(
+        storage=LazyMemmapStorage(batch_size),
+        batch_size=1,
+    )
+    buffer.append_transform(burn_in_transform)
+    buffer.extend(data)
+    data = buffer.sample(1)
+    assert data.shape[-1] == 2
+    assert data[:, 0].get("hidden").sum() > 0.0
+    assert data[:, 1:].get("hidden").sum() == 0.0
