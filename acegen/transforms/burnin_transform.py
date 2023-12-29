@@ -14,7 +14,7 @@ class BurnInTransform(Transform):
 
     This transform is useful to obtain up-to-date recurrent states when
     they are not available. It burns-in a number of steps along the time dimension
-    from sampled sequential data slices and returs the remaining data sequence with
+    from sampled sequential data slices and returns the remaining data sequence with
     the burnt in data in its initial time step. It is intended to be used as a
     replay buffer transform, not as an environment transform.
 
@@ -83,29 +83,29 @@ class BurnInTransform(Transform):
         burn_in: int,
         out_keys: Sequence[NestedKey] | None = None,
     ):
-        self.modules = modules
-        self.burn_in = burn_in
-
         if not isinstance(modules, Sequence):
-            self.modules = [modules]
-        for module in self.modules:
+            modules = [modules]
+
+        for module in modules:
             if not isinstance(module, TensorDictModuleBase):
                 raise ValueError(
                     f"All modules must be TensorDictModules, not {type(module)}."
                 )
 
         in_keys = set()
-        for module in self.modules:
+        for module in modules:
             in_keys.update(module.in_keys)
 
         if out_keys is None:
             out_keys = set()
-            for module in self.modules:
+            for module in modules:
                 for key in module.out_keys:
                     if key[0] == "next":
                         out_keys.add(key[1])
 
         super().__init__(in_keys=in_keys, out_keys=out_keys)
+        self.modules = modules
+        self.burn_in = burn_in
 
     def _call(self, tensordict: TensorDictBase) -> TensorDictBase:
         raise RuntimeError(

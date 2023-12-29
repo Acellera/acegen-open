@@ -5,7 +5,7 @@ from acegen.vocabulary import SMILESVocabulary
 from tensordict import TensorDict
 from tests.utils import get_default_devices
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
-from torchrl.modules import GRUModule, MLP
+from torchrl.modules import GRUModule
 
 tokens = ["(", ")", "1", "=", "C", "N", "O"]
 
