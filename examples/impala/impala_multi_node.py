@@ -25,7 +25,8 @@ from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
 from torch.distributions.kl import kl_divergence
-from torchrl.collectors import MultiaSyncDataCollector, SyncDataCollector
+from torchrl.collectors import MultiaSyncDataCollector
+from torchrl.collectors.distributed import RayCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
@@ -146,17 +147,16 @@ def main(cfg: "DictConfig"):
         # scoring = MolScore(model_name="impala", task_config=cfg.molscore)
         # scoring.configs["save_dir"] = save_dir
         # scoring_function = scoring.score
+
         def scoring_function(smiles):
-            return np.zeros(len(smiles))
+            return np.ones(len(smiles)) * 0.5
 
         return scoring_function
 
-    def scoring_function(smiles):
-        return np.zeros(len(smiles))
-
     # Create reward transform
     rew_transform = SMILESReward(
-        reward_function=scoring_function,
+        # reward_function_creator=create_scoring_fn,
+        reward_function=create_scoring_fn(),
         vocabulary=vocabulary,
         in_keys=["SMILES"],
         out_keys=["reward"],
@@ -232,25 +232,29 @@ def main(cfg: "DictConfig"):
     # Collector
     ####################################################################################################################
 
-    # collector = MultiaSyncDataCollector(
-    #     create_env_fn=[create_env_fn()] * cfg.num_workers,
-    #     policy=actor_inference,
-    #     frames_per_batch=cfg.frames_per_batch,
-    #     total_frames=cfg.total_frames,
-    #     device=device,
-    #     storing_device=device,
-    #     max_frames_per_traj=-1,
-    #     update_at_each_batch=True,
-    # )
-
-    collector = SyncDataCollector(
+    collector = MultiaSyncDataCollector(
+        create_env_fn=[create_env_fn()] * cfg.num_workers,
         policy=actor_inference,
-        create_env_fn=create_env_fn,
         frames_per_batch=cfg.frames_per_batch,
         total_frames=cfg.total_frames,
-        storing_device=device,
         device=device,
+        storing_device=device,
+        max_frames_per_traj=-1,
+        update_at_each_batch=True,
     )
+
+    # collector = RayCollector(
+    #     create_env_fn=[make_env(cfg.env.env_name, device)] * num_workers,
+    #     policy=actor,
+    #     collector_class=SyncDataCollector,
+    #     frames_per_batch=frames_per_batch,
+    #     total_frames=total_frames,
+    #     max_frames_per_traj=-1,
+    #     ray_init_config=ray_init_config,
+    #     remote_configs=remote_config,
+    #     sync=False,
+    #     update_after_each_batch=True,
+    # )
 
     # Loss modules
     ####################################################################################################################

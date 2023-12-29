@@ -1,39 +1,68 @@
 import torch
+from tensodict import TensorDictBase
 from torchrl.envs import Transform
 
 
 class BurnInTransform(Transform):
     """Transform to burn in the recurrent state of an RNN.
 
-    Args:
-        rnn_modules: A list of RNN modules to burn in.
-        burn_in: The number of steps to burn in.
+    This transform is useful for obtaining up-to-date recurrent states when
+    they are not available by burning in a few steps along the time dimension.
+    It is intended to be used as a replay buffer transform, not as an environment
+    transform.
 
-    Note:
-        This transform assumes that all RNN modules are TensorDict-compatible
-        modules and that can handle recurrence in the time dimension (recurrent mode).
+    Args:
+        modules (list): A list of modules to burn in.
+        burn_in (int): The number of time steps to burn in.
+
+    Examples:
+        >>> import torch
+        >>> from torchrl.envs import TensorDict
+        >>> from torchrl.envs.transforms import BurnInTransform
+        >>> from torchrl.modules import LSTM
+
+        >>> burn_in_transform = BurnInTransform(
+        ...     modules=[LSTM(1, 1, batch_first=True)],
+        ...     burn_in=5,
+        ... )
+
     """
 
-    def __init__(self, rnn_modules, burn_in):
+    def __init__(self, modules, burn_in):
         super().__init__()
-        self.rnn_modules = rnn_modules
+        self.modules = modules
         self.burn_in = burn_in
 
-    def forward(self, td):
-        device = td.device or "cpu"
-        td_burn_in = td[..., : self.burn_in]
+    def __call__(self, tensordict: TensorDictBase) -> TensorDictBase:
+        raise RuntimeError(
+            "BurnInTransform can only be used when appended to a ReplayBuffer."
+        )
+
+    def _step(
+        self, tensordict: TensorDictBase, next_tensordict: TensorDictBase
+    ) -> TensorDictBase:
+        raise RuntimeError(
+            "BurnInTransform can only be used when appended to a ReplayBuffer."
+        )
+
+    def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+
+        td_device = tensordict.device or "cpu"
+
+        # Split the tensor dict into the burn in and the rest.
+        td_burn_in = tensordict[..., : self.burn_in]
+        td_out = tensordict[..., self.burn_in :]
+
+        # Burn in the recurrent state.
         with torch.no_grad():
-            for rnn_module in self.rnn_modules:
-                td_burn_in = td_burn_in.to(rnn_module.device)
-                td_burn_in = rnn_module(td_burn_in)
-        td_burn_in = td_burn_in.to(device)
-        td_out = td[..., self.burn_in :]
+            for module in self.modules:
+                td_burn_in = td_burn_in.to(module.device)
+                td_burn_in = module(td_burn_in)
+        td_burn_in = td_burn_in.to(td_device)
 
-        # TODO: This is a hack to get the recurrent state from the burn in
-        # rhs = torch.zeros(td_out.shape[0], td_out.shape[1], 3, 512)
-        # rhs[:, 0].copy_(td_burn_in["next"]["recurrent_state"][:, -1])
-        # td_out.set("recurrent_state", rhs)
-
+        # Update the next state.
         td_out[..., 0].update(td_burn_in["next"][..., -1])
-
         return td_out
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(burn_in={self.burn_in})"
