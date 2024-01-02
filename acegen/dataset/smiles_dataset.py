@@ -10,8 +10,7 @@ from tqdm import tqdm
 
 
 def load_dataset(file_path):
-    """Reads a list of SMILES from file_path"""
-
+    """Reads a list of SMILES from file_path."""
     smiles_list = []
     with open(file_path, "r") as f:
         for line in tqdm(f, desc="Load Samples"):
@@ -20,7 +19,7 @@ def load_dataset(file_path):
     return smiles_list
 
 
-class DeNovoDataset(Dataset):
+class SMILESDataset(Dataset):
     """Dataset that takes a list of smiles."""
 
     def __init__(self, cache_path, dataset_path, vocabulary, randomize_smiles=False):
@@ -135,7 +134,7 @@ class DeNovoDataset(Dataset):
 
     @classmethod
     def collate_fn(cls, arr):
-        """Function to take a list of encoded sequences and turn them into a batch"""
+        """Function to take a list of encoded sequences and turn them into a batch."""
         max_length = max([seq.size(0) for seq in arr])
         collated_arr = torch.zeros(len(arr), max_length)
         for i, seq in enumerate(arr):

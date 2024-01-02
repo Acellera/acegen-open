@@ -1,0 +1,9 @@
+train_dataset_path: "examples/pretrain/data/train.txt"
+randomize_smiles: False
+dataset_log_dir: "examples/pretrain/logs"
+batch_size: 128
+lr: 0.0001
+wandb_key: "YOUR_WANDB_KEY"
+experiment_name: pretrain
+agent_name: gru
+epochs: 10
