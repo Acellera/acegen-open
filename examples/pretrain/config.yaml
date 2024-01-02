@@ -1,6 +1,6 @@
-train_dataset_path: "examples/pretrain/data/train.txt"
+train_dataset_path: ../priors/smiles_test_set
 randomize_smiles: False
-dataset_log_dir: "examples/pretrain/logs"
+dataset_log_dir: /tmp/pretrain
 batch_size: 128
 lr: 0.0001
 wandb_key: "YOUR_WANDB_KEY"
