@@ -2,13 +2,13 @@ from pathlib import Path
 
 import hydra
 import torch
-import tqdm
 import wandb
 from acegen.dataset import load_dataset, SMILESDataset
 from acegen.models import create_gru_actor, create_gru_critic
 from acegen.vocabulary import SMILESVocabulary
 from tensordict import TensorDict
-from torch.utils.data import DataLoader, Sampler
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -46,14 +46,15 @@ def main(cfg: "DictConfig"):
 
     print("\nCreating model...")
     actor_training, actor_inference = create_gru_actor(len(vocabulary))
-    critic_training, critic_inference = create_gru_critic(len(vocabulary))
+    # critic_training, critic_inference = create_gru_critic(len(vocabulary))
     actor_training.to(device)
-    critic_training.to(device)
+    # critic_training.to(device)
     actor_inference.to(device)
-    critic_inference.to(device)
+    # critic_inference.to(device)
 
     print("\nCreating optimizer...")
-    optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
+    actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
+    # critic_optimizer = torch.optim.Adam(critic_training.parameters(), lr=cfg.lr)
 
     # Handle wandb init
     if cfg.wandb_key:
@@ -69,14 +70,11 @@ def main(cfg: "DictConfig"):
     ):
 
         # Calculate number of parameters
-        num_params = sum(
-            param.numel() for param in actor_training.policy_net.parameters()
-        )
+        num_params = sum(param.numel() for param in actor_training.parameters())
         print(f"Number of policy parameters {num_params}")
 
         print("\nStarting pretraining...")
         for epoch in range(1, cfg.epochs):
-            dataloader.sampler.set_epoch(epoch)
 
             with tqdm(enumerate(dataloader), total=len(dataloader)) as tepoch:
 
@@ -84,14 +82,44 @@ def main(cfg: "DictConfig"):
 
                 for step, batch in tepoch:
 
-                    import ipdb
+                    batch = batch.to(device)
+                    mask = (batch != -1).float()  # Mask padding tokens
 
-                    ipdb.set_trace()
-                    # Optimization step
-                    batch = actor_training(batch)
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                    num_layers = 3
+                    hidden_size = 512
+                    td_batch = TensorDict(
+                        {
+                            "observation": batch.long() * mask.long(),
+                            "is_init": torch.zeros_like(batch).bool(),
+                            "recurrent_state": torch.zeros(
+                                *batch.shape[:2], num_layers, hidden_size
+                            ),
+                        },
+                        batch_size=batch.shape[:2],
+                    )
+
+                    # Forward pass
+                    td_batch = actor_training(td_batch)
+                    # td_batch = critic_training(td_batch)
+
+                    # Loss
+                    loss_actor = (
+                        (-td_batch.get("sample_log_prob").squeeze(-1) * mask)
+                        .sum(0)
+                        .mean()
+                    )
+                    # loss_critic = 0.0
+
+                    # Backward pass
+                    actor_optimizer.zero_grad()
+                    loss_actor.backward()
+                    actor_optimizer.step()
+                    # critic_optimizer.zero_grad()
+                    # loss_critic.backward()
+                    # critic_optimizer.step()
+
+            save_path = Path(cfg.log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
+            torch.save(actor_training.state_dict(), save_path)
 
 
 if __name__ == "__main__":
