@@ -64,7 +64,7 @@ class SMILESDataset(Dataset):
             total=len(smiles_list),
             desc="Process samples",
         ):
-            encoded_smile = self.vocabulary.encode_smile(smile)
+            encoded_smile = self.vocabulary.encode(smile)
             if encoded_smile is None:
                 continue
 
@@ -115,14 +115,14 @@ class SMILESDataset(Dataset):
 
         if self.randomize_smiles:
             smile_string = self.vocabulary.remove_start_and_end_tokens(
-                self.vocabulary.decode_smile(smile.tolist())
+                self.vocabulary.decode(smile.tolist())
             )
             try:
                 equivalent_sample = Chem.MolToSmiles(
                     Chem.MolFromSmiles(smile_string), doRandom=True, canonical=False
                 )
                 smile = torch.tensor(
-                    self.vocabulary.encode_smile(equivalent_sample), dtype=torch.int64
+                    self.vocabulary.encode(equivalent_sample), dtype=torch.int64
                 )
             except KeyError:  # Sometimes a token outside the vocabulary can appear
                 pass

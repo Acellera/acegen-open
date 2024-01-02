@@ -1,9 +1,9 @@
-train_dataset_path: ../priors/smiles_test_set
+train_dataset_path: null
 randomize_smiles: False
 dataset_log_dir: /tmp/pretrain
 batch_size: 128
 lr: 0.0001
-wandb_key: "YOUR_WANDB_KEY"
+wandb_key: null
 experiment_name: pretrain
 agent_name: gru
 epochs: 10

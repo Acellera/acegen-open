@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import hydra
 import torch
 import tqdm
@@ -9,21 +11,14 @@ from tensordict import TensorDict
 from torch.utils.data import DataLoader, Sampler
 
 
-def load_dataset(file_path):
-    """Reads a list of SMILES from file_path"""
-
-    smiles_list = []
-    with open(file_path, "r") as f:
-        for line in tqdm(f, desc="Load Samples"):
-            smiles_list.append(line.split()[0])
-
-    return smiles_list
-
-
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     device = f"cuda:0" if torch.cuda.device_count() > 1 else "cpu"
+
+    cfg.train_dataset_path = (
+        Path(__file__).resolve().parent.parent.parent / "priors" / "smiles_test_set"
+    )
 
     print("\nConstructing vocabulary...")
     vocabulary = SMILESVocabulary.create_from_smiles(
@@ -41,7 +36,7 @@ def main(cfg: "DictConfig"):
     dataloader = DataLoader(
         dataset,
         batch_size=cfg.batch_size,
-        sampler=Sampler(dataset),
+        # sampler=Sampler(dataset),  # Sampler option is mutually exclusive with shuffle
         shuffle=True,  # Needs to be False with DistributedSampler
         drop_last=True,
         num_workers=4,
@@ -89,6 +84,9 @@ def main(cfg: "DictConfig"):
 
                 for step, batch in tepoch:
 
+                    import ipdb
+
+                    ipdb.set_trace()
                     # Optimization step
                     batch = actor_training(batch)
                     optimizer.zero_grad()
