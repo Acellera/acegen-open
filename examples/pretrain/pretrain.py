@@ -2,12 +2,12 @@ from pathlib import Path
 
 import hydra
 import torch
-import wandb
 from acegen.dataset import load_dataset, SMILESDataset
 from acegen.models import create_gru_actor, create_gru_critic
 from acegen.vocabulary import SMILESVocabulary
 from tensordict import TensorDict
 from torch.utils.data import DataLoader
+from torchrl.record.loggers import get_logger
 from tqdm import tqdm
 
 
@@ -56,70 +56,70 @@ def main(cfg: "DictConfig"):
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
     # critic_optimizer = torch.optim.Adam(critic_training.parameters(), lr=cfg.lr)
 
-    # Handle wandb init
-    if cfg.wandb_key:
-        mode = "online"
-        wandb.login(key=str(cfg.wandb_key))
-    else:
-        mode = "disabled"
+    logger = None
+    if cfg.logger_backend:
+        print("\nCreating logger...")
+        logger = get_logger(
+            cfg.logger_backend,
+            logger_name="pretrain",
+            experiment_name=cfg.agent_name,
+            project_name=cfg.experiment_name,
+        )
 
-    with wandb.init(
-        project=cfg.experiment_name,
-        name=cfg.agent_name + "_pretrain",
-        mode=mode,
-    ):
+    # Calculate number of parameters
+    num_params = sum(param.numel() for param in actor_training.parameters())
+    print(f"Number of policy parameters {num_params}")
 
-        # Calculate number of parameters
-        num_params = sum(param.numel() for param in actor_training.parameters())
-        print(f"Number of policy parameters {num_params}")
+    print("\nStarting pretraining...")
+    for epoch in range(1, cfg.epochs):
 
-        print("\nStarting pretraining...")
-        for epoch in range(1, cfg.epochs):
+        with tqdm(enumerate(dataloader), total=len(dataloader)) as tepoch:
 
-            with tqdm(enumerate(dataloader), total=len(dataloader)) as tepoch:
+            tepoch.set_description(f"Epoch {epoch}")
 
-                tepoch.set_description(f"Epoch {epoch}")
+            for step, batch in tepoch:
 
-                for step, batch in tepoch:
+                batch = batch.to(device)
+                mask = (batch != -1).float()  # Mask padding tokens
 
-                    batch = batch.to(device)
-                    mask = (batch != -1).float()  # Mask padding tokens
+                num_layers = 3
+                hidden_size = 512
+                td_batch = TensorDict(
+                    {
+                        "observation": batch.long() * mask.long(),
+                        "is_init": torch.zeros_like(batch).bool(),
+                        "recurrent_state": torch.zeros(
+                            *batch.shape[:2], num_layers, hidden_size
+                        ),
+                    },
+                    batch_size=batch.shape[:2],
+                )
 
-                    num_layers = 3
-                    hidden_size = 512
-                    td_batch = TensorDict(
-                        {
-                            "observation": batch.long() * mask.long(),
-                            "is_init": torch.zeros_like(batch).bool(),
-                            "recurrent_state": torch.zeros(
-                                *batch.shape[:2], num_layers, hidden_size
-                            ),
-                        },
-                        batch_size=batch.shape[:2],
-                    )
+                # Forward pass
+                td_batch = actor_training(td_batch)
+                # td_batch = critic_training(td_batch)
 
-                    # Forward pass
-                    td_batch = actor_training(td_batch)
-                    # td_batch = critic_training(td_batch)
+                # Loss
+                loss_actor = (
+                    (-td_batch.get("sample_log_prob").squeeze(-1) * mask).sum(0).mean()
+                )
+                # loss_critic = 0.0
 
-                    # Loss
-                    loss_actor = (
-                        (-td_batch.get("sample_log_prob").squeeze(-1) * mask)
-                        .sum(0)
-                        .mean()
-                    )
-                    # loss_critic = 0.0
+                # Backward pass
+                actor_optimizer.zero_grad()
+                loss_actor.backward()
+                actor_optimizer.step()
+                # critic_optimizer.zero_grad()
+                # loss_critic.backward()
+                # critic_optimizer.step()
 
-                    # Backward pass
-                    actor_optimizer.zero_grad()
-                    loss_actor.backward()
-                    actor_optimizer.step()
-                    # critic_optimizer.zero_grad()
-                    # loss_critic.backward()
-                    # critic_optimizer.step()
+                # Log
+                if logger:
+                    logger.log_scalar("loss_actor", loss_actor.item())
+                    # logger.log_scalar("loss_critic", loss_critic.item())
 
-            save_path = Path(cfg.log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
-            torch.save(actor_training.state_dict(), save_path)
+        save_path = Path(cfg.log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
+        torch.save(actor_training.state_dict(), save_path)
 
 
 if __name__ == "__main__":

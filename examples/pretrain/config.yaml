@@ -1,9 +1,10 @@
-train_dataset_path: null
-randomize_smiles: False
-dataset_log_dir: /tmp/pretrain
-batch_size: 128
-lr: 0.0001
-wandb_key: null
 experiment_name: pretrain
 agent_name: gru
+
+train_dataset_path: null
+dataset_log_dir: /tmp/pretrain
+
+lr: 0.0001
 epochs: 10
+batch_size: 128
+randomize_smiles: False
