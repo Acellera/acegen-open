@@ -12,13 +12,7 @@ import torch
 import tqdm
 import yaml
 
-from acegen import (
-    BurnInTransform,
-    PenaliseRepeatedSMILES,
-    SMILESEnv,
-    SMILESReward,
-    SMILESVocabulary,
-)
+from acegen import PenaliseRepeatedSMILES, SMILESEnv, SMILESReward, SMILESVocabulary
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -36,6 +30,7 @@ from torchrl.data import (
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
+    BurnInTransform,
     CatFrames,
     InitTracker,
     RandomCropTensorDict,
@@ -298,7 +293,7 @@ def main(cfg: "DictConfig"):
         batch_size=cfg.batch_size,
         priority_key="loss_qvalue",
     )
-    # buffer.append_transform(crop_seq)
+    buffer.append_transform(crop_seq)
     buffer.append_transform(burn_in)
 
     # Optimizer

@@ -7,7 +7,7 @@ seed: 101
 
 # Environment configuration
 num_envs: 10
-molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
+molscore: /home/abou/MolScore/molscore/configs/valid.json
 
 # Collector configuration
 total_frames: 1_000_000
@@ -27,9 +27,9 @@ weight_decay: 0.0
 gamma: 0.999
 target_update_polyak: 0.995
 target_entropy_weight: 0.1
-sampled_sequence_length: 20  # Unused
-burn_in: 0
-batch_size: 4
+sampled_sequence_length: 10
+burn_in: 9
+batch_size: 80
 kl_coef: 0.5
 max_grad_norm: 1.0
 num_loss_updates: 500
@@ -37,5 +37,5 @@ value_loss_function: l2
 actor_updates_frequency: 1
 
 # Other
-trainable_actor: True
+trainable_actor: False
 anneal_entropy: False
