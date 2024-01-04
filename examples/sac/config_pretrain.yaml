@@ -10,9 +10,9 @@ num_envs: 10
 molscore: /home/abou/MolScore/molscore/configs/valid.json
 
 # Collector configuration
-total_frames: 1_000_000
+total_frames: 100_000_000
 frames_per_batch: 1000
-init_random_smiles: 20
+init_random_smiles: 2000
 
 # Replay buffer configuration
 replay_buffer_size: 10_000
@@ -21,7 +21,7 @@ replay_buffer_size: 10_000
 shared_nets: True
 
 # Discrete SAC configuration
-lr: 0.0005
+lr: 0.001
 eps: 1e-06
 weight_decay: 0.0
 gamma: 0.999
@@ -30,7 +30,7 @@ target_entropy_weight: 0.1
 sampled_sequence_length: 10
 burn_in: 9
 batch_size: 80
-kl_coef: 0.5
+kl_coef: 0.0
 max_grad_norm: 1.0
 num_loss_updates: 500
 value_loss_function: l2

@@ -317,7 +317,7 @@ def main(cfg: "DictConfig"):
     if cfg.logger_backend:
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="sac",
+            logger_name="sac_pretrain",
             experiment_name=cfg.agent_name,
             project_name=cfg.experiment_name,
         )
@@ -393,16 +393,16 @@ def main(cfg: "DictConfig"):
             log_info.update({f"train/loss_qvalue": loss["loss_qvalue"].detach().item()})
 
             if num_updates % cfg.actor_updates_frequency == 0:
-                loss_sum += loss["loss_actor"] + loss["loss_alpha"]
-                with torch.no_grad():
-                    prior_dist = prior.get_dist(batch)
-                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-                kl_div = kl_div[~mask].mean()
-                loss_sum += kl_div * kl_coef
+                # loss_sum += loss["loss_actor"] + loss["loss_alpha"]
+                # with torch.no_grad():
+                #     prior_dist = prior.get_dist(batch)
+                # kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+                # mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+                # kl_div = kl_div[~mask].mean()
+                # loss_sum += kl_div * kl_coef
                 log_info.update(
                     {
-                        "train/kl_div": kl_div.detach().item(),
+                        # "train/kl_div": kl_div.detach().item(),
                         "train/loss_actor": loss["loss_actor"].detach().item(),
                         "train/loss_alpha": loss["loss_alpha"].detach().item(),
                         "train/alpha": loss["alpha"].detach().item(),
@@ -428,6 +428,14 @@ def main(cfg: "DictConfig"):
                     logger.log_scalar(key, value, collected_frames)
 
         collector.update_policy_weights_()
+
+        if num_updates % 10_000 == 0:
+            torch.save(
+                {
+                    "critic": critic_training.state_dict(),
+                },
+                Path(save_dir) / f"ckpt_{num_updates}.pt",
+            )
 
     collector.shutdown()
     print("Success!")
