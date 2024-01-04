@@ -129,7 +129,7 @@ def main(cfg: "DictConfig"):
 
     # Create reward transform
     rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary, in_keys=["action"]
+        reward_function=scoring_function, vocabulary=vocabulary, in_keys=["observation"]
     )
 
     # Replay buffer
@@ -179,6 +179,9 @@ def main(cfg: "DictConfig"):
         pbar.update(data.numel())
 
         # Compute reward
+        import ipdb
+
+        ipdb.set_trace()
         data = rew_transform(data)
 
         # Identify unique sequences

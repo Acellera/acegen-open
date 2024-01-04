@@ -105,6 +105,7 @@ class SingleStepSMILESEnv(EnvBase):
                 "done": done,
                 "terminated": terminated,
                 "reward": reward,
+                "observation": actions,
             },
             device=self.device,
             batch_size=self.batch_size,
