@@ -405,12 +405,14 @@ def main(cfg: "DictConfig"):
                 mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
-                log_info.update({f"train/kl_div": kl_div.detach().item()})
                 log_info.update(
-                    {f"train/loss_actor": loss["loss_actor"].detach().item()}
-                )
-                log_info.update(
-                    {f"train/loss_alpha": loss["loss_alpha"].detach().item()}
+                    {
+                        "train/kl_div": kl_div.detach().item(),
+                        "train/loss_actor": loss["loss_actor"].detach().item(),
+                        "train/loss_alpha": loss["loss_alpha"].detach().item(),
+                        "train/alpha": loss["alpha"].detach().item(),
+                        "train/entropy": loss["entropy"].detach().item(),
+                    }
                 )
 
             loss_sum.backward()
