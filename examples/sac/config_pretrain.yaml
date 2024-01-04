@@ -18,7 +18,7 @@ init_random_smiles: 2000
 replay_buffer_size: 10_000
 
 # Architecture configuration
-shared_nets: True
+shared_nets: False
 
 # Discrete SAC configuration
 lr: 0.001

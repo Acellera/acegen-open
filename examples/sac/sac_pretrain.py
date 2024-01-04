@@ -105,10 +105,13 @@ def main(cfg: "DictConfig"):
         )
     else:
         actor_training, actor_inference = create_gru_actor(
-            len(vocabulary), distribution_class=OneHotCategorical
+            len(vocabulary),
+            distribution_class=OneHotCategorical,
         )
         critic_training, critic_inference = create_gru_critic(
-            len(vocabulary), critic_value_per_action=True
+            len(vocabulary),
+            critic_value_per_action=True,
+            python_based=True,
         )
 
     # Load pretrained weights
@@ -317,8 +320,8 @@ def main(cfg: "DictConfig"):
     if cfg.logger_backend:
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="sac_pretrain",
-            experiment_name=cfg.agent_name,
+            logger_name="sac",
+            experiment_name=cfg.agent_name + "_pretrain",
             project_name=cfg.experiment_name,
         )
 
@@ -374,6 +377,14 @@ def main(cfg: "DictConfig"):
             ("next", "SMILES"),
         )
 
+        # Zero out recurrent states
+        for key in data.keys():
+            if key.startswith("recurrent_state"):
+                data[key].zero_()
+        for key in data["next"].keys():
+            if key.startswith("recurrent_state"):
+                data[("next", key)].zero_()
+
         buffer.extend(data.cpu())
 
         if total_done < cfg.init_random_smiles:
@@ -385,8 +396,6 @@ def main(cfg: "DictConfig"):
             batch = buffer.sample()
             if batch.device != device:
                 batch = batch.to(device, non_blocking=True)
-            else:
-                batch = batch.clone()
 
             loss = loss_module(batch)
             loss_sum = loss["loss_qvalue"]

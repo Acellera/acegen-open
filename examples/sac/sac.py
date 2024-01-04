@@ -108,7 +108,7 @@ def main(cfg: "DictConfig"):
             len(vocabulary), distribution_class=OneHotCategorical
         )
         critic_training, critic_inference = create_gru_critic(
-            len(vocabulary), critic_value_per_action=True
+            len(vocabulary), critic_value_per_action=True, python_based=True
         )
 
     # Load pretrained weights
@@ -369,6 +369,14 @@ def main(cfg: "DictConfig"):
             "SMILES",
             ("next", "SMILES"),
         )
+
+        # Zero out recurrent states
+        for key in data.keys():
+            if key.startswith("recurrent_state"):
+                data[key].zero_()
+        for key in data["next"].keys():
+            if key.startswith("recurrent_state"):
+                data[("next", key)].zero_()
 
         buffer.extend(data.cpu())
 
