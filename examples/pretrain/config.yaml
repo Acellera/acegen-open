@@ -3,6 +3,8 @@ agent_name: gru
 
 train_dataset_path: null
 dataset_log_dir: /tmp/pretrain
+model_log_dir: /tmp/pretrain
+logger: null
 
 lr: 0.0001
 epochs: 10

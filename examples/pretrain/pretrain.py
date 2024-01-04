@@ -57,10 +57,10 @@ def main(cfg: "DictConfig"):
     # critic_optimizer = torch.optim.Adam(critic_training.parameters(), lr=cfg.lr)
 
     logger = None
-    if cfg.logger_backend:
+    if cfg.logger:
         print("\nCreating logger...")
         logger = get_logger(
-            cfg.logger_backend,
+            cfg.logger,
             logger_name="pretrain",
             experiment_name=cfg.agent_name,
             project_name=cfg.experiment_name,
@@ -71,7 +71,10 @@ def main(cfg: "DictConfig"):
     print(f"Number of policy parameters {num_params}")
 
     print("\nStarting pretraining...")
+    actor_losses = torch.zeros(len(dataloader))
     for epoch in range(1, cfg.epochs):
+
+        actor_losses.zero_()
 
         with tqdm(enumerate(dataloader), total=len(dataloader)) as tepoch:
 
@@ -113,12 +116,14 @@ def main(cfg: "DictConfig"):
                 # loss_critic.backward()
                 # critic_optimizer.step()
 
-                # Log
-                if logger:
-                    logger.log_scalar("loss_actor", loss_actor.item())
-                    # logger.log_scalar("loss_critic", loss_critic.item())
+                actor_losses[step] = loss_actor.item()
 
-        save_path = Path(cfg.log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
+            # Log
+            if logger:
+                logger.log_scalar("loss_actor", actor_losses.mean())
+                # logger.log_scalar("loss_critic", loss_critic.item())
+
+        save_path = Path(cfg.model_log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
         torch.save(actor_training.state_dict(), save_path)
 
 
