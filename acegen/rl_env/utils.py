@@ -97,5 +97,11 @@ def sample_completed_smiles(
 
     stack_data = torch.stack(tensordicts, dim=-1)
     stack_data["next"]["done"] = stack_data["next"]["done"] * stack_data["mask"]
+    stack_data["next"]["truncated"] = (
+        stack_data["next"]["truncated"] * stack_data["mask"]
+    )
+    stack_data["next"]["terminated"] = (
+        stack_data["next"]["terminated"] * stack_data["mask"]
+    )
 
     return stack_data
