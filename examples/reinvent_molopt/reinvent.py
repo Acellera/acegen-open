@@ -14,10 +14,11 @@ import tqdm
 import yaml
 
 from acegen import SMILESReward, SMILESVocabulary
+from models import create_reinvent_model
 from omegaconf import OmegaConf
+from replay_buffer import Experience
 from single_step_smiles_env import SingleStepSMILESEnv
 from torchrl.record.loggers import get_logger
-from utils import create_reinvent_model, Experience
 
 logging.basicConfig(level=logging.WARNING)
 

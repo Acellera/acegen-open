@@ -81,7 +81,7 @@ def main(cfg: "DictConfig"):
         Path(__file__).resolve().parent.parent.parent
         / "priors"
         / "reinvent_vocabulary.txt"
-    )
+    )  # ckpt is just a file with the vocabulary tokens
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
     vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
@@ -121,7 +121,7 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    # Create transform to populate initial tensordict with recurrent states equal to 0.0
+    # Create a transform to populate initial tensordict with recurrent states equal to 0.0
     if cfg.shared_nets:
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
@@ -166,7 +166,7 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-    # Scoring transform - more efficient to do it outside the environment
+    # Define ccoring transform - it is more efficient to score after data collection
     ####################################################################################################################
 
     if not _has_molscore:
