@@ -2,7 +2,7 @@
 experiment_name: torchrl_chem
 agent_name: reinvent
 log_dir: logs_reinvent
-logger_backend: wandb
+logger_backend: null
 seed: 101
 
 # Environment configuration

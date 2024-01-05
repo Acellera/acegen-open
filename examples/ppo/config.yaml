@@ -2,7 +2,7 @@
 experiment_name: torchrl_chem
 agent_name: ppo
 log_dir: logs_ppo
-logger_backend: wandb
+logger_backend: null
 seed: 101
 
 # Environment configuration

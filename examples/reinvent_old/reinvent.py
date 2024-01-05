@@ -179,9 +179,6 @@ def main(cfg: "DictConfig"):
         pbar.update(data.numel())
 
         # Compute reward
-        import ipdb
-
-        ipdb.set_trace()
         data = rew_transform(data)
 
         # Identify unique sequences

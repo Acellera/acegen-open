@@ -165,31 +165,13 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    # TODO: don't hardcode it or will break! get it from the actor spec for example
     # Create transform to populate initial tensordict with recurrent states equal to 0.0
-    num_layers = 3
-    hidden_size = 512
     if cfg.shared_nets:
-        primers = {
-            ("recurrent_state",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([1, num_layers, hidden_size]),
-                dtype=torch.float32,
-            ),
-        }
+        primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
     else:
-        actor_primers = {
-            ("recurrent_state_actor",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([1, num_layers, hidden_size]),
-                dtype=torch.float32,
-            ),
-        }
-        critic_primers = {
-            ("recurrent_state_critic",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([1, num_layers, hidden_size]),
-                dtype=torch.float32,
-            ),
-        }
+        actor_primers = actor_training.rnn_spec.expand(cfg.num_envs)
+        critic_primers = critic_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [
             TensorDictPrimer(actor_primers),
             TensorDictPrimer(critic_primers),

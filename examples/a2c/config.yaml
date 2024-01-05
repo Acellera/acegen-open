@@ -2,7 +2,7 @@
 experiment_name: torchrl_chem
 agent_name: a2c
 log_dir: logs_a2c
-logger_backend: wandb
+logger_backend: null
 seed: 101
 
 # Environment configuration
