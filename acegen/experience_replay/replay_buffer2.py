@@ -1,6 +1,9 @@
+from typing import Sequence
+
 import numpy as np
 import torch
 from tensordict import TensorDict
+from torchrl.envs import Transform
 
 from acegen.vocabulary.base import Vocabulary
 
@@ -15,6 +18,7 @@ class SMILESBuffer:
         smiles_key: str = "SMILES",
         score_key: str = "reward",
         mask_key: str = "mask",
+        transforms: Sequence[Transform] = None,
     ):
         self.memory = []
         self.max_size = max_size
@@ -22,6 +26,7 @@ class SMILESBuffer:
         self.smiles_key = smiles_key
         self.score_key = score_key
         self.mask_key = mask_key
+        self.transforms = transforms  # TODO: check that are transforms!
 
     def add_experience(self, tensordict: TensorDict) -> None:
 
@@ -30,6 +35,10 @@ class SMILESBuffer:
         # check smiles key is in tensordict
 
         # check score key is in tensordict
+
+        import ipdb
+
+        ipdb.set_trace()
 
         smiles_str = self.voc.decode(tensordict.get(self.smiles_key).cpu().numpy())
         tensordict.smiles_str = smiles_str
@@ -65,7 +74,7 @@ class SMILESBuffer:
             import ipdb
 
             ipdb.set_trace()
-            # TODO: only if PPO
+            # TODO: apply transforms
             sample = [
                 x[x.get(self.mask_key) == 1] for x in sample
             ]  # merge with previous loop

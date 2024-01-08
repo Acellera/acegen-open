@@ -1,3 +1,4 @@
+import copy
 import datetime
 import json
 import os
@@ -150,24 +151,19 @@ def main(cfg: "DictConfig"):
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
 
-        # Binarize reward
-        # env.append_transform(
-        #     UnsqueezeTransform(
-        #         in_keys=["reward"],
-        #         out_keys=["episode_reward"],
-        #         unsqueeze_dim=-1
-        #     )
-        # )
-        # env.append_transform(BinarizeReward())
-
         # Cat frames to have complete smiles
-        keys = ["observation", "recurrent_state", "is_init", "done"]
+        keys = [
+            "observation",
+            # "recurrent_state",
+            # "is_init",
+            # "terminated",
+        ]
         cat_keys = [f"smiles_{key}" for key in keys]
-        keys += [("next", "reward")]
-        cat_keys += [("next", "smiles_reward")]
         env.append_transform(
             UnsqueezeTransform(in_keys=keys, out_keys=cat_keys, unsqueeze_dim=-1)
         )
+        # keys += [("next", "reward")]
+        # cat_keys += [("next", "smiles_reward")]
         env.append_transform(
             CatFrames(
                 N=100,
@@ -208,7 +204,9 @@ def main(cfg: "DictConfig"):
 
     # Create reward transform
     rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary
+        reward_function=scoring_function,
+        vocabulary=vocabulary,
+        in_keys=["smiles_observation"],
     )
 
     # Collector
@@ -258,7 +256,7 @@ def main(cfg: "DictConfig"):
     penalty_transform = None
     if cfg.penalize_repetition is True:
         penalty_transform = PenaliseRepeatedSMILES(
-            check_duplicate_key="SMILES",
+            check_duplicate_key="smiles_observation",
             in_key="reward",
             out_key="reward",
             penalty=cfg.repetition_penalty,
@@ -269,9 +267,10 @@ def main(cfg: "DictConfig"):
     if cfg.experience_replay is True:
         experience_replay_buffer = SMILESBuffer(
             vocabulary,
-            smiles_key="SMILES",
+            smiles_key="smiles_observation",
             score_key="reward",
             mask_key="mask",
+            transforms=copy.deepcopy(rhs_primers),
         )
 
     # Optimizer
@@ -309,10 +308,6 @@ def main(cfg: "DictConfig"):
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
     for data in collector:
-
-        import ipdb
-
-        ipdb.set_trace()
 
         log_info = {}
         frames_in_batch = data.numel()
@@ -367,8 +362,8 @@ def main(cfg: "DictConfig"):
             "collector",
             "step_count",
             ("next", "step_count"),
-            "SMILES",
-            ("next", "SMILES"),
+            "smiles_observation",
+            ("next", "smiles_observation"),
         )
 
         for j in range(ppo_epochs):
@@ -428,10 +423,8 @@ def main(cfg: "DictConfig"):
 
         # Add data to the replay buffer
         if experience_replay_buffer is not None:
-            import ipdb
-
-            ipdb.set_trace()
-            new_experience = replay_data.select("SMILES")
+            new_experience = replay_data.select("smiles_observation", "reward")
+            new_experience.set("mask", new_experience.get("smiles_observation") != -1)
             experience_replay_buffer.add_experience(new_experience)
 
         if logger:
