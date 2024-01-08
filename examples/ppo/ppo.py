@@ -12,7 +12,7 @@ import torch
 import tqdm
 import yaml
 from acegen.data import smiles_to_tensordict
-from acegen.data.replay_buffer_old import SMILESBuffer
+from acegen.data.replay_buffer2 import SMILESBuffer
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
