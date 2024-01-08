@@ -12,7 +12,7 @@ class SMILESBuffer:
         vocabulary (Vocabulary): A vocabulary object with at least encode and decode methods.
         max_size (int, optional): The maximum size of the SMILES buffer. Defaults to 100.
         smiles_key (str, optional): The key in the tensordict that contains the SMILES strings.
-            Defaults to "observation".
+        Defaults to "observation".
         score_key (str, optional): The key in the tensordict that contains the scores. Defaults to "reward".
         mask_key (str, optional): The key in the tensordict that contains the mask. Defaults to "mask".
     """

@@ -14,7 +14,7 @@ import tqdm
 import yaml
 
 from acegen import SMILESReward, SMILESVocabulary
-from models import create_reinvent_model
+from model import create_reinvent_model
 from omegaconf import OmegaConf
 from replay_buffer import Experience
 from single_step_smiles_env import SingleStepSMILESEnv
