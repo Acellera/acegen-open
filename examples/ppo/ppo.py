@@ -11,7 +11,8 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data.replay_buffer_old import Experience
+from acegen.data import smiles_to_tensordict
+from acegen.data.replay_buffer_old import SMILESBuffer
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -121,7 +122,7 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    # Create a transform to populate initial tensordict with recurrent states equal to 0.0
+    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
     if cfg.shared_nets:
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
@@ -133,6 +134,7 @@ def main(cfg: "DictConfig"):
             TensorDictPrimer(critic_primers),
         ]
 
+    # Define environment kwargs
     env_kwargs = {
         "start_token": vocabulary.vocab[vocabulary.start_token],
         "end_token": vocabulary.vocab[vocabulary.end_token],
@@ -141,13 +143,14 @@ def main(cfg: "DictConfig"):
         "device": device,
     }
 
+    # Define environment creation function
     def create_env_fn():
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
             UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
+                in_keys=["observation"], out_keys=["SMILES"], unsqueeze_dim=-1
             )
         )
         env.append_transform(
@@ -155,7 +158,7 @@ def main(cfg: "DictConfig"):
                 N=100,
                 dim=-1,
                 padding="constant",
-                in_keys=["observation"],
+                in_keys=["SMILES"],
                 out_keys=["SMILES"],
                 padding_value=-1,
             )
@@ -166,9 +169,11 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-    # Define ccoring transform - it is more efficient to score after data collection
+    # Independent transforms
     ####################################################################################################################
 
+    # 1. Define scoring transform
+    # it is more efficient to score all SMILES in a single call after data collection
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
@@ -196,6 +201,17 @@ def main(cfg: "DictConfig"):
     rew_transform = SMILESReward(
         reward_function=scoring_function, vocabulary=vocabulary
     )
+
+    # 2. Define a transform to penalise repeated SMILES
+    penalty_transform = None
+    if cfg.penalize_repetition is True:
+        penalty_transform = PenaliseRepeatedSMILES(
+            check_duplicate_key="SMILES",
+            in_key="reward",
+            out_key="reward",
+            penalty=cfg.repetition_penalty,
+            device=device,
+        )
 
     # Collector
     ####################################################################################################################
@@ -231,7 +247,7 @@ def main(cfg: "DictConfig"):
     )
     loss_module = loss_module.to(device)
 
-    # Buffers
+    # PPO data Buffer
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
@@ -241,23 +257,43 @@ def main(cfg: "DictConfig"):
         prefetch=4,
     )
 
-    penalty_transform = None
-    if cfg.penalize_repetition is True:
-        penalty_transform = PenaliseRepeatedSMILES(
-            check_duplicate_key="SMILES",
-            in_key="reward",
-            out_key="reward",
-            penalty=cfg.repetition_penalty,
-            device=device,
-        )
+    # Replay data Buffer
+    ####################################################################################################################
 
     experience_replay_buffer = None
     if cfg.experience_replay is True:
-        experience_replay_buffer = Experience(vocabulary)
-        replay_rhs_transform = TensorDictPrimer(actor_training.rnn_spec.expand(1, 100))
+        replay_smiles_per_row = 5
+        n = cfg.replay_batches * replay_smiles_per_row
+        experience_replay_buffer = SMILESBuffer(vocabulary)
+        replay_rhs_transform = TensorDictPrimer(actor_training.rnn_spec.expand(n, 100))
         replay_logp_transform = TensorDictPrimer(
-            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(1, 100))}
+            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(n, 100))}
         )
+
+        # top_smiles_buffer = TensorDictReplayBuffer(
+        #     storage=LazyTensorStorage(100, device=device),
+        #     sampler=SamplerWithoutReplacement(),
+        #     batch_size=10,
+        #     writer=TensorDictMaxValueWriter(rank_key="reward"),
+        # )
+
+    def prepare_replay_batch(batch, T):
+        """Prepare a batch of replay SMILES for PPO training."""
+
+        # Populate with recurrent states
+        replay_rhs_transform(batch)
+        replay_rhs_transform(batch.get("next"))
+
+        # Populate with is_init
+        batch.set("is_init", batch.get(("next", "done")).roll(1, dims=1))
+        batch.set(("next", "is_init"), torch.zeros_like(batch.get("is_init")))
+
+        # Populate with sample log probs
+        replay_logp_transform(batch)
+
+        batches = batch.chunk(cfg.replay_batches)
+        batches = [b[b.pop("mask")][..., 0:T].expand(1, T) for b in batches]
+        return batches
 
     # Optimizer
     ####################################################################################################################
@@ -357,51 +393,21 @@ def main(cfg: "DictConfig"):
             ("next", "reward"),
         )
 
-        # Then exclude unnecessary tensors
-        # data = data.exclude(
-        #     "embed",
-        #     "logits",
-        #     "features",
-        #     "collector",
-        #     "step_count",
-        #     ("next", "step_count"),
-        #     "SMILES",
-        #     ("next", "SMILES"),
-        # )
-
         for j in range(ppo_epochs):
 
             if (
                 experience_replay_buffer is not None
-                and len(experience_replay_buffer) > 20
+                and len(experience_replay_buffer) >= 50
             ):
-                to_cat = [data.clone()]
-                for _ in range(cfg.replay_batches):
-                    # TODO: fix, dont loop, sample a real batch from the replay buffer!!
-                    replay_batch = experience_replay_buffer.sample_replay_batch(
-                        batch_size=20, device=device
-                    )
-                    replay_batch = replay_batch[..., 0 : data.shape[1]]
-
-                    # populate with recurrent states
-                    replay_rhs_transform(replay_batch)
-                    replay_rhs_transform(replay_batch.get("next"))
-
-                    # populate with is_init
-                    replay_batch.set(
-                        "is_init", replay_batch.get(("next", "done")).roll(1, dims=1)
-                    )
-                    replay_batch.set(
-                        ("next", "is_init"),
-                        torch.zeros_like(replay_batch.get("is_init")),
-                    )
-
-                    # populate with sample log probs
-                    replay_logp_transform(replay_batch)
-
-                    to_cat.append(replay_batch)
-
-                extended_data = torch.cat(to_cat)
+                smiles, scores, _ = experience_replay_buffer.sample_smiles(
+                    n, decode_smiles=True
+                )
+                replay_batch = smiles_to_tensordict(
+                    smiles.int(), scores.unsqueeze(-1), device=device
+                )
+                extended_data = torch.cat(
+                    [data.clone(), *prepare_replay_batch(replay_batch, T=data.shape[1])]
+                )
             else:
                 extended_data = data
 

@@ -34,14 +34,14 @@ def smiles_to_tensordict(
 
     smiles_tensordict = TensorDict(
         {
-            "observation": smiles[:, :-1],
+            "observation": smiles[:, :-1].long(),
             "action": smiles[:, 1:],
             "done": done[:, :-1],
             "terminated": done[:, :-1],
             "mask": mask[:, :-1],
             "next": TensorDict(
                 {
-                    "observation": smiles[:, 1:],
+                    "observation": smiles[:, 1:].long(),
                     "reward": rewards[:, 1:],
                     "done": done[:, 1:],
                     "terminated": done[:, 1:],
