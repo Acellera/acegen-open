@@ -1,4 +1,3 @@
-import copy
 import datetime
 import json
 import os
@@ -12,8 +11,7 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data import smiles_to_tensordict
-from acegen.data.replay_buffer2 import SMILESBuffer
+from acegen.data import smiles_to_tensordict, SMILESBuffer
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -29,6 +27,7 @@ from torch.distributions.kl import kl_divergence
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
     BinarizeReward,
@@ -153,18 +152,11 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
 
         # Cat frames to have complete smiles
-        keys = [
-            "observation",
-            # "recurrent_state",
-            # "is_init",
-            # "terminated",
-        ]
+        keys = ["observation"]
         cat_keys = [f"smiles_{key}" for key in keys]
         env.append_transform(
             UnsqueezeTransform(in_keys=keys, out_keys=cat_keys, unsqueeze_dim=-1)
         )
-        # keys += [("next", "reward")]
-        # cat_keys += [("next", "smiles_reward")]
         env.append_transform(
             CatFrames(
                 N=100,
@@ -268,10 +260,13 @@ def main(cfg: "DictConfig"):
     if cfg.experience_replay is True:
         experience_replay_buffer = SMILESBuffer(
             vocabulary,
-            smiles_key="smiles_observation",
-            score_key="reward",
+            smiles_key="observation",
+            score_key=("next", "reward"),
             mask_key="mask",
-            transforms=copy.deepcopy(rhs_primers),
+        )
+        replay_rhs_transform = TensorDictPrimer(actor_training.rnn_spec.expand(1, 100))
+        replay_logp_transform = TensorDictPrimer(
+            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(1, 100))}
         )
 
     # Optimizer
@@ -355,16 +350,21 @@ def main(cfg: "DictConfig"):
             idx=replay_data.get("terminated").squeeze(-1)
         )
 
-        # Then exclude unnecessary tensors
-        data = data.exclude(
-            "embed",
-            "logits",
-            "features",
-            "collector",
-            "step_count",
-            ("next", "step_count"),
-            "smiles_observation",
-            ("next", "smiles_observation"),
+        # Select only the necessary tensors
+        data = data.select(
+            "action",
+            "done",
+            "is_init",
+            "observation",
+            "recurrent_state",
+            "sample_log_prob",
+            "terminated",
+            ("next", "done"),
+            ("next", "is_init"),
+            ("next", "observation"),
+            ("next", "recurrent_state"),
+            ("next", "terminated"),
+            ("next", "reward"),
         )
 
         for j in range(ppo_epochs):
@@ -375,9 +375,37 @@ def main(cfg: "DictConfig"):
             ):
                 to_cat = [data.clone()]
                 for _ in range(cfg.replay_batches):
-                    # TODO: fix, dont loop, sample a real batch from the replay buffer!!
-                    replay_batch = experience_replay_buffer.sample_smiles(n=20)
-                    to_cat.append(replay_batch[..., 0 : data.shape[1]])
+
+                    # Sample replay data
+                    replay_batch = experience_replay_buffer.sample_smiles(
+                        n=10, device=device
+                    )
+
+                    # Remove padding
+                    replay_batch = replay_batch[replay_batch.pop("mask")]
+
+                    # Crop to the same length
+                    T = data.shape[1]
+                    replay_batch = replay_batch[..., 0:T].expand(1, T)
+
+                    # Populate with recurrent states
+                    replay_rhs_transform(replay_batch)
+                    replay_rhs_transform(replay_batch.get("next"))
+
+                    # Populate with is_init
+                    replay_batch.set(
+                        "is_init", replay_batch.get(("next", "done")).roll(1, dims=1)
+                    )
+                    replay_batch.set(
+                        ("next", "is_init"),
+                        torch.zeros_like(replay_batch.get("is_init")),
+                    )
+
+                    # Populate with sample log probs
+                    replay_logp_transform(replay_batch)
+
+                    to_cat.append(replay_batch)
+
                 extended_data = torch.cat(to_cat)
             else:
                 extended_data = data
@@ -423,8 +451,8 @@ def main(cfg: "DictConfig"):
         # Add data to the replay buffer
         if experience_replay_buffer is not None:
             smiles = replay_data.get("smiles_observation")
-            replay_data = smiles_to_tensordict(smiles)
-            replay_data.set("mask", smiles != -1)
+            reward = replay_data.get("reward")
+            replay_data = smiles_to_tensordict(smiles, reward)
             experience_replay_buffer.add_experience(replay_data)
 
         if logger:

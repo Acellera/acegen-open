@@ -14,7 +14,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 import yaml
-from acegen.data.replay_buffer import Experience
+from acegen.data.replay_buffer_old import Experience
 from acegen.models import adapt_state_dict, create_gru_actor
 from acegen.rl_env import sample_completed_smiles, SMILESEnv
 from acegen.transforms import SMILESReward

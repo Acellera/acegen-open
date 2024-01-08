@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data.replay_buffer import Experience
+from acegen.data.replay_buffer_old import Experience
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,

@@ -37,13 +37,14 @@ def smiles_to_tensordict(
             "observation": smiles[:, :-1],
             "action": smiles[:, 1:],
             "done": done[:, :-1],
+            "terminated": done[:, :-1],
             "mask": mask[:, :-1],
             "next": TensorDict(
                 {
                     "observation": smiles[:, 1:],
-                    "reward": rewards[:, :-1],
+                    "reward": rewards[:, 1:],
                     "done": done[:, 1:],
-                    "mask": mask[:, 1:],
+                    "terminated": done[:, 1:],
                 },
                 batch_size=[B, T - 1],
             ),
