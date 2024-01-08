@@ -31,18 +31,38 @@ class SMILESBuffer:
     def add_experience(self, tensordict: TensorDict) -> None:
 
         # check mask key is in tensordict
+        if self.mask_key not in tensordict.keys():
+            raise KeyError(
+                f"Mask key {self.mask_key} not found in tensordict. Please check that the mask key is correct."
+            )
 
         # check smiles key is in tensordict
+        if self.smiles_key not in tensordict.keys():
+            raise KeyError(
+                f"SMILES key {self.smiles_key} not found in tensordict. Please check that the smiles key is correct."
+            )
 
         # check score key is in tensordict
+        if self.score_key not in tensordict.keys():
+            raise KeyError(
+                f"Score key {self.score_key} not found in tensordict. Please check that the score key is correct."
+            )
 
-        import ipdb
+        if tensordict.batch_size > torch.Size([]):
+            smiles = list(tensordict.unbind(0))
+        else:
+            smiles = [tensordict]
 
-        ipdb.set_trace()
+        for s in smiles:
+            array = (
+                tensordict.get(self.smiles_key)[tensordict.get(self.mask_key)]
+                .cpu()
+                .numpy()
+            )
+            smiles_str = self.voc.decode(array)
+            s.smiles_str = smiles_str
 
-        smiles_str = self.voc.decode(tensordict.get(self.smiles_key).cpu().numpy())
-        tensordict.smiles_str = smiles_str
-        self.memory.extend(tensordict)
+        self.memory.extend(smiles)
 
         # Remove duplicates
         seen = set()
@@ -66,7 +86,7 @@ class SMILESBuffer:
                 )
             )
         else:
-            scores = [x.get(self.score_key).sum() + 1e-10 for x in self.memory]
+            scores = [x.get(self.score_key).sum().item() + 1e-10 for x in self.memory]
             sample = np.random.choice(
                 len(self), size=n, replace=False, p=scores / np.sum(scores)
             )

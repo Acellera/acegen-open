@@ -12,7 +12,8 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.experience_replay.replay_buffer2 import SMILESBuffer
+from acegen.data import smiles_to_tensordict
+from acegen.data.replay_buffer2 import SMILESBuffer
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -375,9 +376,7 @@ def main(cfg: "DictConfig"):
                 to_cat = [data.clone()]
                 for _ in range(cfg.replay_batches):
                     # TODO: fix, dont loop, sample a real batch from the replay buffer!!
-                    replay_batch = experience_replay_buffer.sample_replay_batch(
-                        batch_size=20, device=device
-                    )
+                    replay_batch = experience_replay_buffer.sample_smiles(n=20)
                     to_cat.append(replay_batch[..., 0 : data.shape[1]])
                 extended_data = torch.cat(to_cat)
             else:
@@ -423,9 +422,10 @@ def main(cfg: "DictConfig"):
 
         # Add data to the replay buffer
         if experience_replay_buffer is not None:
-            new_experience = replay_data.select("smiles_observation", "reward")
-            new_experience.set("mask", new_experience.get("smiles_observation") != -1)
-            experience_replay_buffer.add_experience(new_experience)
+            smiles = replay_data.get("smiles_observation")
+            replay_data = smiles_to_tensordict(smiles)
+            replay_data.set("mask", smiles != -1)
+            experience_replay_buffer.add_experience(replay_data)
 
         if logger:
             for key, value in log_info.items():

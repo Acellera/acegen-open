@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.experience_replay.replay_buffer import Experience
+from acegen.data.replay_buffer import Experience
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -27,6 +27,7 @@ from torch.distributions.kl import kl_divergence
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
     CatFrames,
@@ -253,6 +254,10 @@ def main(cfg: "DictConfig"):
     experience_replay_buffer = None
     if cfg.experience_replay is True:
         experience_replay_buffer = Experience(vocabulary)
+        replay_rhs_transform = TensorDictPrimer(actor_training.rnn_spec.expand(1, 100))
+        replay_logp_transform = TensorDictPrimer(
+            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(1, 100))}
+        )
 
     # Optimizer
     ####################################################################################################################
@@ -335,17 +340,34 @@ def main(cfg: "DictConfig"):
             idx=replay_data.get("terminated").squeeze(-1)
         )
 
-        # Then exclude unnecessary tensors
-        data = data.exclude(
-            "embed",
-            "logits",
-            "features",
-            "collector",
-            "step_count",
-            ("next", "step_count"),
-            "SMILES",
-            ("next", "SMILES"),
+        # Select only the necessary tensors
+        data = data.select(
+            "action",
+            "done",
+            "is_init",
+            "observation",
+            "recurrent_state",
+            "sample_log_prob",
+            "terminated",
+            ("next", "done"),
+            ("next", "is_init"),
+            ("next", "observation"),
+            ("next", "recurrent_state"),
+            ("next", "terminated"),
+            ("next", "reward"),
         )
+
+        # Then exclude unnecessary tensors
+        # data = data.exclude(
+        #     "embed",
+        #     "logits",
+        #     "features",
+        #     "collector",
+        #     "step_count",
+        #     ("next", "step_count"),
+        #     "SMILES",
+        #     ("next", "SMILES"),
+        # )
 
         for j in range(ppo_epochs):
 
@@ -359,7 +381,26 @@ def main(cfg: "DictConfig"):
                     replay_batch = experience_replay_buffer.sample_replay_batch(
                         batch_size=20, device=device
                     )
-                    to_cat.append(replay_batch[..., 0 : data.shape[1]])
+                    replay_batch = replay_batch[..., 0 : data.shape[1]]
+
+                    # populate with recurrent states
+                    replay_rhs_transform(replay_batch)
+                    replay_rhs_transform(replay_batch.get("next"))
+
+                    # populate with is_init
+                    replay_batch.set(
+                        "is_init", replay_batch.get(("next", "done")).roll(1, dims=1)
+                    )
+                    replay_batch.set(
+                        ("next", "is_init"),
+                        torch.zeros_like(replay_batch.get("is_init")),
+                    )
+
+                    # populate with sample log probs
+                    replay_logp_transform(replay_batch)
+
+                    to_cat.append(replay_batch)
+
                 extended_data = torch.cat(to_cat)
             else:
                 extended_data = data
