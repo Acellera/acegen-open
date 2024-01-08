@@ -1,6 +1,5 @@
 import datetime
 import json
-import logging
 import os
 import random
 import shutil
@@ -28,7 +27,6 @@ from torch.distributions.kl import kl_divergence
 from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
     CatFrames,

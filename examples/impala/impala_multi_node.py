@@ -29,7 +29,6 @@ from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.collectors.distributed import RayCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
     CatFrames,

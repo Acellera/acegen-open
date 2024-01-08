@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.experience_replay.replay_buffer import Experience
+from acegen.experience_replay.replay_buffer2 import SMILESBuffer
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -29,6 +29,7 @@ from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
 from torchrl.envs import (
+    BinarizeReward,
     CatFrames,
     ExplorationType,
     InitTracker,
@@ -144,28 +145,42 @@ def main(cfg: "DictConfig"):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
+        env.append_transform(StepCounter())
+        env.append_transform(InitTracker())
+        for rhs_primer in rhs_primers:
+            env.append_transform(rhs_primer)
+
+        # Binarize reward
+        # env.append_transform(
+        #     UnsqueezeTransform(
+        #         in_keys=["reward"],
+        #         out_keys=["episode_reward"],
+        #         unsqueeze_dim=-1
+        #     )
+        # )
+        # env.append_transform(BinarizeReward())
+
+        # Cat frames to have complete smiles
+        keys = ["observation", "recurrent_state", "is_init", "done"]
+        cat_keys = [f"smiles_{key}" for key in keys]
+        keys += [("next", "reward")]
+        cat_keys += [("next", "smiles_reward")]
         env.append_transform(
-            UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
-            )
+            UnsqueezeTransform(in_keys=keys, out_keys=cat_keys, unsqueeze_dim=-1)
         )
         env.append_transform(
             CatFrames(
                 N=100,
                 dim=-1,
                 padding="constant",
-                in_keys=["observation"],
-                out_keys=["SMILES"],
+                in_keys=cat_keys,
+                out_keys=cat_keys,
                 padding_value=-1,
             )
         )
-        env.append_transform(StepCounter())
-        env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
         return env
 
-    # Define ccoring transform - it is more efficient to score after data collection
+    # Define scoring transform - it is more efficient to score after data collection
     ####################################################################################################################
 
     if not _has_molscore:
@@ -252,7 +267,12 @@ def main(cfg: "DictConfig"):
 
     experience_replay_buffer = None
     if cfg.experience_replay is True:
-        experience_replay_buffer = Experience(vocabulary)
+        experience_replay_buffer = SMILESBuffer(
+            vocabulary,
+            smiles_key="SMILES",
+            score_key="reward",
+            mask_key="mask",
+        )
 
     # Optimizer
     ####################################################################################################################
@@ -289,6 +309,10 @@ def main(cfg: "DictConfig"):
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
     for data in collector:
+
+        import ipdb
+
+        ipdb.set_trace()
 
         log_info = {}
         frames_in_batch = data.numel()
@@ -404,13 +428,10 @@ def main(cfg: "DictConfig"):
 
         # Add data to the replay buffer
         if experience_replay_buffer is not None:
-            smiles_list = []
-            for index, seq in enumerate(replay_data.get("SMILES")):
-                smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
-                smiles_list.append(smiles)
-            rewards = replay_data.get("reward").squeeze(-1).cpu().numpy()
-            prior_likelihood = np.zeros_like(rewards)
-            new_experience = zip(smiles_list, rewards, rewards, prior_likelihood)
+            import ipdb
+
+            ipdb.set_trace()
+            new_experience = replay_data.select("SMILES")
             experience_replay_buffer.add_experience(new_experience)
 
         if logger:
