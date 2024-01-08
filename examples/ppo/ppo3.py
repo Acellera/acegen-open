@@ -268,16 +268,16 @@ def main(cfg: "DictConfig"):
         replay_smiles_per_row = 5
         n = cfg.replay_batches * replay_smiles_per_row
 
-        replay_rhs_transform = TensorDictPrimer(actor_training.rnn_spec.expand(n, 100))
+        replay_rhs_transform = TensorDictPrimer(actor_training.rnn_spec.expand(n, 99))
         replay_logp_transform = TensorDictPrimer(
-            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(n, 100))}
+            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(n, 99))}
         )
 
         experience_replay_buffer = TensorDictReplayBuffer(
             storage=LazyTensorStorage(100, device=device),
-            sampler=SamplerWithoutReplacement(),
-            batch_size=10,
-            writer=TensorDictMaxValueWriter(rank_key="reward"),
+            # sampler=SamplerWithoutReplacement(),
+            batch_size=n,
+            writer=TensorDictMaxValueWriter(rank_key="priority"),
         )
 
     def prepare_replay_batch(batch, T):
@@ -402,12 +402,9 @@ def main(cfg: "DictConfig"):
                 experience_replay_buffer is not None
                 and len(experience_replay_buffer) >= 50
             ):
-                smiles, scores, _ = experience_replay_buffer.sample_smiles(
-                    n, decode_smiles=True
-                )
-                replay_batch = smiles_to_tensordict(
-                    smiles.int(), scores.unsqueeze(-1), device=device
-                )
+                replay_batch = experience_replay_buffer.sample()
+                replay_batch.pop("index")
+                replay_batch.pop("priority")
                 extended_data = torch.cat(
                     [data.clone(), *prepare_replay_batch(replay_batch, T=data.shape[1])]
                 )
@@ -454,14 +451,12 @@ def main(cfg: "DictConfig"):
 
         # Add data to the replay buffer
         if experience_replay_buffer is not None:
-            import ipdb
 
-            ipdb.set_trace()
-            smiles = replay_data.get("smiles_observation")
+            smiles = replay_data.get("SMILES")
             reward = replay_data.get("reward")
-            indices = experience_replay_buffer.extend(
-                smiles_to_tensordict(smiles, reward)
-            )
+            td = smiles_to_tensordict(smiles, reward)
+            td.set("priority", td.get(("next", "reward")).squeeze(-1))
+            indices = experience_replay_buffer.extend(td)
             experience_replay_buffer.update_priority(indices, reward)
 
         if logger:
