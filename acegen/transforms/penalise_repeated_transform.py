@@ -61,18 +61,31 @@ class PenaliseRepeatedSMILES(Transform):
         reward = sub_td.get(*self.in_keys)
 
         # Get smiles found so far
-        td_smiles = self.diversity_buffer._storage._storage
+        if len(self.diversity_buffer) > 0:
+            td_smiles = self.diversity_buffer[:]
+        else:
+            td_smiles = None
 
         # Identify repeated smiles
         repeated = torch.zeros(
             finished_smiles.shape[0], dtype=torch.bool, device=tensordict.device
         )
         if td_smiles is not None:
-            unique_smiles = td_smiles.get(("_data", self.check_duplicate_key))[
-                : len(self.diversity_buffer)
-            ]
-            for i, smi in enumerate(finished_smiles):
-                repeated[i] = (smi == unique_smiles).all(dim=-1).any()
+
+            unique_smiles = td_smiles.get(self.check_duplicate_key)
+
+            # This should be slower
+            # for i, smi in enumerate(finished_smiles):
+            #     repeated[i] = (smi == unique_smiles).all(dim=-1).any()
+
+            # This should be faster
+            N = unique_smiles.shape[0]
+            cat_data = torch.cat([unique_smiles, finished_smiles], dim=0)
+            _, unique_indices = torch.unique(
+                cat_data, dim=0, sorted=True, return_inverse=True
+            )
+            common_indices = torch.isin(unique_indices[N:], unique_indices[:N])
+            repeated[common_indices] = True
 
         # Apply penalty
         repeated = repeated & (reward > 0).squeeze()
