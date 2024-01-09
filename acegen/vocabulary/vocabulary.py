@@ -153,6 +153,29 @@ class SMILESVocabulary(Vocabulary):
         vocabulary.add_characters(sorted(tokens))
         return vocabulary
 
+    @classmethod
+    def create_from_dict(
+        cls,
+        vocab: dict[str, int],
+        start_token: str = "GO",
+        end_token: str = "EOS",
+        max_length: int = 140,
+    ):
+        """Creates a vocabulary from a dictionary.
+
+        The dictionary should map characters to indices and should include the start and end tokens.
+        """
+        vocabulary = cls(
+            start_token=start_token,
+            end_token=end_token,
+            max_length=max_length,
+        )
+        vocabulary.vocab_size = len(vocab)
+        vocabulary.vocab = vocab
+        vocabulary.reversed_vocab = {v: k for k, v in vocabulary.vocab.items()}
+        vocabulary.chars = list(vocabulary.vocab.keys())
+        vocabulary.special_tokens = [end_token, start_token]
+
 
 def replace_halogen(string):
     """Regex to replace Br and Cl with single letters."""

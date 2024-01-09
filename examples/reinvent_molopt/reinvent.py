@@ -72,7 +72,13 @@ def main(cfg: "DictConfig"):
     ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.vocabulary
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
-    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
+    tokens_dict = dict(zip(tokens, range(len(tokens))))
+    import ipdb
+
+    ipdb.set_trace()
+    vocabulary = SMILESVocabulary.create_from_dict(
+        tokens_dict, end_token=tokens[0], start_token=tokens[1]
+    )
 
     # Models
     ####################################################################################################################
