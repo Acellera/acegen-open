@@ -57,6 +57,48 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
+def remove_duplicate_rows(tensor):
+    """
+    Removes duplicate rows from a PyTorch tensor.
+
+    Args:
+    - tensor (torch.Tensor): Input tensor of shape (N, M).
+
+    Returns:
+    - torch.Tensor: Tensor with duplicate rows removed.
+    """
+    _, unique_indices = torch.unique(tensor, dim=0, return_inverse=True)
+
+    # Use torch.sort to ensure the output tensor maintains the order of rows in the input tensor
+    unique_tensor = tensor[torch.sort(unique_indices)[0]]
+
+    return unique_tensor
+
+
+def remove_rows_in_reference(reference_tensor, target_tensor):
+    """
+    Removes rows from the target tensor that are present in the reference tensor.
+
+    Args:
+    - reference_tensor (torch.Tensor): Reference tensor of shape (N, M).
+    - target_tensor (torch.Tensor): Target tensor of shape (L, M).
+
+    Returns:
+    - torch.Tensor: Filtered target tensor containing rows not present in the reference tensor.
+    """
+    _, unique_reference_indices = torch.unique(
+        reference_tensor, dim=0, return_inverse=True
+    )
+
+    # Check for common indices between target and reference tensors
+    common_indices = torch.isin(target_tensor, reference_tensor)
+
+    # Use .any(dim=1) to check if any element in each row is present in the reference tensor
+    filtered_target_tensor = target_tensor[~common_indices.any(dim=1)]
+
+    return filtered_target_tensor
+
+
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
@@ -275,7 +317,6 @@ def main(cfg: "DictConfig"):
 
         experience_replay_buffer = TensorDictReplayBuffer(
             storage=LazyTensorStorage(100, device=device),
-            # sampler=SamplerWithoutReplacement(),
             batch_size=n,
             writer=TensorDictMaxValueWriter(rank_key="priority"),
         )
