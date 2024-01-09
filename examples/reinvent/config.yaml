@@ -7,7 +7,7 @@ seed: 101
 
 # Environment configuration
 num_envs: 64
-molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
+molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 
 # Model
 model: reinvent

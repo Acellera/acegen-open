@@ -14,7 +14,11 @@ import torch
 import torch.nn.functional as F
 import tqdm
 import yaml
-from acegen.data.replay_buffer2 import Experience
+from acegen.data import (
+    remove_duplicated_keys,
+    remove_keys_in_reference,
+    smiles_to_tensordict,
+)
 from acegen.models import adapt_state_dict, create_gru_actor
 from acegen.rl_env import sample_completed_smiles, SMILESEnv
 from acegen.transforms import SMILESReward
@@ -22,6 +26,11 @@ from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 
 from tensordict import TensorDict
+from torchrl.data import (
+    LazyTensorStorage,
+    TensorDictMaxValueWriter,
+    TensorDictReplayBuffer,
+)
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 from torchrl.envs import (
     CatFrames,
@@ -176,7 +185,11 @@ def main(cfg: "DictConfig"):
     # Replay buffer
     ####################################################################################################################
 
-    experience = Experience(vocabulary)
+    experience_replay_buffer = TensorDictReplayBuffer(
+        storage=LazyTensorStorage(100, device=device),
+        batch_size=cfg.replay_batch_size,
+        writer=TensorDictMaxValueWriter(rank_key="priority"),
+    )
 
     # Optimizer
     ####################################################################################################################
@@ -219,6 +232,14 @@ def main(cfg: "DictConfig"):
 
         # Compute reward
         data = rew_transform(data)
+
+        data.clone()
+
+        # TODO: can I replace with this
+        import ipdb
+
+        ipdb.set_trace()
+        data = remove_duplicated_keys(data, key="action")
 
         # Identify unique sequences
         arr = data.get("action").cpu().numpy()
@@ -271,9 +292,17 @@ def main(cfg: "DictConfig"):
         loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
 
         # Compute experience replay loss
-        if cfg.experience_replay and len(experience) > cfg.replay_batch_size:
-            exp_seqs, exp_score, exp_prior_likelihood = experience.sample_smiles(
-                cfg.replay_batch_size, decode_smiles=True
+        if (
+            cfg.experience_replay
+            and len(experience_replay_buffer) > cfg.replay_batch_size
+        ):
+            import ipdb
+
+            ipdb.set_trace()
+            exp_seqs, exp_score, exp_prior_likelihood = (
+                experience_replay_buffer.sample_smiles(
+                    cfg.replay_batch_size, decode_smiles=True
+                )
             )
             is_init = torch.zeros_like(exp_seqs, dtype=torch.bool).unsqueeze(-1)
             is_init[:, 0] = True
@@ -310,6 +339,9 @@ def main(cfg: "DictConfig"):
 
         # Then add new experience to replay buffer
         if cfg.experience_replay is True:
+            import ipdb
+
+            ipdb.set_trace()
             smiles_list = []
             for index, seq in enumerate(data.get("action")):
                 smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
@@ -317,7 +349,7 @@ def main(cfg: "DictConfig"):
             new_experience = zip(
                 smiles_list, score.cpu().numpy(), prior_likelihood.cpu().numpy()
             )
-            experience.add_experience(new_experience)
+            experience_replay_buffer.add_experience(new_experience)
 
         # Log
         if logger:
