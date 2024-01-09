@@ -13,7 +13,7 @@ import tqdm
 import yaml
 from acegen.data import (
     remove_duplicated_keys,
-    remove_keys_in_reference_tensordict,
+    remove_keys_in_reference,
     smiles_to_tensordict,
 )
 from acegen.models import (
@@ -465,7 +465,7 @@ def main(cfg: "DictConfig"):
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
-                td = remove_keys_in_reference_tensordict(
+                td = remove_keys_in_reference(
                     experience_replay_buffer[:], td, "observation"
                 )
 

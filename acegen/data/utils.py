@@ -31,7 +31,7 @@ def remove_duplicated_keys(tensordict: TensorDict, key: str) -> TensorDict:
     return unique_tensordict
 
 
-def remove_keys_in_reference_tensordict(reference_tensordict, target_tensordict, key):
+def remove_keys_in_reference(reference_tensordict, target_tensordict, key):
     """Removes rows from the target tensor that are present in the reference tensor.
 
     Args:
