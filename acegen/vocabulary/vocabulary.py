@@ -154,6 +154,9 @@ class SMILESVocabulary(Vocabulary):
         vocabulary.reversed_vocab = {v: k for k, v in vocabulary.vocab.items()}
         vocabulary.chars = list(vocabulary.vocab.keys())
         vocabulary.special_tokens = [end_token, start_token]
+        vocabulary.additional_chars = {
+            char for char in vocabulary.chars if char not in vocabulary.special_tokens
+        }
         return vocabulary
 
 

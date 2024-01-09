@@ -1,3 +1,5 @@
+from copy import copy
+
 from acegen.vocabulary.vocabulary import SMILESTokenizer, SMILESVocabulary
 
 single_smiles = "CC1=CC=CC=C1"
@@ -39,12 +41,14 @@ def create_from_dict():
 
 def test_create_methods_match():
     vocabulary = SMILESVocabulary.create_from_smiles(multiple_smiles)
-    vocabulary2 = SMILESVocabulary.create_from_list_of_chars(sorted(chars))
+    tokens_dict = copy(vocabulary.vocab)
+    vocabulary2 = SMILESVocabulary.create_from_dict(tokens_dict)
     for obj1, obj2 in zip(vocabulary.__dict__.items(), vocabulary2.__dict__.items()):
         k1, v1 = obj1
         k2, v2 = obj2
         assert k1 == k2
         if k1 != "tokenizer":
+            print(k1)
             assert v1 == v2
 
 
