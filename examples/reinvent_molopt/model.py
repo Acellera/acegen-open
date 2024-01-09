@@ -10,8 +10,8 @@ class MultiGRU(nn.Module):
 
     def __init__(self, voc_size):
         super(MultiGRU, self).__init__()
-        self.embedding = nn.Embedding(voc_size, 128)
-        self.gru_1 = nn.GRUCell(128, 512)
+        self.embedding = nn.Embedding(voc_size, 256)
+        self.gru_1 = nn.GRUCell(256, 512)
         self.gru_2 = nn.GRUCell(512, 512)
         self.gru_3 = nn.GRUCell(512, 512)
         self.linear = nn.Linear(512, voc_size)
@@ -127,12 +127,8 @@ def NLLLoss(inputs, targets):
     return loss
 
 
-def create_reinvent_model(vocabulary, ckpt_path=None):
+def create_reinvent_model(vocabulary):
     model = RNN(vocabulary)
-    ckpt = torch.load(ckpt_path, map_location=torch.device("cpu"))
-    model.rnn.load_state_dict(
-        ckpt
-    )  # TODO: fix this, should be model.load_state_dict(ckpt)
     td_model = TensorDictModule(
         model,
         in_keys=["observation"],

@@ -14,6 +14,7 @@ import tqdm
 import yaml
 
 from acegen import SMILESReward, SMILESVocabulary
+from acegen.models import adapt_state_dict
 from model import create_reinvent_model
 from omegaconf import OmegaConf
 from replay_buffer import Experience
@@ -76,9 +77,14 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
-    prior = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
-    model = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
+    ckpt = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
+    )
+    prior = create_reinvent_model(vocabulary=vocabulary)
+    model = create_reinvent_model(vocabulary=vocabulary)
+    prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
+    model.load_state_dict(adapt_state_dict(ckpt, model.state_dict()))
+
     prior = prior.to(device)
     model = model.to(device)
 
