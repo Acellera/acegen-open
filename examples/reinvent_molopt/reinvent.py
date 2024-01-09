@@ -68,11 +68,7 @@ def main(cfg: "DictConfig"):
     )
 
     # Load Vocabulary
-    ckpt = (
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "reinvent_vocabulary.txt"
-    )
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.vocabulary
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
     vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
@@ -80,7 +76,7 @@ def main(cfg: "DictConfig"):
     # Models
     ####################################################################################################################
 
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
     prior = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
     model = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
     prior = prior.to(device)

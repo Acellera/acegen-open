@@ -8,6 +8,8 @@ seed: 101
 # Environment configuration
 num_envs: 64
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
+prior: reinvent.ckpt
+vocabulary: reinvent_vocabulary.txt
 
 # Model
 model: reinvent
