@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-from typing import Sequence
-
 import torch
 from tensordict import TensorDict
-
-from acegen.vocabulary.base import Vocabulary
 
 
 def remove_duplicated_keys(tensordict: TensorDict, key: str) -> TensorDict:
@@ -56,22 +52,11 @@ def remove_keys_in_reference(reference_tensordict, target_tensordict, key):
 
 
 def smiles_to_tensordict(
-    smiles: Sequence[str] | torch.Tensor,
+    smiles: torch.Tensor,
     reward: torch.Tensor,
-    vocab: Vocabulary = None,
     device: str | torch.device = "cpu",
 ):
     """Create an episode Tensordict from a batch of SMILES."""
-    if isinstance(smiles, Sequence):
-        if vocab is None:
-            raise ValueError(
-                "If input is a list of SMILES strings, a vocabulary must be provided."
-            )
-        encoded_smiles = [vocab.encode(s) for s in smiles]
-        smiles = torch.ones(len(encoded_smiles), 100, dtype=torch.int32) * -1
-        for i, es in enumerate(encoded_smiles):
-            smiles[i, -len(es) :] = es
-
     B, T = smiles.shape
     mask = smiles != -1
     rewards = torch.zeros(B, T, 1)

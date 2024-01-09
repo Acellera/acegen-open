@@ -31,7 +31,7 @@ class SMILESTokenizer(Tokenizer):
         tokenized.append(self.end_token)
         return tokenized
 
-    def untokenize(self, tokens):
+    def untokenize(self, tokens: list[str]) -> str:
         """Untokenizes a SMILES string."""
         smi = ""
         for i, token in enumerate(tokens):
@@ -49,16 +49,19 @@ class SMILESVocabulary(Vocabulary):
     def __init__(
         self,
         start_token: str = "GO",
+        start_token_index: int = 0,
         end_token: str = "EOS",
+        end_token_index: int = 1,
         max_length: int = 140,
     ):
         self.start_token = start_token
         self.end_token = end_token
         self.special_tokens = [end_token, start_token]
+        special_indices = [end_token_index, start_token_index]
         self.additional_chars = set()
         self.chars = self.special_tokens
         self.vocab_size = len(self.chars)
-        self.vocab = dict(zip(self.chars, range(len(self.chars))))
+        self.vocab = dict(zip(self.chars, special_indices))
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}
         self.max_length = max_length
         self.tokenizer = SMILESTokenizer(self.start_token, self.end_token)
@@ -86,7 +89,7 @@ class SMILESVocabulary(Vocabulary):
         smiles = smiles.replace("L", "Cl").replace("R", "Br")
         return smiles
 
-    def add_characters(self, chars):
+    def add_characters(self, chars, indices=None):
         """Adds characters to the vocabulary."""
         for char in chars:
             if char not in self.chars:
@@ -105,16 +108,44 @@ class SMILESVocabulary(Vocabulary):
         return "Vocabulary containing {} tokens: {}".format(len(self), self.chars)
 
     @classmethod
-    def create_from_list_of_chars(cls, chars):
+    def create_from_list_of_chars(
+        cls,
+        chars: list[str],
+        start_token: str = "GO",
+        start_token_index: int = 0,
+        end_token: str = "EOS",
+        end_token_index: int = 1,
+        max_length: int = 140,
+    ):
         """Creates a vocabulary from a list of characters."""
-        vocabulary = cls()
+        vocabulary = cls(
+            start_token=start_token,
+            start_token_index=start_token_index,
+            end_token=end_token,
+            end_token_index=end_token_index,
+            max_length=max_length,
+        )
         vocabulary.add_characters(chars)
         return vocabulary
 
     @classmethod
-    def create_from_smiles(cls, smiles_list: list[str]):
+    def create_from_smiles(
+        cls,
+        smiles_list: list[str],
+        start_token: str = "GO",
+        start_token_index: int = 0,
+        end_token: str = "EOS",
+        end_token_index: int = 1,
+        max_length: int = 140,
+    ):
         """Creates a vocabulary for the SMILES syntax."""
-        vocabulary = cls()
+        vocabulary = cls(
+            start_token=start_token,
+            start_token_index=start_token_index,
+            end_token=end_token,
+            end_token_index=end_token_index,
+            max_length=max_length,
+        )
         tokens = set()
         for smi in smiles_list:
             tokens.update(vocabulary.tokenizer.tokenize(smi))
