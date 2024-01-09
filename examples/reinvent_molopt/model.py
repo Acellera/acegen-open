@@ -58,7 +58,7 @@ class RNN(nn.Module):
         device = self.device
         batch_size, seq_length = target.size()
         start_token = torch.zeros(batch_size, 1).long().to(device)
-        start_token[:] = self.voc.vocab["GO"]
+        start_token[:] = self.voc.vocab[self.voc.start_token]
         x = torch.cat((start_token, target[:, :-1]), 1)
         h = self.rnn.init_h(batch_size).to(device)
 
@@ -99,7 +99,7 @@ class RNN(nn.Module):
             x = torch.multinomial(prob, num_samples=1).view(-1)
             sequences[:, step][~finished] = x[~finished]
             log_probs += NLLLoss(log_prob, x)
-            EOS_sampled = x == self.voc.vocab["EOS"]
+            EOS_sampled = x == self.voc.vocab[self.voc.end_token]
             finished = torch.ge(finished + EOS_sampled, 1)
             if torch.prod(finished) == 1:
                 break

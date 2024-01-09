@@ -92,7 +92,10 @@ def main(cfg: "DictConfig"):
     )  # ckpt is just a file with the vocabulary tokens
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
-    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
+    tokens_dict = dict(zip(tokens, range(len(tokens))))
+    vocabulary = SMILESVocabulary.create_from_dict(
+        tokens_dict, start_token="GO", end_token="EOS"
+    )
 
     # Models
     ####################################################################################################################

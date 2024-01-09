@@ -31,8 +31,9 @@ def test_from_smiles():
     assert len(vocabulary) > 0
 
 
-def create_from_list_of_chars():
-    vocabulary = SMILESVocabulary.create_from_list_of_chars(chars)
+def create_from_dict():
+    tokens_dict = dict(zip(chars, range(len(chars))))
+    vocabulary = SMILESVocabulary.create_from_dict(tokens_dict)
     assert len(vocabulary) > 0
 
 

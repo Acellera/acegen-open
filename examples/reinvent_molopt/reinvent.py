@@ -73,11 +73,8 @@ def main(cfg: "DictConfig"):
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
-    import ipdb
-
-    ipdb.set_trace()
     vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, end_token=tokens[0], start_token=tokens[1]
+        tokens_dict, start_token="GO", end_token="EOS"
     )
 
     # Models
