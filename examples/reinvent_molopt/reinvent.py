@@ -204,8 +204,6 @@ def main(cfg: "DictConfig"):
         with torch.no_grad():
             prior_likelihood = prior.likelihood(seqs)
 
-        continue
-
         augmented_likelihood = prior_likelihood + sigma * score
         loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
 

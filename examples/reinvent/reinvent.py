@@ -23,8 +23,10 @@ from omegaconf import OmegaConf
 from torchrl.data import (
     LazyTensorStorage,
     TensorDictMaxValueWriter,
+    TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
+from torchrl.data.replay_buffers import PrioritizedSampler
 from torchrl.envs import (
     CatFrames,
     InitTracker,
@@ -181,10 +183,13 @@ def main(cfg: "DictConfig"):
     # Replay buffer
     ####################################################################################################################
 
+    storage = LazyTensorStorage(100, device=device)
     experience_replay_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(100, device=device),
+        storage=storage,
+        sampler=PrioritizedSampler(storage.max_size, alpha=0.7, beta=0.9),
         batch_size=cfg.replay_batch_size,
         writer=TensorDictMaxValueWriter(rank_key="priority"),
+        priority_key="priority",
     )
 
     # Optimizer
@@ -284,16 +289,10 @@ def main(cfg: "DictConfig"):
         loss.backward()
         optim.step()
 
-        # Then add new experience to replay buffer
+        # Then add new experiences to the replay buffer
         if cfg.experience_replay is True:
 
             replay_data = data.clone()
-
-            reward = replay_data.get(("next", "reward")).squeeze(-1)
-            replay_data.set("priority", reward)
-
-            # Remove duplicated SMILES
-            replay_data = remove_duplicated_keys(replay_data, "action")
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
@@ -302,45 +301,45 @@ def main(cfg: "DictConfig"):
                 )
 
             # Add data to the replay buffer
-            indices = experience_replay_buffer.extend(replay_data)
+            reward = replay_data.get(("next", "reward")).squeeze(-1)
+            replay_data.batch_size = torch.Size([replay_data.shape[0]])
+            replay_data.set("priority", reward.sum(-1))
+            import ipdb
 
-            # Update priorities with the rewards
+            ipdb.set_trace()
+            indices = experience_replay_buffer.extend(replay_data)
             experience_replay_buffer.update_priority(indices, reward.sum(-1))
 
-        # Log
+        # Log info
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, collected_frames)
+
+
+def get_log_prob(data, model):
+    data = model(data.select(*model.in_keys, strict=False))
+
+    # TODO: should be the same!!
+    # log_prob = data.get("sample_log_prob")
+
+    log_prob = F.log_softmax(data.get("logits"), dim=-1)
+    log_prob = log_prob.gather(-1, data.get("action").unsqueeze(-1)).squeeze(-1)
+
+    return log_prob
 
 
 def compute_loss(data, model, prior, sigma):
 
     mask = data.get("mask").squeeze(-1)
 
-    # Compute prior log_probs
     if "prior_log_prob" not in data.keys():
         with torch.no_grad():
-            prior_logits = prior(data.select(*prior.in_keys, strict=False).clone()).get(
-                "logits"
-            )
-            prior_log_prob = F.log_softmax(prior_logits, dim=-1)
-            prior_log_prob = prior_log_prob.gather(
-                -1, data.get("action").unsqueeze(-1)
-            ).squeeze(-1)
+            prior_log_prob = get_log_prob(data, prior)
             data.set("prior_log_prob", prior_log_prob)
     else:
         prior_log_prob = data.get("prior_log_prob")
 
-    # Compute log_probs
-    agent_logits = model(data.select(*model.in_keys, strict=False).clone()).get(
-        "logits"
-    )
-    agent_log_prob = F.log_softmax(agent_logits, dim=-1)
-    agent_log_prob = agent_log_prob.gather(
-        -1, data.get("action").unsqueeze(-1)
-    ).squeeze(-1)
-
-    # Compute loss
+    agent_log_prob = get_log_prob(data, model)
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     prior_likelihood = (prior_log_prob * mask).sum(-1)
     score = data.get(("next", "reward")).squeeze(-1).sum(-1)
