@@ -226,7 +226,14 @@ def main(cfg: "DictConfig"):
 
     for _ in tqdm.tqdm(range(0, cfg.total_frames, frames_in_batch)):
 
+        # TODO: explain
         data = sample_completed_smiles(policy=actor_inference, environment=env)
+
+        # TODO: explain
+        replay_data = data.get("next").clone()
+
+        # TODO: explain
+        data = data[:, data.get("mask").any(0).squeeze()]
 
         log_info = {}
         total_done += frames_in_batch
@@ -317,6 +324,11 @@ def main(cfg: "DictConfig"):
 
             ipdb.set_trace()
             replay_batch = experience_replay_buffer.sample()
+            replay_batch = replay_batch[:, replay_batch.get("mask").any(0).squeeze()]
+            mask = replay_batch.get("mask").squeeze(-1)
+
+            # TODO: continue here!
+
             exp_agent_likelihood = (
                 actor_training(replay_batch).get("sample_log_prob").sum(-1)
             )
@@ -342,7 +354,6 @@ def main(cfg: "DictConfig"):
         # Then add new experience to replay buffer
         if cfg.experience_replay is True:
 
-            replay_data = data.get("next").clone()
             replay_data.set("prior_log_prob", prior_log_prob)
             reward = replay_data.get("reward").squeeze(-1)
             replay_data.set("priority", reward)
