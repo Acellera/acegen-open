@@ -5,6 +5,16 @@ import numpy as np
 from acegen.vocabulary.base import Tokenizer, Vocabulary
 
 
+def replace_halogen(string):
+    """Regex to replace Br and Cl with single letters."""
+    br = re.compile("Br")
+    cl = re.compile("Cl")
+    string = br.sub("R", string)
+    string = cl.sub("L", string)
+
+    return string
+
+
 class SMILESTokenizer(Tokenizer):
     """One possible implementation of the Tokenizer interface.
 
@@ -89,7 +99,7 @@ class SMILESVocabulary(Vocabulary):
         smiles = smiles.replace("L", "Cl").replace("R", "Br")
         return smiles
 
-    def add_characters(self, chars, indices=None):
+    def add_characters(self, chars):
         """Adds characters to the vocabulary."""
         for char in chars:
             if char not in self.chars:
@@ -133,13 +143,6 @@ class SMILESVocabulary(Vocabulary):
         return vocabulary
 
     @classmethod
-    def create_from_list_of_chars(cls, chars):
-        """Creates a vocabulary from a list of characters."""
-        vocabulary = cls()
-        vocabulary.add_characters(chars)
-        return vocabulary
-
-    @classmethod
     def create_from_dict(
         cls,
         vocab: dict[str, int],
@@ -165,13 +168,3 @@ class SMILESVocabulary(Vocabulary):
             char for char in vocabulary.chars if char not in vocabulary.special_tokens
         }
         return vocabulary
-
-
-def replace_halogen(string):
-    """Regex to replace Br and Cl with single letters."""
-    br = re.compile("Br")
-    cl = re.compile("Cl")
-    string = br.sub("R", string)
-    string = cl.sub("L", string)
-
-    return string
