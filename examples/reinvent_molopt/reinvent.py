@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import shutil
+import timeit
 from pathlib import Path
 
 import hydra
@@ -202,6 +203,9 @@ def main(cfg: "DictConfig"):
         agent_likelihood = data.get("log_probs")
         with torch.no_grad():
             prior_likelihood = prior.likelihood(seqs)
+
+        continue
+
         augmented_likelihood = prior_likelihood + sigma * score
         loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
 

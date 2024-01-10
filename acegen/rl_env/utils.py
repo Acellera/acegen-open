@@ -101,4 +101,4 @@ def sample_completed_smiles(
 
     output_data = torch.stack(tensordicts, dim=-1)
 
-    return output_data
+    return output_data.to_tensordict()

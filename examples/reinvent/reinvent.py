@@ -1,6 +1,5 @@
 import datetime
 import json
-import logging
 import os
 import random
 import shutil
@@ -14,24 +13,18 @@ import torch
 import torch.nn.functional as F
 import tqdm
 import yaml
-from acegen.data import (
-    remove_duplicated_keys,
-    remove_keys_in_reference,
-    smiles_to_tensordict,
-)
+from acegen.data import remove_duplicated_keys, remove_keys_in_reference
 from acegen.models import adapt_state_dict, create_gru_actor
 from acegen.rl_env import sample_completed_smiles, SMILESEnv
 from acegen.transforms import PenaliseRepeatedSMILES, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 
-from tensordict import TensorDict
 from torchrl.data import (
     LazyTensorStorage,
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 from torchrl.envs import (
     CatFrames,
     InitTracker,
@@ -170,7 +163,8 @@ def main(cfg: "DictConfig"):
 
     # Create reward transform
     rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary
+        reward_function=scoring_function,
+        vocabulary=vocabulary,
     )
 
     # 2. Define a transform to penalise repeated SMILES
@@ -226,25 +220,17 @@ def main(cfg: "DictConfig"):
 
     for _ in tqdm.tqdm(range(0, cfg.total_frames, frames_in_batch)):
 
-        # TODO: explain
         data = sample_completed_smiles(policy=actor_inference, environment=env)
-
-        # TODO: explain
-        replay_data = data.get("next").clone()
-
-        # TODO: explain
-        data = data[:, data.get("mask").any(0).squeeze()]
 
         log_info = {}
         total_done += frames_in_batch
         collected_frames += frames_in_batch
 
-        # Compute reward
+        # Compute rewards
         data = rew_transform(data)
 
         # Register smiles lengths and real rewards
-        mask = data.get("mask").squeeze(-1)
-        done = data.get(("next", "done")).squeeze(-1) * mask
+        done = data.get(("next", "done")).squeeze(-1)
         episode_rewards = data["next", "reward"][done]
         episode_length = data["next", "step_count"][done]
         if len(episode_rewards) > 0:
@@ -260,84 +246,31 @@ def main(cfg: "DictConfig"):
                 }
             )
 
-        # removed_duplicated = remove_duplicated_keys(data.clone(), key="action")
+        data = remove_duplicated_keys(data.clone(), key="action")
 
         # Select only the necessary tensors
         data = data.select(
             "action",
-            "done",
             "mask",
             "is_init",
             "observation",
-            "recurrent_state",
             "sample_log_prob",
-            "terminated",
-            ("next", "done"),
-            ("next", "mask"),
-            ("next", "is_init"),
-            ("next", "observation"),
-            ("next", "recurrent_state"),
-            ("next", "terminated"),
             ("next", "reward"),
         )
 
-        # Identify unique sequences
-        arr = data.get("action").cpu().numpy()
-        arr_ = np.ascontiguousarray(arr).view(
-            np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
-        )
-        _, idxs = np.unique(arr_, return_index=True)
-        unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
-        data = data[unique_idxs]
-
-        # assert data.shape[0] == removed_duplicated.shape[0]
-
-        # Compute prior log_probs
-        with torch.no_grad():
-            prior_logits = prior(data.select(*prior.in_keys).clone()).get("logits")
-            prior_log_prob = F.log_softmax(prior_logits, dim=-1)
-            prior_log_prob = prior_log_prob.gather(
-                -1, data.get("action").unsqueeze(-1)
-            ).squeeze(-1)
-
-        # Compute loss
-        agent_logits = actor_training(data.select(*actor_training.in_keys).clone()).get(
-            "logits"
-        )
-        agent_log_prob = F.log_softmax(agent_logits, dim=-1)
-        agent_log_prob = agent_log_prob.gather(
-            -1, data.get("action").unsqueeze(-1)
-        ).squeeze(-1)
-
-        agent_likelihood = (agent_log_prob * mask).sum(-1)
-        prior_likelihood = (prior_log_prob * mask).sum(-1)
-        score = data.get(("next", "reward")).squeeze(-1).sum(-1)
-        augmented_likelihood = prior_likelihood + sigma * score
-        loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
+        data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
 
         # Compute experience replay loss
         if (
             cfg.experience_replay
             and len(experience_replay_buffer) > cfg.replay_batch_size
         ):
-            import ipdb
-
-            ipdb.set_trace()
             replay_batch = experience_replay_buffer.sample()
-            replay_batch = replay_batch[:, replay_batch.get("mask").any(0).squeeze()]
-            mask = replay_batch.get("mask").squeeze(-1)
-
-            # TODO: continue here!
-
-            exp_agent_likelihood = (
-                actor_training(replay_batch).get("sample_log_prob").sum(-1)
+            _, replay_loss, replay_agent_likelihood = compute_loss(
+                replay_batch, actor_training, prior, sigma
             )
-            exp_augmented_likelihood = replay_batch.get(
-                "prior_log_prob"
-            ) + sigma * replay_batch.get("reward")
-            exp_loss = torch.pow((exp_augmented_likelihood - exp_agent_likelihood), 2)
-            loss = torch.cat((loss, exp_loss), 0)
-            agent_likelihood = torch.cat((agent_likelihood, exp_agent_likelihood), 0)
+            loss = torch.cat((loss, replay_loss), 0)
+            agent_likelihood = torch.cat((agent_likelihood, replay_agent_likelihood), 0)
 
         # Average loss over the batch
         loss = loss.mean()
@@ -354,29 +287,67 @@ def main(cfg: "DictConfig"):
         # Then add new experience to replay buffer
         if cfg.experience_replay is True:
 
-            replay_data.set("prior_log_prob", prior_log_prob)
-            reward = replay_data.get("reward").squeeze(-1)
+            replay_data = data.clone()
+
+            reward = replay_data.get(("next", "reward")).squeeze(-1)
             replay_data.set("priority", reward)
 
             # Remove duplicated SMILES
-            replay_data = remove_duplicated_keys(replay_data, "observation")
+            replay_data = remove_duplicated_keys(replay_data, "action")
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
-                td = remove_keys_in_reference(
-                    experience_replay_buffer[:], td, "observation"
+                replay_data = remove_keys_in_reference(
+                    experience_replay_buffer[:], replay_data, "action"
                 )
 
             # Add data to the replay buffer
             indices = experience_replay_buffer.extend(replay_data)
 
             # Update priorities with the rewards
-            experience_replay_buffer.update_priority(indices, reward)
+            experience_replay_buffer.update_priority(indices, reward.sum(-1))
 
         # Log
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, collected_frames)
+
+
+def compute_loss(data, model, prior, sigma):
+
+    mask = data.get("mask").squeeze(-1)
+
+    # Compute prior log_probs
+    if "prior_log_prob" not in data.keys():
+        with torch.no_grad():
+            prior_logits = prior(data.select(*prior.in_keys, strict=False).clone()).get(
+                "logits"
+            )
+            prior_log_prob = F.log_softmax(prior_logits, dim=-1)
+            prior_log_prob = prior_log_prob.gather(
+                -1, data.get("action").unsqueeze(-1)
+            ).squeeze(-1)
+            data.set("prior_log_prob", prior_log_prob)
+    else:
+        prior_log_prob = data.get("prior_log_prob")
+
+    # Compute log_probs
+    agent_logits = model(data.select(*model.in_keys, strict=False).clone()).get(
+        "logits"
+    )
+    agent_log_prob = F.log_softmax(agent_logits, dim=-1)
+    agent_log_prob = agent_log_prob.gather(
+        -1, data.get("action").unsqueeze(-1)
+    ).squeeze(-1)
+
+    # Compute loss
+    agent_likelihood = (agent_log_prob * mask).sum(-1)
+    prior_likelihood = (prior_log_prob * mask).sum(-1)
+    score = data.get(("next", "reward")).squeeze(-1).sum(-1)
+    augmented_likelihood = prior_likelihood + sigma * score
+    loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
+
+    return data, loss, agent_likelihood
 
 
 if __name__ == "__main__":

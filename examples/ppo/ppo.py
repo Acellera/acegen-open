@@ -473,7 +473,7 @@ def main(cfg: "DictConfig"):
             indices = experience_replay_buffer.extend(td)
 
             # Update priorities with the rewards
-            experience_replay_buffer.update_priority(indices, reward)
+            experience_replay_buffer.update_priority(indices, reward.sum(-1))
 
         if logger:
             for key, value in log_info.items():
