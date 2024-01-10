@@ -133,6 +133,13 @@ class SMILESVocabulary(Vocabulary):
         return vocabulary
 
     @classmethod
+    def create_from_list_of_chars(cls, chars):
+        """Creates a vocabulary from a list of characters."""
+        vocabulary = cls()
+        vocabulary.add_characters(chars)
+        return vocabulary
+
+    @classmethod
     def create_from_dict(
         cls,
         vocab: dict[str, int],
