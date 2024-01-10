@@ -85,11 +85,7 @@ def main(cfg: "DictConfig"):
     )
 
     # Load Vocabulary
-    ckpt = (
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "reinvent_vocabulary.txt"
-    )  # ckpt is just a file with the vocabulary tokens
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.vocabulary
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
@@ -114,7 +110,7 @@ def main(cfg: "DictConfig"):
 
     # Load pretrained weights
     ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
     )
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())

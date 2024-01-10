@@ -9,6 +9,8 @@ seed: 101
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 penalize_repetition: False
 repetition_penalty: 0.5
+prior: reinvent.ckpt
+vocabulary: reinvent_vocabulary.txt
 
 # Collector configuration
 total_frames: 1_000_000

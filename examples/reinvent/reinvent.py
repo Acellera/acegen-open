@@ -21,7 +21,7 @@ from acegen.data import (
 )
 from acegen.models import adapt_state_dict, create_gru_actor
 from acegen.rl_env import sample_completed_smiles, SMILESEnv
-from acegen.transforms import SMILESReward
+from acegen.transforms import PenaliseRepeatedSMILES, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 
@@ -77,20 +77,19 @@ def main(cfg: "DictConfig"):
     )
 
     # Load Vocabulary
-    ckpt = (
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "reinvent_vocabulary.txt"
-    )
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.vocabulary
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
-    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
+    tokens_dict = dict(zip(tokens, range(len(tokens))))
+    vocabulary = SMILESVocabulary.create_from_dict(
+        tokens_dict, start_token="GO", end_token="EOS"
+    )
 
     # Models
     ####################################################################################################################
 
     ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
     )
     actor_training, actor_inference = create_gru_actor(len(vocabulary))
     actor_inference.load_state_dict(
@@ -105,17 +104,9 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    # TODO: This is a hack!
-    num_layers = 3
-    hidden_size = 512
-
-    primers = {
-        ("recurrent_state_actor",): UnboundedContinuousTensorSpec(
-            shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
-            dtype=torch.float32,
-        ),
-    }
-    rhs_primers = [TensorDictPrimer(primers)]
+    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
+    primers = actor_training.rnn_spec.expand(cfg.num_envs)
+    rhs_primer = TensorDictPrimer(primers)
 
     env_kwargs = {
         "start_token": vocabulary.vocab[vocabulary.start_token],
@@ -131,7 +122,7 @@ def main(cfg: "DictConfig"):
         env = TransformedEnv(env)
         env.append_transform(
             UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
+                in_keys=["observation"], out_keys=["SMILES"], unsqueeze_dim=-1
             )
         )
         env.append_transform(
@@ -139,20 +130,21 @@ def main(cfg: "DictConfig"):
                 N=100,
                 dim=-1,
                 padding="constant",
-                in_keys=["observation"],
+                in_keys=["SMILES"],
                 out_keys=["SMILES"],
                 padding_value=-1,
             )
         )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        env.append_transform(rhs_primer)
         return env
 
-    # Scoring transform - more efficient to do it outside the environment
+    # Independent transforms
     ####################################################################################################################
 
+    # 1. Define scoring transform
+    # it is more efficient to score all SMILES in a single call after data collection
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
@@ -172,15 +164,25 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="reinvent", task_config=cfg.molscore)
+    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
     # Create reward transform
     rew_transform = SMILESReward(
-        reward_function=scoring_function,
-        vocabulary=vocabulary,
+        reward_function=scoring_function, vocabulary=vocabulary
     )
+
+    # 2. Define a transform to penalise repeated SMILES
+    penalty_transform = None
+    if cfg.penalize_repetition is True:
+        penalty_transform = PenaliseRepeatedSMILES(
+            check_duplicate_key="SMILES",
+            in_key="reward",
+            out_key="reward",
+            penalty=cfg.repetition_penalty,
+            device=device,
+        )
 
     # Replay buffer
     ####################################################################################################################
@@ -233,13 +235,7 @@ def main(cfg: "DictConfig"):
         # Compute reward
         data = rew_transform(data)
 
-        data.clone()
-
-        # TODO: can I replace with this
-        import ipdb
-
-        ipdb.set_trace()
-        data = remove_duplicated_keys(data, key="action")
+        removed_duplicated = remove_duplicated_keys(data.clone(), key="action")
 
         # Identify unique sequences
         arr = data.get("action").cpu().numpy()
@@ -249,6 +245,8 @@ def main(cfg: "DictConfig"):
         _, idxs = np.unique(arr_, return_index=True)
         unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
         data = data[unique_idxs]
+
+        assert data.shape[0] == removed_duplicated.shape[0]
 
         # Register smiles lengths and real rewards
         mask = data.get("mask").squeeze(-1)

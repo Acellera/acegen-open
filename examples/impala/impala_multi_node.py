@@ -77,14 +77,13 @@ def main(cfg: "DictConfig"):
     )
 
     # Load vocabulary
-    ckpt = (
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "reinvent_vocabulary.txt"
-    )
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.vocabulary
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
-    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
+    tokens_dict = dict(zip(tokens, range(len(tokens))))
+    vocabulary = SMILESVocabulary.create_from_dict(
+        tokens_dict, start_token="GO", end_token="EOS"
+    )
 
     # Models
     ####################################################################################################################
@@ -103,7 +102,7 @@ def main(cfg: "DictConfig"):
 
     # Load pretrained weights
     ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
     )
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
