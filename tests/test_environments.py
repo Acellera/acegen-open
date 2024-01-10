@@ -98,7 +98,6 @@ def test_sample_smiles(
     done = smiles.get(("next", "done")).squeeze(dim=-1)
     assert ((terminated | truncated) == done).all()
     finished = done.any(-1)
-    mask = smiles.get("mask").squeeze(-1)
     obs = smiles.get("observation")
     if one_hot_obs_encoding:
         obs = torch.argmax(obs, dim=-1)
@@ -108,5 +107,5 @@ def test_sample_smiles(
     assert (obs[..., 0] == start_token).all()
     if finished.all():
         assert done.sum() >= batch_size
-        assert (done * mask).sum() == batch_size
+        assert (done).sum() == batch_size
     assert (action[terminated] == end_token).all()

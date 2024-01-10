@@ -235,19 +235,6 @@ def main(cfg: "DictConfig"):
         # Compute reward
         data = rew_transform(data)
 
-        removed_duplicated = remove_duplicated_keys(data.clone(), key="action")
-
-        # Identify unique sequences
-        arr = data.get("action").cpu().numpy()
-        arr_ = np.ascontiguousarray(arr).view(
-            np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
-        )
-        _, idxs = np.unique(arr_, return_index=True)
-        unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
-        data = data[unique_idxs]
-
-        assert data.shape[0] == removed_duplicated.shape[0]
-
         # Register smiles lengths and real rewards
         mask = data.get("mask").squeeze(-1)
         done = data.get(("next", "done")).squeeze(-1) * mask
@@ -265,6 +252,38 @@ def main(cfg: "DictConfig"):
                     ),
                 }
             )
+
+        # removed_duplicated = remove_duplicated_keys(data.clone(), key="action")
+
+        # Select only the necessary tensors
+        data = data.select(
+            "action",
+            "done",
+            "mask",
+            "is_init",
+            "observation",
+            "recurrent_state",
+            "sample_log_prob",
+            "terminated",
+            ("next", "done"),
+            ("next", "mask"),
+            ("next", "is_init"),
+            ("next", "observation"),
+            ("next", "recurrent_state"),
+            ("next", "terminated"),
+            ("next", "reward"),
+        )
+
+        # Identify unique sequences
+        arr = data.get("action").cpu().numpy()
+        arr_ = np.ascontiguousarray(arr).view(
+            np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
+        )
+        _, idxs = np.unique(arr_, return_index=True)
+        unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
+        data = data[unique_idxs]
+
+        # assert data.shape[0] == removed_duplicated.shape[0]
 
         # Compute prior log_probs
         with torch.no_grad():
@@ -297,28 +316,13 @@ def main(cfg: "DictConfig"):
             import ipdb
 
             ipdb.set_trace()
-            exp_seqs, exp_score, exp_prior_likelihood = (
-                experience_replay_buffer.sample_smiles(
-                    cfg.replay_batch_size, decode_smiles=True
-                )
-            )
-            is_init = torch.zeros_like(exp_seqs, dtype=torch.bool).unsqueeze(-1)
-            is_init[:, 0] = True
-            replay_data = TensorDict(
-                {
-                    "observation": exp_seqs.unsqueeze(-1).long(),
-                    "is_init": is_init,
-                    "recurrent_state": torch.zeros(*exp_seqs.shape, 3, 512),
-                },
-                batch_size=exp_seqs.shape,
-                device=device,
-            )
-            exp_score = exp_score.to(device)
-            exp_prior_likelihood = exp_prior_likelihood.to(device)
+            replay_batch = experience_replay_buffer.sample()
             exp_agent_likelihood = (
-                actor_training(replay_data).get("sample_log_prob").sum(-1)
+                actor_training(replay_batch).get("sample_log_prob").sum(-1)
             )
-            exp_augmented_likelihood = exp_prior_likelihood + sigma * exp_score
+            exp_augmented_likelihood = replay_batch.get(
+                "prior_log_prob"
+            ) + sigma * replay_batch.get("reward")
             exp_loss = torch.pow((exp_augmented_likelihood - exp_agent_likelihood), 2)
             loss = torch.cat((loss, exp_loss), 0)
             agent_likelihood = torch.cat((agent_likelihood, exp_agent_likelihood), 0)
@@ -337,17 +341,26 @@ def main(cfg: "DictConfig"):
 
         # Then add new experience to replay buffer
         if cfg.experience_replay is True:
-            import ipdb
 
-            ipdb.set_trace()
-            smiles_list = []
-            for index, seq in enumerate(data.get("action")):
-                smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
-                smiles_list.append(smiles)
-            new_experience = zip(
-                smiles_list, score.cpu().numpy(), prior_likelihood.cpu().numpy()
-            )
-            experience_replay_buffer.add_experience(new_experience)
+            replay_data = data.get("next").clone()
+            replay_data.set("prior_log_prob", prior_log_prob)
+            reward = replay_data.get("reward").squeeze(-1)
+            replay_data.set("priority", reward)
+
+            # Remove duplicated SMILES
+            replay_data = remove_duplicated_keys(replay_data, "observation")
+
+            # Remove SMILES that are already in the replay buffer
+            if len(experience_replay_buffer) > 0:
+                td = remove_keys_in_reference(
+                    experience_replay_buffer[:], td, "observation"
+                )
+
+            # Add data to the replay buffer
+            indices = experience_replay_buffer.extend(replay_data)
+
+            # Update priorities with the rewards
+            experience_replay_buffer.update_priority(indices, reward)
 
         # Log
         if logger:

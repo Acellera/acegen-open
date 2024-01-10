@@ -376,9 +376,10 @@ def main(cfg: "DictConfig"):
             )
 
         # Get data to be added to the replay buffer later
-        replay_data = data.get("next").clone()
-        replay_data = replay_data.get_sub_tensordict(
-            idx=replay_data.get("terminated").squeeze(-1)
+        replay_data = (
+            data.get("next")
+            .get_sub_tensordict(idx=data.get("next").get("terminated").squeeze(-1))
+            .clone()
         )
 
         # Select only the necessary tensors

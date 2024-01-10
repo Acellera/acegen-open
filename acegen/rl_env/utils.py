@@ -59,49 +59,46 @@ def sample_completed_smiles(
     with set_exploration_type(exploration_type):
         for _ in range(max_length):
 
-            # Mask out finished environments
-            mask = torch.logical_not(finished)
-            tensordict_.set("mask", mask)
+            if not finished.all():
 
-            # Execute policy
-            tensordict_ = tensordict_.to(policy_device)
-            policy(tensordict_)
-            tensordict_ = tensordict_.to(env_device)
+                # Define mask tensors
+                tensordict_.set("mask", torch.ones_like(finished))
+                tensordict_.set(("next", "mask"), torch.ones_like(finished))
 
-            # Extend list of tensordicts
-            tensordicts.append(tensordict_)
+                # Execute policy
+                tensordict_ = tensordict_.to(policy_device)
+                policy(tensordict_)
+                tensordict_ = tensordict_.to(env_device)
 
-            # Step forward in the environment
-            tensordict_ = environment.step(tensordict_)
+                # Step forward in the environment
+                tensordict_ = environment.step(tensordict_)
 
-            # Step forward in the environment
-            tensordict_ = step_mdp(
-                tensordict_,
-                keep_other=True,
-                exclude_action=True,
-                exclude_reward=True,
-            )
+                # Mask out finished environments
+                # tensordict_ = tensordict_.masked_fill_(finished.squeeze(), 0)
+                tensordict_.masked_fill_(finished.squeeze(), 0)
 
-            # Update finished
-            finished = torch.ge(finished + tensordict_.get(end_of_episode_key), 1)
+                # Extend list of tensordicts
+                tensordicts.append(tensordict_)
 
-            if finished.all():
-                break
+                # Step forward in the environment
+                tensordict_ = step_mdp(
+                    tensordict_,
+                    keep_other=True,
+                    exclude_action=True,
+                    exclude_reward=True,
+                )
 
+                # Update finished
+                finished = torch.ge(finished + tensordict_.get(end_of_episode_key), 1)
+
+            else:
+                tensordicts.append(torch.zeros_like(tensordicts[-1]))
+
+    # If after max_length steps the SMILES are not finished, truncate
     if not finished.all():
         tensordicts[-1][("next", "truncated")] = ~finished.clone()
-        tensordicts[-1][("next", "done")] = (
-            tensordicts[-1][("next", "truncated")]
-            | tensordicts[-1][("next", "terminated")]
-        )
+        tensordicts[-1][("next", "done")] = ~finished.clone()
 
-    stack_data = torch.stack(tensordicts, dim=-1)
-    stack_data["next"]["done"] = stack_data["next"]["done"] * stack_data["mask"]
-    stack_data["next"]["truncated"] = (
-        stack_data["next"]["truncated"] * stack_data["mask"]
-    )
-    stack_data["next"]["terminated"] = (
-        stack_data["next"]["terminated"] * stack_data["mask"]
-    )
+    output_data = torch.stack(tensordicts, dim=-1)
 
-    return stack_data
+    return output_data
