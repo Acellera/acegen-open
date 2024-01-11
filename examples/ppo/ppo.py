@@ -275,11 +275,13 @@ def main(cfg: "DictConfig"):
         replay_logp_transform = TensorDictPrimer(
             {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(n, 99))}
         )
-
+        storage = LazyTensorStorage(100, device=device)
         experience_replay_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(100, device=device),
-            batch_size=n,
-            writer=TensorDictMaxValueWriter(rank_key="priority"),
+            storage=storage,
+            sampler=PrioritizedSampler(storage.max_size, alpha=0.7, beta=1.0),
+            batch_size=cfg.replay_batch_size,
+            writer=TensorDictMaxValueWriter(rank_key="store_priority"),
+            priority_key="sample_priority",
         )
 
     def prepare_replay_batch(batch, T):
@@ -460,8 +462,11 @@ def main(cfg: "DictConfig"):
 
             smiles = replay_data.get("SMILES")
             reward = replay_data.get("reward")
+            store_priority = replay_data.get("reward").squeeze(-1).clone()
+            sample_priority = 1.0 - replay_data.get("reward").squeeze(-1).clone()
             td = smiles_to_tensordict(smiles, reward, device=device)
-            td.set("priority", td.get(("next", "reward")).squeeze(-1))
+            td.set("store_priority", store_priority)
+            td.set("sample_priority", sample_priority)
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
@@ -470,10 +475,7 @@ def main(cfg: "DictConfig"):
                 )
 
             # Add data to the replay buffer
-            indices = experience_replay_buffer.extend(td)
-
-            # Update priorities with the rewards
-            experience_replay_buffer.update_priority(indices, reward.sum(-1))
+            # indices = experience_replay_buffer.extend(td)
 
         if logger:
             for key, value in log_info.items():

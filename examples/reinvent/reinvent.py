@@ -10,7 +10,6 @@ import hydra
 import numpy as np
 
 import torch
-import torch.nn.functional as F
 import tqdm
 import yaml
 from acegen.data import remove_duplicated_keys, remove_keys_in_reference
@@ -186,10 +185,10 @@ def main(cfg: "DictConfig"):
     storage = LazyTensorStorage(100, device=device)
     experience_replay_buffer = TensorDictReplayBuffer(
         storage=storage,
-        sampler=PrioritizedSampler(storage.max_size, alpha=0.7, beta=0.9),
+        sampler=PrioritizedSampler(storage.max_size, alpha=0.7, beta=1.0),
         batch_size=cfg.replay_batch_size,
-        writer=TensorDictMaxValueWriter(rank_key="priority"),
-        priority_key="priority",
+        writer=TensorDictMaxValueWriter(rank_key="store_priority"),
+        priority_key="sample_priority",
     )
 
     # Optimizer
@@ -303,12 +302,10 @@ def main(cfg: "DictConfig"):
             # Add data to the replay buffer
             reward = replay_data.get(("next", "reward")).squeeze(-1)
             replay_data.batch_size = torch.Size([replay_data.shape[0]])
-            replay_data.set("priority", reward.sum(-1))
-            import ipdb
-
-            ipdb.set_trace()
-            indices = experience_replay_buffer.extend(replay_data)
-            experience_replay_buffer.update_priority(indices, reward.sum(-1))
+            replay_data.set("store_priority", reward.sum(-1))
+            replay_data.set("sample_priority", 1.0 - reward.sum(-1))
+            indices = experience_replay_buffer.extend(replay_data.cpu())
+            # experience_replay_buffer.update_priority(indices, reward.sum(-1))
 
         # Log info
         if logger:
@@ -317,14 +314,10 @@ def main(cfg: "DictConfig"):
 
 
 def get_log_prob(data, model):
-    data = model(data.select(*model.in_keys, strict=False))
-
-    # TODO: should be the same!!
-    # log_prob = data.get("sample_log_prob")
-
-    log_prob = F.log_softmax(data.get("logits"), dim=-1)
-    log_prob = log_prob.gather(-1, data.get("action").unsqueeze(-1)).squeeze(-1)
-
+    actions = data.get("action").clone()
+    model_in = data.select(*model.in_keys, strict=False).clone()
+    dist = model.get_dist(model_in)
+    log_prob = dist.log_prob(actions)
     return log_prob
 
 
