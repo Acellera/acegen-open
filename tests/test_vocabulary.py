@@ -24,14 +24,12 @@ class Tokenizer:
     def tokenize(self, smiles: str) -> list[str]:
         regex = "(\[[^\[\]]{1,6}\])"
         char_list = re.split(regex, smiles)
-        tokenized = []
-        tokenized.append(self.start_token)
+        tokenized = [self.start_token]
         for char in char_list:
             if char.startswith("["):
                 tokenized.append(char)
             else:
-                chars = list(char)
-                [tokenized.append(unit) for unit in chars]
+                [tokenized.append(unit) for unit in list(char)]
         tokenized.append(self.end_token)
         return tokenized
 
