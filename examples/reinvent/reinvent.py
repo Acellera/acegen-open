@@ -305,7 +305,6 @@ def main(cfg: "DictConfig"):
             replay_data.set("store_priority", reward.sum(-1))
             replay_data.set("sample_priority", 1.0 - reward.sum(-1))
             indices = experience_replay_buffer.extend(replay_data.cpu())
-            # experience_replay_buffer.update_priority(indices, reward.sum(-1))
 
         # Log info
         if logger:

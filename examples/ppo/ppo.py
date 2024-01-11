@@ -34,6 +34,7 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
+from torchrl.data.replay_buffers import PrioritizedSampler
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
@@ -279,7 +280,7 @@ def main(cfg: "DictConfig"):
         experience_replay_buffer = TensorDictReplayBuffer(
             storage=storage,
             sampler=PrioritizedSampler(storage.max_size, alpha=0.7, beta=1.0),
-            batch_size=cfg.replay_batch_size,
+            batch_size=n,
             writer=TensorDictMaxValueWriter(rank_key="store_priority"),
             priority_key="sample_priority",
         )
@@ -408,8 +409,12 @@ def main(cfg: "DictConfig"):
                 and len(experience_replay_buffer) >= 50
             ):
                 replay_batch = experience_replay_buffer.sample()
-                replay_batch.pop("index")
-                replay_batch.pop("priority")
+                replay_batch = replay_batch.select(
+                    "mask", *data.keys(include_nested=True), strict=False
+                )
+                replay_batch.batch_size = torch.Size(
+                    [*replay_batch["observation"].shape]
+                )
                 extended_data = torch.cat(
                     [data.clone(), *prepare_replay_batch(replay_batch, T=data.shape[1])]
                 )
@@ -465,6 +470,7 @@ def main(cfg: "DictConfig"):
             store_priority = replay_data.get("reward").squeeze(-1).clone()
             sample_priority = 1.0 - replay_data.get("reward").squeeze(-1).clone()
             td = smiles_to_tensordict(smiles, reward, device=device)
+            td.batch_size = torch.Size([len(smiles)])
             td.set("store_priority", store_priority)
             td.set("sample_priority", sample_priority)
 
@@ -475,7 +481,7 @@ def main(cfg: "DictConfig"):
                 )
 
             # Add data to the replay buffer
-            # indices = experience_replay_buffer.extend(td)
+            indices = experience_replay_buffer.extend(td.cpu())
 
         if logger:
             for key, value in log_info.items():
