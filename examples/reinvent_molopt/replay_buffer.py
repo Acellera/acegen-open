@@ -7,10 +7,9 @@ class Experience(object):
     """Class for prioritized experience replay that remembers the highest scored sequences
     seen and samples from them with probabilities relative to their scores."""
 
-    def __init__(self, voc, max_size=100):
+    def __init__(self, max_size=100):
         self.memory = []
         self.max_size = max_size
-        self.voc = voc
 
     def add_experience(self, experience):
         """Experience should be a list of (smiles, score, prior likelihood) tuples"""
@@ -45,20 +44,11 @@ class Experience(object):
             prior_likelihood = [x[2] for x in sample]
         if decode_smiles:
             encoded = [
-                torch.tensor(self.voc.encode(smile), dtype=torch.int32)
-                for smile in smiles
+                torch.tensor(list(map(int, tensor_str.split(","))))
+                for tensor_str in smiles
             ]
-            smiles = collate_fn(encoded)
+            smiles = torch.stack(encoded)
         return smiles, torch.tensor(scores), torch.tensor(prior_likelihood)
 
     def __len__(self):
         return len(self.memory)
-
-
-def collate_fn(arr):
-    """Function to take a list of encoded sequences and turn them into a batch"""
-    max_length = max([seq.size(0) for seq in arr])
-    collated_arr = torch.zeros(len(arr), max_length)
-    for i, seq in enumerate(arr):
-        collated_arr[i, : seq.size(0)] = seq
-    return collated_arr

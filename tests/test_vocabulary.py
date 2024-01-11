@@ -1,6 +1,9 @@
+import re
 from copy import copy
 
-from acegen.vocabulary.vocabulary import SMILESTokenizer, SMILESVocabulary
+import pytest
+
+from acegen.vocabulary.vocabulary import SMILESVocabulary
 
 single_smiles = "CC1=CC=CC=C1"
 multiple_smiles = [
@@ -13,19 +16,24 @@ multiple_smiles = [
 chars = ["(", ")", "1", "=", "C", "N", "O"]
 
 
-def test_tokenize():
-    tokenizer = SMILESTokenizer()
-    tokens = tokenizer.tokenize(single_smiles)
-    assert sorted(tokens) == sorted(
-        ["GO", "C", "C", "1", "=", "C", "C", "=", "C", "C", "=", "C", "1", "EOS"]
-    )
+class Tokenizer:
+    def __init__(self, start_token: str = "GO", end_token: str = "EOS"):
+        self.start_token = start_token
+        self.end_token = end_token
 
-
-def test_untokenize():
-    tokenizer = SMILESTokenizer()
-    tokens = tokenizer.tokenize(single_smiles)
-    smiles = tokenizer.untokenize(tuple(tokens))
-    assert smiles == single_smiles
+    def tokenize(self, smiles: str) -> list[str]:
+        regex = "(\[[^\[\]]{1,6}\])"
+        char_list = re.split(regex, smiles)
+        tokenized = []
+        tokenized.append(self.start_token)
+        for char in char_list:
+            if char.startswith("["):
+                tokenized.append(char)
+            else:
+                chars = list(char)
+                [tokenized.append(unit) for unit in chars]
+        tokenized.append(self.end_token)
+        return tokenized
 
 
 def test_from_smiles():
@@ -54,6 +62,17 @@ def test_create_methods_match():
 
 def test_full_pipeline():
     vocabulary = SMILESVocabulary.create_from_smiles(multiple_smiles)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Tokenizer not set. Please set a valid tokenizer first."
+        "Any class that implements the Tokenizer interface can be used.",
+    ):
+        tokens = vocabulary.encode(multiple_smiles[0])
+
+    tokenizer = Tokenizer()
+    vocabulary.tokenizer = tokenizer
+
     for smiles in multiple_smiles:
         tokens = vocabulary.encode(smiles)
         smiles2 = vocabulary.decode(tokens)

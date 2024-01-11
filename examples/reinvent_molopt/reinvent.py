@@ -142,7 +142,7 @@ def main(cfg: "DictConfig"):
     # Replay buffer
     ####################################################################################################################
 
-    experience = Experience(vocabulary)
+    experience = Experience()
 
     # Optimizer
     ####################################################################################################################
@@ -237,8 +237,8 @@ def main(cfg: "DictConfig"):
         if cfg.experience_replay is True:
             smiles_list = []
             for index, seq in enumerate(data.get("action")):
-                smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
-                smiles_list.append(smiles)
+                tensor_str = ",".join(map(str, seq.tolist()))
+                smiles_list.append(tensor_str)
             new_experience = zip(
                 smiles_list, score.cpu().numpy(), prior_likelihood.cpu().numpy()
             )

@@ -1,108 +1,6 @@
-import copy
-import re
-
 import numpy as np
 
 from acegen.vocabulary.base import Tokenizer, Vocabulary
-
-
-def replace_halogen(string):
-    """Regex to replace Br and Cl with single letters."""
-    br = re.compile("Br")
-    cl = re.compile("Cl")
-    string = br.sub("R", string)
-    string = cl.sub("L", string)
-
-    return string
-
-
-# class SMILESTokenizer(Tokenizer):
-#     """One possible implementation of the Tokenizer interface.
-#
-#     Deals with the tokenization and untokenization of SMILES.
-#     """
-#
-#     def __init__(self, start_token: str = "GO", end_token: str = "EOS"):
-#         self.start_token = start_token
-#         self.end_token = end_token
-#
-#     def tokenize(self, smiles: str) -> list[str]:
-#         """Takes a SMILES and return a list of characters/tokens."""
-#         regex = "(\[[^\[\]]{1,6}\])"
-#         smiles = replace_halogen(smiles)
-#         char_list = re.split(regex, smiles)
-#         tokenized = []
-#         tokenized.append(self.start_token)
-#         for char in char_list:
-#             if char.startswith("["):
-#                 tokenized.append(char)
-#             else:
-#                 chars = list(char)
-#                 [tokenized.append(unit) for unit in chars]
-#         tokenized.append(self.end_token)
-#         return tokenized
-#
-#     def untokenize(self, tokens: list[str]) -> str:
-#         """Untokenizes a SMILES string."""
-#         smi = ""
-#         for i, token in enumerate(tokens):
-#             if token == self.end_token:
-#                 break
-#             if token == self.start_token and i == 0:
-#                 continue
-#             smi += token
-#         return smi
-
-
-class SMILESTokenizer(Tokenizer):
-    """Deals with the tokenization and untokenization of SMILES."""
-
-    GRAMMAR = "SMILES"
-    REGEXPS = {
-        "brackets": re.compile(r"(\[[^\]]*\])"),
-        "2_ring_nums": re.compile(r"(%\d{2})"),
-        "brcl": re.compile(r"(Br|Cl)"),
-        "atom": re.compile(r"[a-zA-Z]"),
-    }
-    REGEXP_ORDER = ["brackets", "2_ring_nums", "brcl"]
-
-    def __init__(self, start_token: str = "GO", end_token: str = "EOS"):
-        self.GRAMMAR = copy.deepcopy(self.GRAMMAR)
-        self.REGEXPS = copy.deepcopy(self.REGEXPS)
-        self.REGEXP_ORDER = copy.deepcopy(self.REGEXP_ORDER)
-        self.start_token = start_token
-        self.end_token = end_token
-
-    def tokenize(self, data, with_begin_and_end=True):
-        """Tokenizes a SMILES string."""
-
-        def split_by(data, regexps):
-            if not regexps:
-                return list(data)
-            regexp = self.REGEXPS[regexps[0]]
-            splitted = regexp.split(data)
-            tokens = []
-            for i, split in enumerate(splitted):
-                if i % 2 == 0:
-                    tokens += split_by(split, regexps[1:])
-                else:
-                    tokens.append(split)
-            return tokens
-
-        tokens = split_by(data, self.REGEXP_ORDER)
-        if with_begin_and_end:
-            tokens = [self.start_token] + tokens + [self.end_token]
-        return tokens
-
-    def untokenize(self, tokens, **kwargs):
-        """Untokenizes a SMILES string."""
-        smi = ""
-        for token in tokens:
-            if token == self.end_token:
-                break
-            if token != self.start_token:
-                smi += token
-        return smi
 
 
 class SMILESVocabulary(Vocabulary):
@@ -115,6 +13,7 @@ class SMILESVocabulary(Vocabulary):
         end_token: str = "EOS",
         end_token_index: int = 1,
         max_length: int = 140,
+        tokenizer: Tokenizer = None,
     ):
         self.start_token = start_token
         self.end_token = end_token
@@ -126,10 +25,16 @@ class SMILESVocabulary(Vocabulary):
         self.vocab = dict(zip(self.chars, special_indices))
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}
         self.max_length = max_length
-        self.tokenizer = SMILESTokenizer(self.start_token, self.end_token)
+        self.tokenizer = tokenizer
 
     def encode(self, smiles):
         """Takes a list of characters (eg '[NH]') and encodes to array of indices."""
+        if self.tokenizer is None:
+            raise ValueError(
+                "Tokenizer not set. Please set a valid tokenizer first."
+                "Any class that implements the Tokenizer interface can be used."
+            )
+
         char_list = self.tokenizer.tokenize(smiles)
         smiles_matrix = np.zeros(len(char_list), dtype=np.float32)
         for i, char in enumerate(char_list):
