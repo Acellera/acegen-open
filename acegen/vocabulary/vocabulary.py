@@ -4,7 +4,27 @@ from acegen.vocabulary.base import Tokenizer, Vocabulary
 
 
 class SMILESVocabulary(Vocabulary):
-    """A class for handling encoding/decoding from SMILES to an array of indices."""
+    """A class for handling encoding/decoding from SMILES to an array of indices.
+
+    Args:
+        start_token (str, optional): The start token. Defaults to "GO".
+        start_token_index (int, optional): The index of the start token. Defaults to 0.
+        end_token (str, optional): The end token. Defaults to "EOS".
+        end_token_index (int, optional): The index of the end token. Defaults to 1.
+        max_length (int, optional): The maximum length of the SMILES string. Defaults to 140.
+        tokenizer (Tokenizer, optional): A tokenizer to use for tokenizing the SMILES. Defaults to None.
+            Any class that implements the tokenize and untokenize methods can be used.
+
+    Examples:
+        >>> from acegen.vocabulary import SMILESVocabulary
+        >>> chars = ["(", ")", "1", "=", "C", "N", "O"]
+
+        >>> vocabulary = SMILESVocabulary()
+        >>> vocabulary.add_characters(chars)
+
+        >>> tokens_dict = dict(zip(chars + ["EOS", "GO"], range(len(chars) + 2)))
+        >>> vocabulary = SMILESVocabulary.create_from_dict(tokens_dict)
+    """
 
     def __init__(
         self,
@@ -30,7 +50,7 @@ class SMILESVocabulary(Vocabulary):
     def encode(self, smiles):
         """Takes a list of characters (eg '[NH]') and encodes to array of indices."""
         if self.tokenizer is None:
-            raise ValueError(
+            raise RuntimeError(
                 "Tokenizer not set. Please set a valid tokenizer first."
                 "Any class that implements the Tokenizer interface can be used."
             )
@@ -78,6 +98,7 @@ class SMILESVocabulary(Vocabulary):
     def create_from_smiles(
         cls,
         smiles_list: list[str],
+        tokenizer: Tokenizer,
         start_token: str = "GO",
         start_token_index: int = 0,
         end_token: str = "EOS",
@@ -91,6 +112,7 @@ class SMILESVocabulary(Vocabulary):
             end_token=end_token,
             end_token_index=end_token_index,
             max_length=max_length,
+            tokenizer=tokenizer,
         )
         tokens = set()
         for smi in smiles_list:
@@ -106,6 +128,7 @@ class SMILESVocabulary(Vocabulary):
         start_token: str = "GO",
         end_token: str = "EOS",
         max_length: int = 140,
+        tokenizer: Tokenizer = None,
     ):
         """Creates a vocabulary from a dictionary.
 
@@ -115,6 +138,7 @@ class SMILESVocabulary(Vocabulary):
             start_token=start_token,
             end_token=end_token,
             max_length=max_length,
+            tokenizer=tokenizer,
         )
         vocabulary.vocab_size = len(vocab)
         vocabulary.vocab = vocab

@@ -37,18 +37,24 @@ class Tokenizer:
 
 
 def test_from_smiles():
-    vocabulary = SMILESVocabulary.create_from_smiles(multiple_smiles)
+    tokenizer = Tokenizer()
+    vocabulary = SMILESVocabulary.create_from_smiles(
+        multiple_smiles, tokenizer=tokenizer
+    )
     assert len(vocabulary) > 0
 
 
 def create_from_dict():
-    tokens_dict = dict(zip(chars, range(len(chars))))
+    tokens_dict = dict(zip(chars + ["EOS", "GO"], range(len(chars) + 2)))
     vocabulary = SMILESVocabulary.create_from_dict(tokens_dict)
     assert len(vocabulary) > 0
 
 
 def test_create_methods_match():
-    vocabulary = SMILESVocabulary.create_from_smiles(multiple_smiles)
+    tokenizer = Tokenizer()
+    vocabulary = SMILESVocabulary.create_from_smiles(
+        multiple_smiles, tokenizer=tokenizer
+    )
     tokens_dict = copy(vocabulary.vocab)
     vocabulary2 = SMILESVocabulary.create_from_dict(tokens_dict)
     for obj1, obj2 in zip(vocabulary.__dict__.items(), vocabulary2.__dict__.items()):
@@ -61,7 +67,8 @@ def test_create_methods_match():
 
 
 def test_full_pipeline():
-    vocabulary = SMILESVocabulary.create_from_smiles(multiple_smiles)
+    tokens_dict = dict(zip(chars + ["EOS", "GO"], range(len(chars) + 2)))
+    vocabulary = SMILESVocabulary.create_from_dict(tokens_dict)
 
     with pytest.raises(
         RuntimeError,
