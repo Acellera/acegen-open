@@ -38,7 +38,7 @@ class Embed(torch.nn.Module):
 
 def create_gru_components(
     vocabulary_size: int,
-    embedding_size: int = 128,
+    embedding_size: int = 256,
     hidden_size: int = 512,
     num_layers: int = 3,
     dropout: float = 0.0,
@@ -100,7 +100,7 @@ def create_gru_components(
 
 def create_gru_actor(
     vocabulary_size: int,
-    embedding_size: int = 128,
+    embedding_size: int = 256,
     hidden_size: int = 512,
     num_layers: int = 3,
     dropout: float = 0.0,
@@ -187,7 +187,7 @@ def create_gru_actor(
 
 def create_gru_critic(
     vocabulary_size: int,
-    embedding_size: int = 128,
+    embedding_size: int = 256,
     hidden_size: int = 512,
     num_layers: int = 3,
     dropout: float = 0.0,
@@ -252,7 +252,7 @@ def create_gru_critic(
 
 def create_gru_actor_critic(
     vocabulary_size: int,
-    embedding_size: int = 128,
+    embedding_size: int = 256,
     hidden_size: int = 512,
     num_layers: int = 3,
     dropout: float = 0.0,
