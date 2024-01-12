@@ -31,11 +31,11 @@ from torch.distributions.kl import kl_divergence
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import (
     LazyTensorStorage,
+    PrioritizedSampler,
+    SamplerWithoutReplacement,
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.data.replay_buffers import PrioritizedSampler
-from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 
 from torchrl.envs import (
@@ -481,7 +481,7 @@ def main(cfg: "DictConfig"):
                 )
 
             # Add data to the replay buffer
-            indices = experience_replay_buffer.extend(td.cpu())
+            indices = experience_replay_buffer.extend(td)
 
         if logger:
             for key, value in log_info.items():

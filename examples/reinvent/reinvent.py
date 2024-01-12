@@ -21,11 +21,11 @@ from omegaconf import OmegaConf
 
 from torchrl.data import (
     LazyTensorStorage,
+    PrioritizedSampler,
     TensorDictMaxValueWriter,
     TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
-from torchrl.data.replay_buffers import PrioritizedSampler
 from torchrl.envs import (
     CatFrames,
     InitTracker,
@@ -304,7 +304,7 @@ def main(cfg: "DictConfig"):
             replay_data.batch_size = torch.Size([replay_data.shape[0]])
             replay_data.set("store_priority", reward.sum(-1))
             replay_data.set("sample_priority", 1.0 - reward.sum(-1))
-            indices = experience_replay_buffer.extend(replay_data.cpu())
+            indices = experience_replay_buffer.extend(replay_data)
 
         # Log info
         if logger:
