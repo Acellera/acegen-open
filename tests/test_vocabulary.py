@@ -82,3 +82,21 @@ def test_full_pipeline():
         tokens = vocabulary.encode(smiles)
         smiles2 = vocabulary.decode(tokens)
         assert smiles == smiles2
+
+
+def test_state_dict():
+    tokens_dict = dict(zip(chars + ["STOP", "START"], range(len(chars) + 2)))
+    vocabulary = SMILESVocabulary.create_from_dict(
+        tokens_dict, start_token="START", end_token="STOP"
+    )
+
+    state_dict = vocabulary.state_dict()
+    vocabulary2 = SMILESVocabulary()
+    vocabulary2.load_state_dict(state_dict)
+    for obj1, obj2 in zip(vocabulary.__dict__.items(), vocabulary2.__dict__.items()):
+        k1, v1 = obj1
+        k2, v2 = obj2
+        assert k1 == k2
+        if k1 != "tokenizer":
+            print(k1)
+            assert v1 == v2

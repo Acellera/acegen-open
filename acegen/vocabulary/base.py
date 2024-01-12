@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Protocol, Sequence
 
 import numpy as np
 
@@ -11,7 +11,7 @@ class Tokenizer(Protocol):
 
     def tokenize(self, smiles: str) -> list[str]: ...
 
-    def untokenize(self, tokens: tuple[str]) -> str: ...
+    def untokenize(self, tokens: Sequence[str]) -> str: ...
 
 
 class Vocabulary(Protocol):
@@ -20,6 +20,6 @@ class Vocabulary(Protocol):
     Any vocabulary should implement this interface.
     """
 
-    def encode(self, smiles: tuple[str]) -> np.ndarray: ...
+    def encode(self, smiles: str) -> np.ndarray: ...
 
-    def decode(self, vocab_index: np.ndarray, ignore_indices=()) -> list[str]: ...
+    def decode(self, vocab_index: np.ndarray, ignore_indices=()) -> str: ...

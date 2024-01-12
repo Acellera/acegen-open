@@ -315,8 +315,7 @@ def main(cfg: "DictConfig"):
 def get_log_prob(data, model):
     actions = data.get("action").clone()
     model_in = data.select(*model.in_keys, strict=False).clone()
-    dist = model.get_dist(model_in)
-    log_prob = dist.log_prob(actions)
+    log_prob = model.get_dist(model_in).log_prob(actions)
     return log_prob
 
 

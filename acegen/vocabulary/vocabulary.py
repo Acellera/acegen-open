@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 
 from acegen.vocabulary.base import Tokenizer, Vocabulary
@@ -24,6 +26,10 @@ class SMILESVocabulary(Vocabulary):
 
         >>> tokens_dict = dict(zip(chars + ["EOS", "GO"], range(len(chars) + 2)))
         >>> vocabulary = SMILESVocabulary.create_from_dict(tokens_dict)
+
+        >>> state_dict = SMILESVocabulary.state_dict()
+        >>> vocabulary2 = SMILESVocabulary()
+        >>> vocabulary2.load_state_dict(state_dict)
     """
 
     def __init__(
@@ -47,8 +53,15 @@ class SMILESVocabulary(Vocabulary):
         self.max_length = max_length
         self.tokenizer = tokenizer
 
-    def encode(self, smiles):
-        """Takes a list of characters (eg '[NH]') and encodes to array of indices."""
+    def encode(self, smiles: str) -> np.ndarray:
+        """Takes a list of characters (eg '[NH]') and encodes to array of indices.
+
+        Args:
+            smiles (str): The SMILES string to encode.
+
+        Returns:
+            np.ndarray: An array of indices corresponding to the SMILES string.
+        """
         if self.tokenizer is None:
             raise RuntimeError(
                 "Tokenizer not set. Please set a valid tokenizer first."
@@ -62,7 +75,15 @@ class SMILESVocabulary(Vocabulary):
         return smiles_matrix
 
     def decode(self, encoded_smiles, ignore_indices=()):
-        """Takes an array of indices and returns the corresponding SMILES."""
+        """Takes an array of indices and returns the corresponding SMILES.
+
+        Args:
+            encoded_smiles (np.ndarray): An array of indices corresponding to a SMILES string.
+            ignore_indices (tuple, optional): Indices to ignore. Defaults to ().
+
+        Returns:
+            str: The decoded SMILES string.
+        """
         chars = []
         for i in encoded_smiles:
             if i in ignore_indices:
@@ -73,11 +94,14 @@ class SMILESVocabulary(Vocabulary):
                 break
             chars.append(self.reversed_vocab[i])
         smiles = "".join(chars)
-        smiles = smiles.replace("L", "Cl").replace("R", "Br")
         return smiles
 
     def add_characters(self, chars):
-        """Adds characters to the vocabulary."""
+        """Adds characters to the vocabulary.
+
+        Args:
+            chars (list[str]): A list of characters to add to the vocabulary.
+        """
         for char in chars:
             if char not in self.chars:
                 self.additional_chars.add(char)
@@ -105,7 +129,20 @@ class SMILESVocabulary(Vocabulary):
         end_token_index: int = 1,
         max_length: int = 140,
     ):
-        """Creates a vocabulary for the SMILES syntax."""
+        """Creates a vocabulary for the SMILES syntax.
+
+        Args:
+            smiles_list (list[str]): A list of SMILES strings to create the vocabulary from.
+            tokenizer (Tokenizer): A tokenizer to use for tokenizing the SMILES.
+            start_token (str, optional): The start token. Defaults to "GO".
+            start_token_index (int, optional): The index of the start token. Defaults to 0.
+            end_token (str, optional): The end token. Defaults to "EOS".
+            end_token_index (int, optional): The index of the end token. Defaults to 1.
+            max_length (int, optional): The maximum length of the SMILES string. Defaults to 140.
+
+        Returns:
+            SMILESVocabulary: A vocabulary for the SMILES syntax.
+        """
         vocabulary = cls(
             start_token=start_token,
             start_token_index=start_token_index,
@@ -130,9 +167,20 @@ class SMILESVocabulary(Vocabulary):
         max_length: int = 140,
         tokenizer: Tokenizer = None,
     ):
-        """Creates a vocabulary from a dictionary.
+        """Creates a vocabulary from a dictionary mapping characters to indices.
 
         The dictionary should map characters to indices and should include the start and end tokens.
+
+        Args:
+            vocab (dict[str, int]): A dictionary mapping characters to indices.
+            start_token (str, optional): The start token. Defaults to "GO".
+            end_token (str, optional): The end token. Defaults to "EOS".
+            max_length (int, optional): The maximum length of the SMILES string. Defaults to 140.
+            tokenizer (Tokenizer, optional): A tokenizer to use for tokenizing the SMILES. Defaults to None.
+                Any class that implements the tokenize and untokenize methods can be used.
+
+        Returns:
+            SMILESVocabulary: A vocabulary for the SMILES syntax.
         """
         vocabulary = cls(
             start_token=start_token,
@@ -149,3 +197,23 @@ class SMILESVocabulary(Vocabulary):
             char for char in vocabulary.chars if char not in vocabulary.special_tokens
         }
         return vocabulary
+
+    def state_dict(self):
+        """Returns the state of the vocabulary."""
+        state_dict = deepcopy(self.vocab)
+        state_dict["start_token"] = self.start_token
+        state_dict["end_token"] = self.end_token
+        return state_dict
+
+    def load_state_dict(self, state_dict):
+        """Loads the state of the vocabulary."""
+        self.start_token = state_dict.pop("start_token")
+        self.end_token = state_dict.pop("end_token")
+        self.vocab = state_dict
+        self.vocab_size = len(self.vocab)
+        self.reversed_vocab = {v: k for k, v in self.vocab.items()}
+        self.chars = list(self.vocab.keys())
+        self.special_tokens = [self.end_token, self.start_token]
+        self.additional_chars = {
+            char for char in self.chars if char not in self.special_tokens
+        }
