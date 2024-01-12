@@ -99,6 +99,6 @@ def sample_completed_smiles(
         tensordicts[-1][("next", "truncated")] = ~finished.clone()
         tensordicts[-1][("next", "done")] = ~finished.clone()
 
-    output_data = torch.stack(tensordicts, dim=-1)
+    output_data = torch.stack(tensordicts, dim=-1).contiguous()
 
-    return output_data.to_tensordict()
+    return output_data
