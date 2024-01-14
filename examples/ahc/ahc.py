@@ -1,9 +1,9 @@
 import datetime
 import json
-import logging
 import os
 import random
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 import hydra
@@ -12,30 +12,48 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen import SingleStepDeNovoEnv, SMILESVocabulary
-from molscore.manager import MolScore
+from acegen.data import remove_duplicated_keys, remove_keys_in_reference
+from acegen.models import adapt_state_dict, create_gru_actor
+from acegen.rl_env import sample_completed_smiles, SMILESEnv
+from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
+
+from torchrl.data import (
+    LazyTensorStorage,
+    PrioritizedSampler,
+    TensorDictMaxValueWriter,
+    TensorDictPrioritizedReplayBuffer,
+    TensorDictReplayBuffer,
+)
+from torchrl.envs import (
+    CatFrames,
+    InitTracker,
+    StepCounter,
+    TensorDictPrimer,
+    TransformedEnv,
+    UnsqueezeTransform,
+)
 from torchrl.record.loggers import get_logger
 
-from utils import create_reinvent_model, Experience
 
-logging.basicConfig(level=logging.WARNING)
+try:
+    import molscore
+    from molscore.manager import MolScore
 
-
-def unique(arr):
-    # Finds unique rows in arr and return their indices
-    arr = arr.cpu().numpy()
-    arr_ = np.ascontiguousarray(arr).view(
-        np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
-    )
-    _, idxs = np.unique(arr_, return_index=True)
-    if torch.cuda.is_available():
-        return torch.LongTensor(np.sort(idxs)).cuda()
-    return torch.LongTensor(np.sort(idxs))
+    _has_molscore = True
+except ImportError as err:
+    _has_molscore = False
+    MOLSCORE_ERR = err
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
+
+    # Set seeds
+    seed = cfg.seed
+    random.seed(int(seed))
+    np.random.seed(int(seed))
+    torch.manual_seed(int(seed))
 
     # Save config
     current_time = datetime.datetime.now()
@@ -46,24 +64,75 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
-
     # Get available device
     device = (
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Create tests rl_env to get action specs
-    ckpt = (
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "reinvent_vocabulary.txt"
+    # Load Vocabulary
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.vocabulary
+    with open(ckpt, "r") as f:
+        tokens = f.read().splitlines()
+    tokens_dict = dict(zip(tokens, range(len(tokens))))
+    vocabulary = SMILESVocabulary.create_from_dict(
+        tokens_dict, start_token="GO", end_token="EOS"
     )
-    vocabulary = SMILESVocabulary(ckpt)
+
+    # Models
+    ####################################################################################################################
+
+    ckpt = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
+    )
+    actor_training, actor_inference = create_gru_actor(len(vocabulary))
+    actor_inference.load_state_dict(
+        adapt_state_dict(ckpt, actor_inference.state_dict())
+    )
+    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
+    actor_inference = actor_inference.to(device)
+    actor_training = actor_training.to(device)
+
+    prior = deepcopy(actor_training)
+
+    # Environment
+    ####################################################################################################################
+
+    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
+    primers = actor_training.rnn_spec.expand(cfg.num_envs)
+    rhs_primer = TensorDictPrimer(primers)
+
+    env_kwargs = {
+        "start_token": vocabulary.vocab[vocabulary.start_token],
+        "end_token": vocabulary.vocab[vocabulary.end_token],
+        "length_vocabulary": len(vocabulary),
+        "batch_size": cfg.num_envs,
+        "device": device,
+    }
+
+    def create_env_fn():
+        """Create a single RL rl_env."""
+        env = SMILESEnv(**env_kwargs)
+        env = TransformedEnv(env)
+        env.append_transform(StepCounter())
+        env.append_transform(InitTracker())
+        env.append_transform(rhs_primer)
+        return env
+
+    # Scoring function
+    ####################################################################################################################
+
+    # It is more efficient to score all SMILES in a single call after data collection
+    if not _has_molscore:
+        raise RuntimeError(
+            "MolScore library not found, unable to create a scoring function. "
+        ) from MOLSCORE_ERR
+
+    if cfg.molscore is None:
+        raise RuntimeError(
+            "MolScore config file not provided, unable to create a scoring function. "
+            "Please provide a config file,"
+            "e.g. ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json "
+        )
 
     # Save molscore output. Also redirect output to save_dir
     cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -76,43 +145,23 @@ def main(cfg: "DictConfig"):
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
-    env_kwargs = {
-        "start_token": vocabulary.vocab["GO"],
-        "end_token": vocabulary.vocab["EOS"],
-        "length_vocabulary": len(vocabulary),
-        "vocabulary": vocabulary,
-        "reward_function": scoring_function,
-        "batch_size": cfg.num_envs,
-        "device": device,
-    }
-
-    # Models
-    ####################################################################################################################
-
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
-    prior = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
-    model = create_reinvent_model(vocabulary=vocabulary, ckpt_path=ckpt)
-    prior = prior.to(device)
-    model = model.to(device)
-
-    # Environment
-    ####################################################################################################################
-
-    def create_env_fn():
-        """Create a single RL rl_env."""
-        env = SingleStepDeNovoEnv(**env_kwargs)
-        return env
-
     # Replay buffer
     ####################################################################################################################
 
-    experience = Experience(vocabulary)
+    storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
+    experience_replay_buffer = TensorDictReplayBuffer(
+        storage=storage,
+        sampler=PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0),
+        batch_size=cfg.replay_batch_size,
+        writer=TensorDictMaxValueWriter(rank_key="priority"),
+        priority_key="priority",
+    )
 
     # Optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
-        model.parameters(),
+        actor_training.parameters(),
         lr=cfg.lr,
         eps=cfg.eps,
         weight_decay=cfg.weight_decay,
@@ -135,58 +184,71 @@ def main(cfg: "DictConfig"):
 
     total_done = 0
     collected_frames = 0
-    pbar = tqdm.tqdm(total=cfg.total_frames)
     env = create_env_fn()
     sigma = cfg.sigma
+    frames_in_batch = cfg.num_envs
 
-    while collected_frames < cfg.total_frames:
+    for _ in tqdm.tqdm(range(0, cfg.total_frames, frames_in_batch)):
 
-        data = env.step(model(env.reset()))
+        data = sample_completed_smiles(policy=actor_inference, environment=env)
 
         log_info = {}
-        frames_in_batch = data.numel()
-        total_done += data.get(("next", "terminated")).sum()
+        total_done += frames_in_batch
         collected_frames += frames_in_batch
-        pbar.update(data.numel())
+        data_next = data.get("next")
+        done = data_next.get("done").squeeze(-1)
 
-        # Calculate reward
-        smiles_list = []
-        for index, seq in enumerate(data.get("action")):
-            smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
-            smiles_list.append(smiles)
-        score = torch.tensor(scoring_function(smiles_list), device=device)
+        # Compute rewards
+        smiles = [
+            vocabulary.decode(smi.cpu().numpy()) for smi in data_next.get("observation")
+        ]
+        data_next["reward"][done] = torch.tensor(
+            scoring_function(smiles), device=device
+        ).unsqueeze(-1)
 
-        # Identify unique sequences
-        arr = data.get("action").cpu().numpy()
-        arr_ = np.ascontiguousarray(arr).view(
-            np.dtype((np.void, arr.dtype.itemsize * arr.shape[1]))
+        # Register smiles lengths and real rewards
+        episode_rewards = data_next["reward"][done]
+        episode_length = data_next["step_count"][done]
+        if len(episode_rewards) > 0:
+            log_info.update(
+                {
+                    "train/total_smiles": total_done,
+                    "train/reward": episode_rewards.mean().item(),
+                    "train/min_reward": episode_rewards.min().item(),
+                    "train/max_reward": episode_rewards.max().item(),
+                    "train/episode_length": episode_length.sum().item() / len(
+                        episode_length
+                    ),
+                }
+            )
+
+        data = remove_duplicated_keys(data.clone(), key="action")
+
+        # Select only the necessary tensors
+        data = data.select(
+            "action",
+            "mask",
+            "is_init",
+            "observation",
+            "sample_log_prob",
+            ("next", "reward"),
         )
-        _, idxs = np.unique(arr_, return_index=True)
-        unique_idxs = torch.tensor(np.sort(idxs), dtype=torch.int32, device=device)
-        data = data[unique_idxs]
-        score = score[unique_idxs]
 
-        # Compute loss
-        seqs = data.get("action")
-        agent_likelihood = data.get("log_probs")
-        with torch.no_grad():
-            prior_likelihood = prior.likelihood(seqs)
-        augmented_likelihood = prior_likelihood + sigma * score
-        sscore, sscore_idxs = score.sort(descending=True)
-        loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
-        loss = loss[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
+        data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
+        sscore, sscore_idxs = data_next["reward"][done].sort(descending=True)
+        loss = loss[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)].squeeze()]
 
         # Compute experience replay loss
-        if cfg.experience_replay and len(experience) > 4:
-            exp_seqs, exp_score, exp_prior_likelihood = experience.sample(4)
-            exp_seqs = exp_seqs.to(device)
-            exp_score = exp_score.to(device)
-            exp_prior_likelihood = exp_prior_likelihood.to(device)
-            exp_agent_likelihood = model.likelihood(exp_seqs.long())
-            exp_augmented_likelihood = exp_prior_likelihood + sigma * exp_score
-            exp_loss = torch.pow((exp_augmented_likelihood - exp_agent_likelihood), 2)
-            loss = torch.cat((loss, exp_loss), 0)
-            agent_likelihood = torch.cat((agent_likelihood, exp_agent_likelihood), 0)
+        if (
+            cfg.experience_replay
+            and len(experience_replay_buffer) > cfg.replay_batch_size
+        ):
+            replay_batch = experience_replay_buffer.sample()
+            _, replay_loss, replay_agent_likelihood = compute_loss(
+                replay_batch, actor_training, prior, sigma
+            )
+            loss = torch.cat((loss, replay_loss), 0)
+            agent_likelihood = torch.cat((agent_likelihood, replay_agent_likelihood), 0)
 
         # Average loss over the batch
         loss = loss.mean()
@@ -200,25 +262,54 @@ def main(cfg: "DictConfig"):
         loss.backward()
         optim.step()
 
-        # Then add new experience to replay buffer
+        # Then add new experiences to the replay buffer
         if cfg.experience_replay is True:
-            new_experience = zip(
-                smiles_list, score.cpu().numpy(), prior_likelihood.cpu().numpy()
-            )
-            experience.add_experience(new_experience)
 
-        # Log
+            replay_data = data.clone()
+
+            # Remove SMILES that are already in the replay buffer
+            if len(experience_replay_buffer) > 0:
+                replay_data = remove_keys_in_reference(
+                    experience_replay_buffer[:], replay_data, "action"
+                )
+
+            # Add data to the replay buffer
+            reward = replay_data.get(("next", "reward"))
+            replay_data.set("priority", reward)
+            experience_replay_buffer.extend(replay_data)
+
+        # Log info
         if logger:
-            log_info.update(
-                {
-                    "train/total_smiles": total_done,
-                    "train/reward": score.cpu().mean().item(),
-                    "train/min_reward": score.cpu().min().item(),
-                    "train/max_reward": score.cpu().max().item(),
-                }
-            )
             for key, value in log_info.items():
                 logger.log_scalar(key, value, collected_frames)
+
+
+def get_log_prob(data, model):
+    actions = data.get("action").clone()
+    model_in = data.select(*model.in_keys, strict=False).clone()
+    log_prob = model.get_dist(model_in).log_prob(actions)
+    return log_prob
+
+
+def compute_loss(data, model, prior, sigma):
+
+    mask = data.get("mask").squeeze(-1)
+
+    if "prior_log_prob" not in data.keys():
+        with torch.no_grad():
+            prior_log_prob = get_log_prob(data, prior)
+            data.set("prior_log_prob", prior_log_prob)
+    else:
+        prior_log_prob = data.get("prior_log_prob")
+
+    agent_log_prob = get_log_prob(data, model)
+    agent_likelihood = (agent_log_prob * mask).sum(-1)
+    prior_likelihood = (prior_log_prob * mask).sum(-1)
+    score = data.get(("next", "reward")).squeeze(-1).sum(-1)
+    augmented_likelihood = prior_likelihood + sigma * score
+    loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
+
+    return data, loss, agent_likelihood
 
 
 if __name__ == "__main__":
