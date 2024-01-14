@@ -15,7 +15,6 @@ import yaml
 from acegen.data import remove_duplicated_keys, remove_keys_in_reference
 from acegen.models import adapt_state_dict, create_gru_actor
 from acegen.rl_env import sample_completed_smiles, SMILESEnv
-from acegen.transforms import PenaliseRepeatedSMILES, SMILESReward
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 
@@ -114,31 +113,15 @@ def main(cfg: "DictConfig"):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(
-            UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["SMILES"], unsqueeze_dim=-1
-            )
-        )
-        env.append_transform(
-            CatFrames(
-                N=100,
-                dim=-1,
-                padding="constant",
-                in_keys=["SMILES"],
-                out_keys=["SMILES"],
-                padding_value=-1,
-            )
-        )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         env.append_transform(rhs_primer)
         return env
 
-    # Independent transforms
+    # Scoring function
     ####################################################################################################################
 
-    # 1. Define scoring transform
-    # it is more efficient to score all SMILES in a single call after data collection
+    # It is more efficient to score all SMILES in a single call after data collection
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
@@ -158,26 +141,9 @@ def main(cfg: "DictConfig"):
     json.dump(data, open(cfg.molscore, "w"), indent=4)
 
     # Create scoring function
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
+    scoring = MolScore(model_name="reinvent", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
-
-    # Create reward transform
-    rew_transform = SMILESReward(
-        reward_function=scoring_function,
-        vocabulary=vocabulary,
-    )
-
-    # 2. Define a transform to penalise repeated SMILES
-    penalty_transform = None
-    if cfg.penalize_repetition is True:
-        penalty_transform = PenaliseRepeatedSMILES(
-            check_duplicate_key="SMILES",
-            in_key="reward",
-            out_key="reward",
-            penalty=cfg.repetition_penalty,
-            device=device,
-        )
 
     # Replay buffer
     ####################################################################################################################
@@ -185,7 +151,7 @@ def main(cfg: "DictConfig"):
     storage = LazyTensorStorage(100, device=device)
     experience_replay_buffer = TensorDictReplayBuffer(
         storage=storage,
-        sampler=PrioritizedSampler(storage.max_size, alpha=0.7, beta=1.0),
+        sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
         batch_size=cfg.replay_batch_size,
         writer=TensorDictMaxValueWriter(rank_key="store_priority"),
         priority_key="sample_priority",
@@ -229,14 +195,20 @@ def main(cfg: "DictConfig"):
         log_info = {}
         total_done += frames_in_batch
         collected_frames += frames_in_batch
+        data_next = data.get("next")
+        done = data_next.get("done").squeeze(-1)
 
         # Compute rewards
-        data = rew_transform(data)
+        smiles = [
+            vocabulary.decode(smi.cpu().numpy()) for smi in data_next.get("observation")
+        ]
+        data_next["reward"][done] = torch.tensor(
+            scoring_function(smiles), device=device
+        ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
-        done = data.get(("next", "done")).squeeze(-1)
-        episode_rewards = data["next", "reward"][done]
-        episode_length = data["next", "step_count"][done]
+        episode_rewards = data_next["reward"][done]
+        episode_length = data_next["step_count"][done]
         if len(episode_rewards) > 0:
             log_info.update(
                 {
@@ -304,7 +276,7 @@ def main(cfg: "DictConfig"):
             replay_data.batch_size = torch.Size([replay_data.shape[0]])
             replay_data.set("store_priority", reward.sum(-1))
             replay_data.set("sample_priority", 1.0 - reward.sum(-1))
-            indices = experience_replay_buffer.extend(replay_data)
+            experience_replay_buffer.extend(replay_data)
 
         # Log info
         if logger:

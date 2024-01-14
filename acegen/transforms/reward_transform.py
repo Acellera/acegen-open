@@ -82,14 +82,12 @@ class SMILESReward(Transform):
         device = tensordict.device
         done = tensordict.get("done").squeeze(-1)
 
-        sub_tensordict = tensordict.get_sub_tensordict(done)
-
-        if len(sub_tensordict) == 0:
+        if done.sum() == 0:
             return tensordict
 
         # Get reward and smiles
-        reward = sub_tensordict.get(self.out_keys[0])
-        smiles = sub_tensordict.get(self.in_keys[0])
+        reward = tensordict.get(self.out_keys[0])
+        smiles = tensordict.get(self.in_keys[0])
 
         # Get smiles as strings
         smiles_list = []
@@ -116,6 +114,6 @@ class SMILESReward(Transform):
                     )
                     continue
 
-        sub_tensordict.set(self.out_keys[0], reward * self.reward_scale, inplace=True)
+        tensordict[self.out_keys[0]][done] = _reward
 
         return tensordict

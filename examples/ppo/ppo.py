@@ -340,16 +340,25 @@ def main(cfg: "DictConfig"):
 
         log_info = {}
         frames_in_batch = data.numel()
-        total_done += data.get(("next", "done")).sum()
+        data_next = data.get("next")
+        done = data_next.get("done").squeeze(-1)
+        total_done += done.sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
         # Compute all rewards in a single call
-        data = rew_transform(data)
+        # data = rew_transform(data)
+        smiles = data_next.get("SMILES")[done]
+        smiles_list = [
+            vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1]) for smi in smiles
+        ]
+        data_next["reward"][done] = torch.tensor(
+            scoring_function(smiles_list), device=device
+        ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
-        episode_rewards = data["next", "reward"][data["next", "done"]]
-        episode_length = data["next", "step_count"][data["next", "done"]]
+        episode_rewards = data_next["reward"][done]
+        episode_length = data_next["step_count"][done]
         if len(episode_rewards) > 0:
             log_info.update(
                 {
@@ -378,11 +387,7 @@ def main(cfg: "DictConfig"):
             )
 
         # Get data to be added to the replay buffer later
-        replay_data = (
-            data.get("next")
-            .get_sub_tensordict(idx=data.get("next").get("terminated").squeeze(-1))
-            .clone()
-        )
+        replay_data = data.get("next").get_sub_tensordict(idx=done).clone()
 
         # Select only the necessary tensors
         data = data.select(
