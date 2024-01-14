@@ -148,13 +148,13 @@ def main(cfg: "DictConfig"):
     # Replay buffer
     ####################################################################################################################
 
-    storage = LazyTensorStorage(100, device=device)
+    storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
     experience_replay_buffer = TensorDictReplayBuffer(
         storage=storage,
-        sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
+        sampler=PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0),
         batch_size=cfg.replay_batch_size,
-        writer=TensorDictMaxValueWriter(rank_key="store_priority"),
-        priority_key="sample_priority",
+        writer=TensorDictMaxValueWriter(rank_key="priority"),
+        priority_key="priority",
     )
 
     # Optimizer
@@ -272,10 +272,8 @@ def main(cfg: "DictConfig"):
                 )
 
             # Add data to the replay buffer
-            reward = replay_data.get(("next", "reward")).squeeze(-1)
-            replay_data.batch_size = torch.Size([replay_data.shape[0]])
-            replay_data.set("store_priority", reward.sum(-1))
-            replay_data.set("sample_priority", 1.0 - reward.sum(-1))
+            reward = replay_data.get(("next", "reward"))
+            replay_data.set("priority", reward)
             experience_replay_buffer.extend(replay_data)
 
         # Log info

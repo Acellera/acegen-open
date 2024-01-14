@@ -278,7 +278,7 @@ def main(cfg: "DictConfig"):
         storage = LazyTensorStorage(100, device=device)
         experience_replay_buffer = TensorDictReplayBuffer(
             storage=storage,
-            sampler=PrioritizedSampler(storage.max_size, alpha=0.7, beta=1.0),
+            sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
             batch_size=n,
             writer=TensorDictMaxValueWriter(rank_key="store_priority"),
             priority_key="sample_priority",
