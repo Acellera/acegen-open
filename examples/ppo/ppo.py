@@ -23,7 +23,7 @@ from acegen.models import (
     create_gru_critic,
 )
 from acegen.rl_env import SMILESEnv
-from acegen.transforms import PenaliseRepeatedSMILES, SMILESReward
+from acegen.transforms import PenaliseRepeatedSMILES
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
@@ -175,11 +175,9 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-    # Independent transforms
+    # Scoring function - it is more efficient to score all SMILES in a single call after data collection
     ####################################################################################################################
 
-    # 1. Define scoring transform
-    # it is more efficient to score all SMILES in a single call after data collection
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
@@ -203,12 +201,7 @@ def main(cfg: "DictConfig"):
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
-    # Create reward transform
-    rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary
-    )
-
-    # 2. Define a transform to penalise repeated SMILES
+    # Define a transform to penalise repeated SMILES
     penalty_transform = None
     if cfg.penalize_repetition is True:
         penalty_transform = PenaliseRepeatedSMILES(
@@ -346,8 +339,7 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Compute all rewards in a single call
-        # data = rew_transform(data)
+        # Compute rewards
         smiles = data_next.get("SMILES")[done]
         smiles_list = [
             vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1]) for smi in smiles

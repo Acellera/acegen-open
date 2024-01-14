@@ -1,2 +1,1 @@
 from .penalise_repeated_transform import PenaliseRepeatedSMILES
-from .reward_transform import SMILESReward

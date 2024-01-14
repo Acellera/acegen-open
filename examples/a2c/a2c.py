@@ -19,7 +19,7 @@ from acegen.models import (
     create_gru_critic,
 )
 from acegen.rl_env import SMILESEnv
-from acegen.transforms import PenaliseRepeatedSMILES, SMILESReward
+from acegen.transforms import PenaliseRepeatedSMILES
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
@@ -162,7 +162,7 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-    # Scoring transform - more efficient to do it outside the environment
+    # Scoring function - it is more efficient to score all SMILES in a single call after data collection
     ####################################################################################################################
 
     if not _has_molscore:
@@ -187,11 +187,6 @@ def main(cfg: "DictConfig"):
     scoring = MolScore(model_name="a2c", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
-
-    # Create reward transform
-    rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary
-    )
 
     # Collector
     ####################################################################################################################
