@@ -235,8 +235,10 @@ def main(cfg: "DictConfig"):
         )
 
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
-        sscore, sscore_idxs = data_next["reward"][done].sort(descending=True)
-        loss = loss[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)].squeeze()]
+        sscore, sscore_idxs = (
+            data_next["reward"][done].squeeze(-1).sort(descending=True)
+        )
+        loss = loss[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
 
         # Compute experience replay loss
         if (
