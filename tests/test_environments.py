@@ -22,6 +22,7 @@ def test_smiles_env(
     one_hot_action_encoding,
     one_hot_obs_encoding,
 ):
+    torch.manual_seed(0)
     env = SMILESEnv(
         start_token=start_token,
         end_token=end_token,
@@ -79,6 +80,7 @@ def test_sample_smiles(
     one_hot_action_encoding,
     one_hot_obs_encoding,
 ):
+    torch.manual_seed(0)
     env = SMILESEnv(
         start_token=start_token,
         end_token=end_token,

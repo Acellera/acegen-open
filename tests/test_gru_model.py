@@ -38,6 +38,7 @@ def generate_valid_data_batch(
 def test_gru_actor(
     vocabulary_size, device, python_based, sequence_length=5, batch_size=10
 ):
+    torch.manual_seed(0)
     # Create the model and a data batch
     training_actor, inference_actor = create_gru_actor(
         vocabulary_size, python_based=python_based
@@ -78,6 +79,7 @@ def test_gru_critic(
     sequence_length=5,
     batch_size=10,
 ):
+    torch.manual_seed(0)
     # Create the model and a data batch
     training_critic, inference_critic = create_gru_critic(
         vocabulary_size,
@@ -126,6 +128,7 @@ def test_gru_actor_critic(
     sequence_length=5,
     batch_size=10,
 ):
+    torch.manual_seed(0)
     # Create the model and a data batch
     (
         training_actor,

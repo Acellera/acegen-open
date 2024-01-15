@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import torch
 from tensordict import TensorDict
 
@@ -19,7 +20,10 @@ def remove_duplicates(tensordict: TensorDict, key: str) -> TensorDict:
     _, unique_indices = torch.unique(tensor, dim=0, sorted=True, return_inverse=True)
 
     # Sort the unique indices
-    unique_indices = torch.unique(unique_indices, dim=0)
+    _, unique_indices = torch.unique(
+        unique_indices, dim=0, sorted=True, return_inverse=True
+    )
+    _, unique_indices = np.unique(unique_indices.numpy(), return_index=True)
 
     # Use torch.sort to ensure the output tensor maintains the order of rows in the input tensor
     unique_tensordict = tensordict[unique_indices]
