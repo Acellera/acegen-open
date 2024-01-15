@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 from pathlib import Path
@@ -21,6 +22,12 @@ from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
 
+logging.basicConfig(
+    level=logging.INFO,
+    filename="pretraining.log",
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
@@ -34,7 +41,7 @@ def main(cfg: "DictConfig"):
     device = f"cuda:0" if torch.cuda.device_count() > 1 else "cpu"
     os.makedirs(cfg.model_log_dir, exist_ok=True)
 
-    print("\nConstructing vocabulary...")
+    logging.info("\nConstructing vocabulary...")
     vocabulary = SMILESVocabulary.create_from_smiles(
         load_dataset(cfg.train_dataset_path),
         tokenizer=Tokenizer(),
@@ -42,7 +49,7 @@ def main(cfg: "DictConfig"):
     save_path = Path(cfg.model_log_dir) / "vocabulary.ckpt"
     torch.save(vocabulary.state_dict(), save_path)
 
-    print("\nPreparing dataset and dataloader...")
+    logging.info("\nPreparing dataset and dataloader...")
     dataset = SMILESDataset(
         cache_path=cfg.dataset_log_dir,
         dataset_path=cfg.train_dataset_path,
@@ -60,14 +67,14 @@ def main(cfg: "DictConfig"):
         collate_fn=dataset.collate_fn,
     )
 
-    print("\nCreating model...")
+    logging.info("\nCreating model...")
     actor_training, actor_inference = create_gru_actor(
         len(vocabulary), embedding_size=128
     )
     actor_training.to(device)
     actor_inference.to(device)
 
-    print("\nCreating test environment...")
+    logging.info("\nCreating test environment...")
     # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
     primers = actor_training.rnn_spec.expand(cfg.num_test_smiles)
     rhs_primer = TensorDictPrimer(primers)
@@ -82,7 +89,7 @@ def main(cfg: "DictConfig"):
     test_env.append_transform(InitTracker())
     test_env.append_transform(rhs_primer)
 
-    print("\nCreating test scoring function...")
+    logging.info("\nCreating test scoring function...")
 
     def valid_smiles(smiles_list):
         result_tensor = torch.zeros(len(smiles_list))
@@ -92,15 +99,15 @@ def main(cfg: "DictConfig"):
                 result_tensor[i] = 1.0
         return result_tensor
 
-    print("\nCreating optimizer...")
+    logging.info("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
-    lr_scheduler = torch.optim.lr_scheduler.ConstantLR(
-        actor_optimizer, factor=0.97, total_iters=cfg.epochs
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(
+        actor_optimizer, step_size=1, gamma=cfg.lr_decay_per_epoch
     )
 
     logger = None
     if cfg.logger:
-        print("\nCreating logger...")
+        logging.info("\nCreating logger...")
         logger = get_logger(
             cfg.logger,
             logger_name="pretrain",
@@ -110,9 +117,9 @@ def main(cfg: "DictConfig"):
 
     # Calculate number of parameters
     num_params = sum(param.numel() for param in actor_training.parameters())
-    print(f"Number of policy parameters {num_params:,}")
+    logging.info(f"Number of policy parameters {num_params:,}")
 
-    print("\nStarting pretraining...")
+    logging.info("\nStarting pretraining...")
     actor_losses = torch.zeros(len(dataloader))
     for epoch in range(1, cfg.epochs):
 

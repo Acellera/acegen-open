@@ -9,6 +9,7 @@ model_log_dir: /tmp/pretrain
 logger: null
 
 lr: 0.0001
+lr_decay_per_epoch: 1.0 # no decay
 epochs: 10
 batch_size: 8
 randomize_smiles: False
