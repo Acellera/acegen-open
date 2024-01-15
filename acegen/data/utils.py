@@ -58,16 +58,21 @@ def is_in_reference(tensordict, reference_tensordict, key):
 
 def smiles_to_tensordict(
     smiles: torch.Tensor,
-    reward: torch.Tensor,
+    reward: torch.Tensor = None,
     device: str | torch.device = "cpu",
+    mask_value: int = -1,
+    replace_mask_value: int = 0,
 ):
     """Create an episode Tensordict from a batch of SMILES."""
     B, T = smiles.shape
-    mask = smiles != -1
+    mask = smiles != mask_value
+    smiles[~mask] = replace_mask_value
     rewards = torch.zeros(B, T, 1)
-    rewards[:, -1] = reward.reshape(-1, 1)
+    if reward is not None:
+        rewards[:, -1] = reward.reshape(-1, 1)
     done = torch.zeros(B, T, 1, dtype=torch.bool)
-    done[:, -1] = True
+    lengths = mask.sum(1)
+    done[torch.arange(B), lengths - 1] = True
 
     smiles_tensordict = TensorDict(
         {

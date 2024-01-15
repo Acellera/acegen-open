@@ -114,9 +114,6 @@ class SMILESDataset(Dataset):
         )
 
         if self.randomize_smiles:
-            import ipdb
-
-            ipdb.set_trace()
             smiles_string = self.vocabulary.decode(smiles.tolist())
             try:
                 equivalent_sample = Chem.MolToSmiles(

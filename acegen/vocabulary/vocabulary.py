@@ -81,6 +81,7 @@ class SMILESVocabulary(Vocabulary):
             encoded_smiles (np.ndarray): An array of indices corresponding to a SMILES string.
             ignore_indices (tuple, optional): Indices to ignore. Defaults to ().
 
+
         Returns:
             str: The decoded SMILES string.
         """
@@ -154,7 +155,6 @@ class SMILESVocabulary(Vocabulary):
         tokens = set()
         for smi in smiles_list:
             tokens.update(vocabulary.tokenizer.tokenize(smi))
-        vocabulary = cls()
         vocabulary.add_characters(sorted(tokens))
         return vocabulary
 
@@ -186,8 +186,8 @@ class SMILESVocabulary(Vocabulary):
             start_token=start_token,
             end_token=end_token,
             max_length=max_length,
-            tokenizer=tokenizer,
         )
+        vocabulary.tokenizer = tokenizer
         vocabulary.vocab_size = len(vocab)
         vocabulary.vocab = vocab
         vocabulary.reversed_vocab = {v: k for k, v in vocabulary.vocab.items()}

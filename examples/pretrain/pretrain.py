@@ -1,49 +1,25 @@
+import os
 import random
-
-import re
 from pathlib import Path
 
 import hydra
 import numpy as np
 import torch
-from acegen.data import load_dataset, remove_duplicates, SMILESDataset
+from acegen.data import (
+    load_dataset,
+    remove_duplicates,
+    smiles_to_tensordict,
+    SMILESDataset,
+)
 from acegen.models import create_gru_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from rdkit import Chem
-from tensordict import TensorDict
+from tokenizer import Tokenizer
 from torch.utils.data import DataLoader
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
-
-
-class Tokenizer:
-    def __init__(self, start_token: str = "GO", end_token: str = "EOS"):
-        self.start_token = start_token
-        self.end_token = end_token
-
-    @staticmethod
-    def replace_halogen(string: str) -> str:
-        """Regex to replace Br and Cl with single letters."""
-        br = re.compile("Br")
-        cl = re.compile("Cl")
-        string = br.sub("R", string)
-        string = cl.sub("L", string)
-        return string
-
-    def tokenize(self, smiles: str) -> list[str]:
-        regex = "(\[[^\[\]]{1,6}\])"
-        smiles = self.replace_halogen(smiles)
-        char_list = re.split(regex, smiles)
-        tokenized = [self.start_token]
-        for char in char_list:
-            if char.startswith("["):
-                tokenized.append(char)
-            else:
-                [tokenized.append(unit) for unit in list(char)]
-        tokenized.append(self.end_token)
-        return tokenized
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -56,17 +32,19 @@ def main(cfg: "DictConfig"):
     torch.manual_seed(int(seed))
 
     device = f"cuda:0" if torch.cuda.device_count() > 1 else "cpu"
+    os.makedirs(cfg.model_log_dir, exist_ok=True)
 
-    cfg.train_dataset_path = (
-        Path(__file__).resolve().parent.parent.parent / "priors" / "smiles_test_set"
+    cfg.train_dataset_path = ckpt = (
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.dataset
     )
 
+    tokenizer = Tokenizer()
     print("\nConstructing vocabulary...")
     vocabulary = SMILESVocabulary.create_from_smiles(
         load_dataset(cfg.train_dataset_path),
-        tokenizer=Tokenizer(),
+        tokenizer=tokenizer,
     )
-    save_path = Path(cfg.model_log_dir) / "vocabulary.pkl"
+    save_path = Path(cfg.model_log_dir) / "vocabulary.ckpt"
     torch.save(vocabulary.state_dict(), save_path)
 
     print("\nPreparing dataset and dataloader...")
@@ -121,6 +99,9 @@ def main(cfg: "DictConfig"):
 
     print("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
+    lr_scheduler = torch.optim.lr_scheduler.ConstantLR(
+        actor_optimizer, factor=0.97, total_iters=cfg.epochs
+    )
 
     logger = None
     if cfg.logger:
@@ -134,7 +115,7 @@ def main(cfg: "DictConfig"):
 
     # Calculate number of parameters
     num_params = sum(param.numel() for param in actor_training.parameters())
-    print(f"Number of policy parameters {num_params}")
+    print(f"Number of policy parameters {num_params:,}")
 
     print("\nStarting pretraining...")
     actor_losses = torch.zeros(len(dataloader))
@@ -148,32 +129,16 @@ def main(cfg: "DictConfig"):
 
             for step, batch in tepoch:
 
-                # smiles = [vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1]) for smi in batch]
-                # num_valid = valid_smiles(smiles).sum()
-
                 batch = batch.to(device)
-                mask = (batch != -1).float()  # Mask padding tokens
-
-                num_layers = 3
-                hidden_size = 512
-                td_batch = TensorDict(
-                    {
-                        "observation": batch.long() * mask.long(),
-                        "is_init": torch.zeros_like(batch).bool(),
-                        "recurrent_state": torch.zeros(
-                            *batch.shape[:2], num_layers, hidden_size
-                        ),
-                    },
-                    batch_size=batch.shape[:2],
-                )
+                batch_td = smiles_to_tensordict(batch, device=device)
+                target = batch_td.get("action")
+                batch_td.set("is_init", torch.zeros_like(target).unsqueeze(-1).bool())
 
                 # Forward pass
-                td_batch = actor_training(td_batch)
+                dist = actor_training.get_dist(batch_td)
 
                 # Loss
-                loss_actor = (
-                    (-td_batch.get("sample_log_prob").squeeze(-1) * mask).sum(0).mean()
-                )
+                loss_actor = (-dist.log_prob(target) * batch_td["mask"]).sum(-1).mean()
 
                 # Backward pass
                 actor_optimizer.zero_grad()
@@ -190,9 +155,15 @@ def main(cfg: "DictConfig"):
 
             # Log
             if logger:
-                logger.log_scalar("loss_actor", actor_losses.mean())
-                logger.log_scalar("num_test_valid_smiles", num_valid_smiles)
-                logger.log_scalar("num_test_unique_smiles", len(unique_smiles))
+                logger.log_scalar("loss_actor", actor_losses.mean(), step=epoch)
+                logger.log_scalar("num_test_valid_smiles", num_valid_smiles, step=epoch)
+                logger.log_scalar(
+                    "num_test_unique_smiles", len(unique_smiles), step=epoch
+                )
+                logger.log_scalar("lr", lr_scheduler.get_lr()[0], step=epoch)
+
+            # Decay learning rate
+            lr_scheduler.step()
 
         save_path = Path(cfg.model_log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
         torch.save(actor_training.state_dict(), save_path)
