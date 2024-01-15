@@ -2,7 +2,7 @@ experiment_name: pretrain
 agent_name: gru
 seed: 101
 
-dataset_path: smiles_test_set
+train_dataset_path: /shared/albert/acegen-open/priors/smiles_test_set
 recompute_dataset: True
 dataset_log_dir: /tmp/pretrain
 model_log_dir: /tmp/pretrain

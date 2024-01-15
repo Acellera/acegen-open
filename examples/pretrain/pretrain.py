@@ -34,15 +34,10 @@ def main(cfg: "DictConfig"):
     device = f"cuda:0" if torch.cuda.device_count() > 1 else "cpu"
     os.makedirs(cfg.model_log_dir, exist_ok=True)
 
-    cfg.train_dataset_path = (
-        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.dataset_path
-    )
-
-    tokenizer = Tokenizer()
     print("\nConstructing vocabulary...")
     vocabulary = SMILESVocabulary.create_from_smiles(
         load_dataset(cfg.train_dataset_path),
-        tokenizer=tokenizer,
+        tokenizer=Tokenizer(),
     )
     save_path = Path(cfg.model_log_dir) / "vocabulary.ckpt"
     torch.save(vocabulary.state_dict(), save_path)
