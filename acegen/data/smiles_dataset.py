@@ -136,7 +136,6 @@ class SMILESDataset(Dataset):
     def collate_fn(cls, arr):
         """Function to take a list of encoded sequences and turn them into a batch."""
         max_length = max([seq.size(0) for seq in arr])
-        # collated_arr = torch.zeros(len(arr), max_length)
         collated_arr = torch.ones(len(arr), max_length) * -1
         for i, seq in enumerate(arr):
             collated_arr[i, : seq.size(0)] = seq

@@ -3,7 +3,7 @@ from pathlib import Path
 import hydra
 import torch
 from acegen.dataset import load_dataset, SMILESDataset
-from acegen.models import create_gru_actor, create_gru_critic
+from acegen.models import create_gru_actor
 from acegen.vocabulary import SMILESVocabulary
 from tensordict import TensorDict
 from torch.utils.data import DataLoader
@@ -24,6 +24,8 @@ def main(cfg: "DictConfig"):
     vocabulary = SMILESVocabulary.create_from_smiles(
         load_dataset(cfg.train_dataset_path)
     )
+    save_path = Path(cfg.model_log_dir) / "vocabulary.pkl"
+    torch.save(vocabulary.state_dict(), save_path)
 
     print("\nPreparing dataset and dataloader...")
     dataset = SMILESDataset(
@@ -36,8 +38,7 @@ def main(cfg: "DictConfig"):
     dataloader = DataLoader(
         dataset,
         batch_size=cfg.batch_size,
-        # sampler=Sampler(dataset),  # Sampler option is mutually exclusive with shuffle
-        shuffle=True,  # Needs to be False with DistributedSampler
+        shuffle=True,
         drop_last=True,
         num_workers=4,
         pin_memory=True,
@@ -46,15 +47,11 @@ def main(cfg: "DictConfig"):
 
     print("\nCreating model...")
     actor_training, actor_inference = create_gru_actor(len(vocabulary))
-    # critic_training, critic_inference = create_gru_critic(len(vocabulary))
     actor_training.to(device)
-    # critic_training.to(device)
     actor_inference.to(device)
-    # critic_inference.to(device)
 
     print("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
-    # critic_optimizer = torch.optim.Adam(critic_training.parameters(), lr=cfg.lr)
 
     logger = None
     if cfg.logger:
@@ -100,28 +97,21 @@ def main(cfg: "DictConfig"):
 
                 # Forward pass
                 td_batch = actor_training(td_batch)
-                # td_batch = critic_training(td_batch)
 
                 # Loss
                 loss_actor = (
                     (-td_batch.get("sample_log_prob").squeeze(-1) * mask).sum(0).mean()
                 )
-                # loss_critic = 0.0
 
                 # Backward pass
                 actor_optimizer.zero_grad()
                 loss_actor.backward()
                 actor_optimizer.step()
-                # critic_optimizer.zero_grad()
-                # loss_critic.backward()
-                # critic_optimizer.step()
-
                 actor_losses[step] = loss_actor.item()
 
             # Log
             if logger:
                 logger.log_scalar("loss_actor", actor_losses.mean())
-                # logger.log_scalar("loss_critic", loss_critic.item())
 
         save_path = Path(cfg.model_log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
         torch.save(actor_training.state_dict(), save_path)
