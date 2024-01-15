@@ -5,6 +5,7 @@ from acegen.models.gru import (
     create_gru_actor_critic,
     create_gru_critic,
 )
+from acegen.models.utils import adapt_state_dict
 from tensordict import TensorDict
 from tests.utils import get_default_devices
 
@@ -176,3 +177,47 @@ def test_gru_actor_critic(
 
 def test_adapt_ckpt():
     pass
+
+
+def test_adapt_state_dict():
+    # Arrange
+    source_state_dict = {
+        "source_conv1.weight": torch.randn(3, 3, 3),
+        "source_fc.weight": torch.randn(10, 5),
+    }
+    target_state_dict = {
+        "target_conv1.weight": torch.randn(3, 3, 3),
+        "target_fc.weight": torch.randn(10, 5),
+    }
+
+    # Act
+    adapted_state_dict = adapt_state_dict(source_state_dict, target_state_dict)
+
+    for key_adapted, key_target in zip(
+        adapted_state_dict.keys(), target_state_dict.keys()
+    ):
+        assert key_adapted == key_target
+
+    for key_source, key_adapted in zip(
+        source_state_dict.keys(), adapted_state_dict.keys()
+    ):
+        assert (source_state_dict[key_source] == adapted_state_dict[key_adapted]).all()
+
+    # Test with state dicts of different lengths
+    with pytest.raises(
+        ValueError,
+        match="The source and target state dicts must have the same number of parameters.",
+    ):
+        adapt_state_dict(source_state_dict, {"fc.weight": torch.randn(10, 5)})
+
+    # Test with mismatched shapes
+    source_state_dict_mismatched = {
+        "source_conv1.weight": torch.randn(3, 3, 3),
+        "source_fc.weight": torch.randn(5, 10),  # Mismatched shape
+    }
+
+    key_source = "source_fc.weight"
+    key_target = "target_fc.weight"
+    msg = f"The shape of {key_source} .* and {key_target} .* do not match."
+    with pytest.warns(UserWarning, match=msg):
+        adapt_state_dict(source_state_dict_mismatched, target_state_dict)
