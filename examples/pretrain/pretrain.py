@@ -183,7 +183,7 @@ def main(cfg: "DictConfig"):
 
             # Generate test smiles
             smiles = generate_complete_smiles(test_env, actor_inference, max_length=100)
-            num_valid = valid_smiles(
+            num_valid_smiles = valid_smiles(
                 [vocabulary.decode(smi.cpu().numpy()) for smi in smiles.get("action")]
             ).sum()
             unique_smiles = remove_duplicates(smiles, key="action")
@@ -191,7 +191,7 @@ def main(cfg: "DictConfig"):
             # Log
             if logger:
                 logger.log_scalar("loss_actor", actor_losses.mean())
-                logger.log_scalar("num_test_valid_smiles", num_valid)
+                logger.log_scalar("num_test_valid_smiles", num_valid_smiles)
                 logger.log_scalar("num_test_unique_smiles", len(unique_smiles))
 
         save_path = Path(cfg.model_log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
