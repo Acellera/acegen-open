@@ -65,7 +65,7 @@ def smiles_to_tensordict(
     B, T = smiles.shape
     mask = smiles != -1
     rewards = torch.zeros(B, T, 1)
-    rewards[:, -1] = reward
+    rewards[:, -1] = reward.reshape(-1, 1)
     done = torch.zeros(B, T, 1, dtype=torch.bool)
     done[:, -1] = True
 
