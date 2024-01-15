@@ -33,12 +33,24 @@ def test_remove_duplicates(sample_tensordict):
         },
         batch_size=[3],
     )
-
-    import ipdb
-
-    ipdb.set_trace()
-
     for key in output_tensordict.keys():
         assert torch.equal(output_tensordict[key], expected_output[key])
 
-    assert output_tensordict == expected_output
+
+def test_is_in_reference(sample_tensordict):
+    # Arrange
+    reference_tensordict = TensorDict(
+        {
+            "tensor1": torch.tensor([[1, 2, 3], [4, 5, 6], [10, 11, 12]]),
+            "tensor2": torch.tensor([[10, 20], [30, 40], [50, 60]]),
+        },
+        batch_size=[3],
+    )
+    key = "tensor1"
+
+    # Act
+    in_reference = is_in_reference(sample_tensordict, reference_tensordict, key)
+
+    # Assert
+    expected_in_reference = torch.tensor([True, True, True, False])
+    assert torch.equal(in_reference, expected_in_reference)

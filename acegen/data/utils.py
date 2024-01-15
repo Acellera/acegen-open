@@ -49,7 +49,9 @@ def is_in_reference(tensordict, reference_tensordict, key):
     cat_data = torch.cat([reference_tensor, target_tensor], dim=0)
     _, unique_indices = torch.unique(cat_data, dim=0, sorted=True, return_inverse=True)
 
-    common_indices = torch.isin(unique_indices[N:], unique_indices[:N])
+    common_indices = torch.isin(
+        unique_indices[N:], unique_indices[:N], assume_unique=True
+    )
 
     return common_indices
 
