@@ -23,7 +23,7 @@ def remove_duplicates(tensordict: TensorDict, key: str) -> TensorDict:
     _, unique_indices = torch.unique(
         unique_indices, dim=0, sorted=True, return_inverse=True
     )
-    _, unique_indices = np.unique(unique_indices.numpy(), return_index=True)
+    _, unique_indices = np.unique(unique_indices.cpu().numpy(), return_index=True)
 
     # Use torch.sort to ensure the output tensor maintains the order of rows in the input tensor
     unique_tensordict = tensordict[unique_indices]

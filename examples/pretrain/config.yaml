@@ -1,5 +1,6 @@
 experiment_name: pretrain
 agent_name: gru
+seed: 101
 
 train_dataset_path: null
 dataset_log_dir: /tmp/pretrain
@@ -8,5 +9,6 @@ logger: null
 
 lr: 0.0001
 epochs: 10
-batch_size: 128
+batch_size: 8
 randomize_smiles: False
+num_test_smiles: 100

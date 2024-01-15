@@ -114,9 +114,10 @@ class SMILESDataset(Dataset):
         )
 
         if self.randomize_smiles:
-            smiles_string = self.vocabulary.remove_start_and_end_tokens(
-                self.vocabulary.decode(smiles.tolist())
-            )
+            import ipdb
+
+            ipdb.set_trace()
+            smiles_string = self.vocabulary.decode(smiles.tolist())
             try:
                 equivalent_sample = Chem.MolToSmiles(
                     Chem.MolFromSmiles(smiles_string), doRandom=True, canonical=False
