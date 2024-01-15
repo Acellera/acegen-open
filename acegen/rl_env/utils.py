@@ -10,7 +10,7 @@ from torchrl.envs.utils import ExplorationType, step_mdp
 
 
 @torch.no_grad()
-def sample_completed_smiles(
+def generate_complete_smiles(
     environment: EnvBase,
     policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]] = None,
     max_length: int = 100,

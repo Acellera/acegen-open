@@ -477,7 +477,7 @@ def main(cfg: "DictConfig"):
                 )
 
             # Add data to the replay buffer
-            indices = experience_replay_buffer.extend(td)
+            experience_replay_buffer.extend(td)
 
         if logger:
             for key, value in log_info.items():

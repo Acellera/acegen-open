@@ -12,9 +12,9 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data import remove_duplicated_keys, remove_keys_in_reference
+from acegen.data import is_in_reference, remove_duplicates
 from acegen.models import adapt_state_dict, create_gru_actor
-from acegen.rl_env import sample_completed_smiles, SMILESEnv
+from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 
@@ -145,6 +145,13 @@ def main(cfg: "DictConfig"):
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
+    if cfg.penalize_repeated_smiles:
+        # Define a buffer to store unique SMILES
+        repeated_smiles = 0
+        diversity_buffer = TensorDictReplayBuffer(
+            storage=LazyTensorStorage(10_000),
+        )
+
     # Replay buffer
     ####################################################################################################################
 
@@ -190,7 +197,8 @@ def main(cfg: "DictConfig"):
 
     for _ in tqdm.tqdm(range(0, cfg.total_frames, frames_in_batch)):
 
-        data = sample_completed_smiles(policy=actor_inference, environment=env)
+        data = generate_complete_smiles(policy=actor_inference, environment=env)
+        data = remove_duplicates(data, key="action")
 
         log_info = {}
         total_done += frames_in_batch
@@ -206,7 +214,24 @@ def main(cfg: "DictConfig"):
             scoring_function(smiles), device=device
         ).unsqueeze(-1)
 
-        # Register smiles lengths and real rewards
+        # Penalise repeated smiles
+        if cfg.penalize_repeated_smiles:
+            target = data.select("action").clone().cpu()
+            reward = data_next.get("reward").clone()[done]
+            if len(diversity_buffer) > 0:
+                is_duplicated = is_in_reference(
+                    tensordict=target,
+                    key="action",
+                    reference_tensordict=diversity_buffer[:],
+                )
+                reward[is_duplicated] *= cfg.repetition_penalty
+                data_next["reward"][done] = reward
+                target = target[~is_duplicated]
+                repeated_smiles += is_duplicated.sum().item()
+                log_info.update({"train/repeated_smiles": repeated_smiles})
+            diversity_buffer.extend(target)
+
+        # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]
         episode_length = data_next["step_count"][done]
         if len(episode_rewards) > 0:
@@ -221,8 +246,6 @@ def main(cfg: "DictConfig"):
                     ),
                 }
             )
-
-        data = remove_duplicated_keys(data.clone(), key="action")
 
         # Select only the necessary tensors
         data = data.select(
@@ -271,9 +294,12 @@ def main(cfg: "DictConfig"):
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
-                replay_data = remove_keys_in_reference(
-                    experience_replay_buffer[:], replay_data, "action"
+                is_duplicated = is_in_reference(
+                    tensordict=replay_data,
+                    key="action",
+                    reference_tensordict=experience_replay_buffer[:],
                 )
+                replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
             reward = replay_data.get(("next", "reward"))

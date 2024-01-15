@@ -1,6 +1,6 @@
 import pytest
 import torch
-from acegen.rl_env import sample_completed_smiles, SMILESEnv
+from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from tests.utils import get_default_devices
 from torchrl.collectors import RandomPolicy
 from torchrl.envs.utils import step_mdp
@@ -88,7 +88,7 @@ def test_sample_smiles(
         one_hot_action_encoding=one_hot_action_encoding,
         one_hot_obs_encoding=one_hot_obs_encoding,
     )
-    smiles = sample_completed_smiles(env, policy=None, max_length=10)
+    smiles = generate_complete_smiles(env, policy=None, max_length=10)
     terminated = smiles.get(("next", "terminated")).squeeze(
         dim=-1
     )  # if max_length is reached is False
