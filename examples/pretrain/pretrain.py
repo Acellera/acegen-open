@@ -35,7 +35,7 @@ def main(cfg: "DictConfig"):
     os.makedirs(cfg.model_log_dir, exist_ok=True)
 
     cfg.train_dataset_path = (
-        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.dataset
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.dataset_path
     )
 
     tokenizer = Tokenizer()
