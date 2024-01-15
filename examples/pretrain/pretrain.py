@@ -34,7 +34,7 @@ def main(cfg: "DictConfig"):
     device = f"cuda:0" if torch.cuda.device_count() > 1 else "cpu"
     os.makedirs(cfg.model_log_dir, exist_ok=True)
 
-    cfg.train_dataset_path = ckpt = (
+    cfg.train_dataset_path = (
         Path(__file__).resolve().parent.parent.parent / "priors" / cfg.dataset
     )
 
