@@ -63,9 +63,18 @@ def smiles_to_tensordict(
     mask_value: int = -1,
     replace_mask_value: int = None,
 ):
-    """Create an episode Tensordict from a batch of SMILES."""
+    """Create an episode Tensordict from a batch of SMILES.
+
+    Args:
+        smiles (torch.Tensor): Batch of SMILES. Shape: (B, T).
+        reward (torch.Tensor): Batch of rewards. Shape: (B,) or (B, 1).
+        device (str or torch.device): Device to create the Tensordict on.
+        mask_value (int): Value to used for padding. Default: -1.
+        replace_mask_value (int): Value to replace the mask value with. Default: None.
+    """
     B, T = smiles.shape
     mask = smiles != mask_value
+    device = torch.device(device) if isinstance(device, str) else device
 
     if replace_mask_value is not None:
         smiles[~mask] = replace_mask_value
