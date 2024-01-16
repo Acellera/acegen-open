@@ -45,6 +45,7 @@ from torchrl.envs import (
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
+from utils import smiles_to_tensordict
 
 
 try:

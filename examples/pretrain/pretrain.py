@@ -132,7 +132,9 @@ def main(cfg: "DictConfig"):
             for step, batch in tepoch:
 
                 batch = batch.to(device)
-                batch_td = smiles_to_tensordict(batch, device=device)
+                batch_td = smiles_to_tensordict(
+                    batch, replace_mask_value=0, device=device
+                )
                 target = batch_td.get("action")
                 batch_td.set("is_init", torch.zeros_like(target).unsqueeze(-1).bool())
 
