@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data import is_in_reference, remove_duplicates
+from acegen.data import is_in_reference, remove_duplicates, smiles_to_tensordict
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -266,8 +266,8 @@ def main(cfg: "DictConfig"):
             storage=storage,
             sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
             batch_size=n,
-            writer=TensorDictMaxValueWriter(rank_key="store_priority"),
-            priority_key="sample_priority",
+            writer=TensorDictMaxValueWriter(rank_key="priority"),
+            priority_key="priority",
         )
 
     def prepare_replay_batch(batch, T):
@@ -469,25 +469,24 @@ def main(cfg: "DictConfig"):
         if experience_replay_buffer is not None:
 
             # Remove duplicated SMILES
-            replay_data = remove_duplicated_keys(replay_data, "SMILES")
+            replay_data = remove_duplicates(replay_data, keys="SMILES")
 
             smiles = replay_data.get("SMILES")
             reward = replay_data.get("reward")
-            store_priority = replay_data.get("reward").squeeze(-1).clone()
-            sample_priority = 1.0 - replay_data.get("reward").squeeze(-1).clone()
-            td = smiles_to_tensordict(smiles, reward, device=device)
-            td.batch_size = torch.Size([len(smiles)])
-            td.set("store_priority", store_priority)
-            td.set("sample_priority", sample_priority)
+            replay_data = smiles_to_tensordict(smiles, reward, device=device)
+            replay_data.set("priority", replay_data.get(("next", "reward")))
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
-                td = remove_keys_in_reference(
-                    experience_replay_buffer[:], td, "observation"
+                is_duplicated = is_in_reference(
+                    tensordict=replay_data,
+                    key="action",
+                    reference_tensordict=experience_replay_buffer[:],
                 )
+                replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
-            experience_replay_buffer.extend(td)
+            experience_replay_buffer.extend(replay_data)
 
         if logger:
             for key, value in log_info.items():
