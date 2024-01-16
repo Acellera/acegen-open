@@ -11,7 +11,6 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data import is_in_reference, remove_duplicates, smiles_to_tensordict
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -26,12 +25,13 @@ from torch.distributions.kl import kl_divergence
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import (
     LazyTensorStorage,
-    PrioritizedSampler,
-    SamplerWithoutReplacement,
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
+from torchrl.data.replay_buffers import PrioritizedSampler
+from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+
 from torchrl.envs import (
     CatFrames,
     ExplorationType,
@@ -44,6 +44,12 @@ from torchrl.envs import (
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
+from utils import (
+    remove_duplicated_keys,
+    remove_keys_in_reference,
+    smiles_to_tensordict,
+    SMILESReward,
+)
 
 
 try:
@@ -170,9 +176,11 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-    # Scoring function - it is more efficient to score all SMILES in a single call after data collection
+    # Independent transforms
     ####################################################################################################################
 
+    # 1. Define scoring transform
+    # it is more efficient to score all SMILES in a single call after data collection
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
@@ -196,12 +204,10 @@ def main(cfg: "DictConfig"):
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
-    if cfg.penalize_repeated_smiles:
-        # Define a buffer to store unique SMILES
-        repeated_smiles = 0
-        diversity_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(10_000),
-        )
+    # Create reward transform
+    rew_transform = SMILESReward(
+        reward_function=scoring_function, vocabulary=vocabulary
+    )
 
     # Collector
     ####################################################################################################################
@@ -252,28 +258,20 @@ def main(cfg: "DictConfig"):
 
     experience_replay_buffer = None
     if cfg.experience_replay is True:
-        replay_smiles_per_row = (
-            6  # Estimation of how many SMILES needed to fill up a row of data
-        )
-        N = cfg.replay_batches * replay_smiles_per_row
-        M = cfg.frames_per_batch // cfg.num_envs
+        replay_smiles_per_row = 6
+        n = cfg.replay_batches * replay_smiles_per_row
 
-        # Transform to populate recurrent states and is_init in replay batches
-        replay_rhs_transform = TensorDictPrimer(
-            actor_training.rnn_spec.expand(N, M - 1)
-        )
+        replay_rhs_transform = TensorDictPrimer(actor_training.rnn_spec.expand(n, 99))
         replay_logp_transform = TensorDictPrimer(
-            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(N, M - 1))}
+            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(n, 99))}
         )
-
-        # Define a replay buffer to track best SMILES
         storage = LazyTensorStorage(100, device=device)
         experience_replay_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(100, device=device),
-            sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
-            batch_size=N,
-            writer=TensorDictMaxValueWriter(rank_key="priority"),
-            priority_key="priority",
+            storage=storage,
+            sampler=PrioritizedSampler(storage.max_size, alpha=0.7, beta=1.0),
+            batch_size=n,
+            writer=TensorDictMaxValueWriter(rank_key="store_priority"),
+            priority_key="sample_priority",
         )
 
     def prepare_replay_batch(batch, T):
@@ -332,41 +330,16 @@ def main(cfg: "DictConfig"):
 
         log_info = {}
         frames_in_batch = data.numel()
-        data_next = data.get("next")
-        done = data_next.get("done").squeeze(-1)
-        total_done += done.sum()
+        total_done += data.get(("next", "done")).sum()
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Compute rewards
-        smiles = data_next.get("SMILES")[done]
-        smiles_list = [
-            vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1]) for smi in smiles
-        ]
-        data_next["reward"][done] = torch.tensor(
-            scoring_function(smiles_list), device=device
-        ).unsqueeze(-1)
-
-        # Penalise repeated smiles
-        if cfg.penalize_repeated_smiles:
-            target = data.select("action").clone().cpu()
-            reward = data_next.get("reward").clone()[done]
-            if len(diversity_buffer) > 0:
-                is_duplicated = is_in_reference(
-                    tensordict=target,
-                    key="action",
-                    reference_tensordict=diversity_buffer[:],
-                )
-                reward[is_duplicated] *= cfg.repetition_penalty
-                data_next["reward"][done] = reward
-                target = target[~is_duplicated]
-                repeated_smiles += is_duplicated.sum().item()
-                log_info.update({"train/repeated_smiles": repeated_smiles})
-            diversity_buffer.extend(target)
+        # Compute all rewards in a single call
+        data = rew_transform(data)
 
         # Register smiles lengths and real rewards
-        episode_rewards = data_next["reward"][done]
-        episode_length = data_next["step_count"][done]
+        episode_rewards = data["next", "reward"][data["next", "done"]]
+        episode_length = data["next", "step_count"][data["next", "done"]]
         if len(episode_rewards) > 0:
             log_info.update(
                 {
@@ -383,8 +356,7 @@ def main(cfg: "DictConfig"):
         # Get data to be added to the replay buffer later
         replay_data = (
             data.get("next")
-            .get_sub_tensordict(idx=done)
-            .select("SMILES", "reward")
+            .get_sub_tensordict(idx=data.get("next").get("terminated").squeeze(-1))
             .clone()
         )
 
@@ -407,7 +379,6 @@ def main(cfg: "DictConfig"):
 
         for j in range(ppo_epochs):
 
-            # Add some data from the replay data to the collected data
             if (
                 experience_replay_buffer is not None
                 and len(experience_replay_buffer) >= 50
@@ -425,45 +396,29 @@ def main(cfg: "DictConfig"):
             else:
                 extended_data = data
 
-            # Compute advantage and prior logits for extended_data
             with torch.no_grad():
                 extended_data = adv_module(extended_data)
-                # prior_logits = prior(extended_data.clone()).get("logits")
-                # extended_data.set("prior_logits", prior_logits)
 
-            # Add extended_data to PPO buffer
             buffer.extend(extended_data)
 
             for i in range(num_mini_batches):
 
-                # Get next batch
+                # Compute loss for the current mini-batch
                 batch = buffer.sample()
 
-                # PPO loss
                 loss = loss_module(batch)
                 loss_sum = (
                     loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
                 )
-
-                # Add KL loss
-                # prior_dist = torch.distributions.Categorical(
-                #     logits=batch.get("prior_logits")
-                # )
+                losses[j, i] = loss.select(
+                    "loss_critic", "loss_entropy", "loss_objective"
+                ).detach()
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
-
-                # import ipdb; ipdb.set_trace()
-                # aaa = (prior_dist.logits == prior_dist2.logits).all()
-
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
                 mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
-
-                # Register losses
-                losses[j, i] = loss.select(
-                    "loss_critic", "loss_entropy", "loss_objective"
-                ).detach()
                 losses[j, i] = TensorDict(
                     {"kl_div": kl_div.detach().item()}, batch_size=[]
                 )
@@ -483,25 +438,25 @@ def main(cfg: "DictConfig"):
         if experience_replay_buffer is not None:
 
             # Remove duplicated SMILES
-            replay_data = remove_duplicates(replay_data, key="SMILES")
+            replay_data = remove_duplicated_keys(replay_data, "SMILES")
 
-            # Create a Tensordict with replay data
-            replay_data = smiles_to_tensordict(
-                replay_data["SMILES"], replay_data["reward"], device=device
-            )
-            replay_data.set("priority", replay_data.get(("next", "reward")))
+            smiles = replay_data.get("SMILES")
+            reward = replay_data.get("reward")
+            store_priority = replay_data.get("reward").squeeze(-1).clone()
+            sample_priority = 1.0 - replay_data.get("reward").squeeze(-1).clone()
+            td = smiles_to_tensordict(smiles, reward, device=device)
+            td.batch_size = torch.Size([len(smiles)])
+            td.set("store_priority", store_priority)
+            td.set("sample_priority", sample_priority)
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
-                is_duplicated = is_in_reference(
-                    tensordict=replay_data,
-                    key="action",
-                    reference_tensordict=experience_replay_buffer[:],
+                td = remove_keys_in_reference(
+                    experience_replay_buffer[:], td, "observation"
                 )
-                replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
-            experience_replay_buffer.extend(replay_data)
+            indices = experience_replay_buffer.extend(td.cpu())
 
         if logger:
             for key, value in log_info.items():

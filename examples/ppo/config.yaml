@@ -30,8 +30,8 @@ critic_coef: 0.25
 entropy_coef: 0.025
 kl_coef: 0.025
 mini_batch_size: 4
-ppo_epochs: 4
+ppo_epochs: 8
 max_grad_norm: 0.25
 ppo_clip: 0.1
 experience_replay: True
-replay_batches: 4
+replay_batches: 12
