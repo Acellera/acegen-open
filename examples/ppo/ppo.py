@@ -338,9 +338,9 @@ def main(cfg: "DictConfig"):
         frames_in_batch = data.numel()
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += done.sum()
         collected_frames += frames_in_batch
-        pbar.update(done.sum())
+        total_done += done.sum().item()
+        pbar.update(done.sum().item())
 
         if total_done >= cfg.total_smiles:
             break
