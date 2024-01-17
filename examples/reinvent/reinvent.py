@@ -223,15 +223,15 @@ def main(cfg: "DictConfig"):
             repeated_smiles += is_duplicated.sum().item()
             log_info.update({"train/repeated_smiles": repeated_smiles})
 
+            # Penalise repeated smiles
+            if cfg.penalize_repeated_smiles:
+                reward = data_next.get("reward").clone()[done]
+                reward[is_duplicated] *= cfg.repetition_penalty
+                data_next["reward"][done] = reward
+
         # Add unique to the diversity buffer
         if cfg.detect_repeated_smiles:
             diversity_buffer.extend(smiles)
-
-        # Penalise repeated smiles
-        if cfg.penalize_repeated_smiles:
-            reward = data_next.get("reward").clone()[done]
-            reward[is_duplicated] *= cfg.repetition_penalty
-            data_next["reward"][done] = reward
 
         # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]
