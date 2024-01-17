@@ -77,14 +77,13 @@ def main(cfg: "DictConfig"):
     )
 
     # Load Vocabulary
-    ckpt = (
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "reinvent_vocabulary.txt"
-    )
+    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.vocabulary
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
-    vocabulary = SMILESVocabulary.create_from_list_of_chars(tokens)
+    tokens_dict = dict(zip(tokens, range(len(tokens))))
+    vocabulary = SMILESVocabulary.create_from_dict(
+        tokens_dict, start_token="GO", end_token="EOS"
+    )
 
     # Models
     ####################################################################################################################
@@ -188,8 +187,7 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-        # tests rl_env
-
+    # tests env
     test_env = SMILESEnv(**env_kwargs)
 
     # Scoring transform - more efficient to do it outside the environment
@@ -225,7 +223,7 @@ def main(cfg: "DictConfig"):
         create_env_fn=create_env_fn,
         policy=actor_inference,
         frames_per_batch=cfg.frames_per_batch,
-        total_frames=cfg.total_frames,
+        total_frames=-1,
         device=device,
         storing_device="cpu",
         reset_at_each_iter=True,  # To avoid burn in issues
@@ -256,20 +254,20 @@ def main(cfg: "DictConfig"):
     burn_in = BurnInTransform(
         modules=(actor_training, critic_training), burn_in=cfg.burn_in
     )
-    # buffer = TensorDictReplayBuffer(
-    #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
-    #     batch_size=cfg.batch_size,
-    #     prefetch=3,
-    # )
-    buffer = TensorDictPrioritizedReplayBuffer(
+    buffer = TensorDictReplayBuffer(
         storage=LazyMemmapStorage(cfg.replay_buffer_size),
-        alpha=0.7,
-        beta=0.5,
-        pin_memory=False,
-        prefetch=3,
         batch_size=cfg.batch_size,
-        priority_key="loss_qvalue",
+        prefetch=3,
     )
+    # buffer = TensorDictPrioritizedReplayBuffer(
+    #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
+    #     alpha=0.7,
+    #     beta=0.5,
+    #     pin_memory=False,
+    #     prefetch=3,
+    #     batch_size=cfg.batch_size,
+    #     priority_key="loss_qvalue",
+    # )
     buffer.append_transform(crop_seq)
     buffer.append_transform(burn_in)
 
@@ -301,20 +299,32 @@ def main(cfg: "DictConfig"):
     total_done = 0
     collected_frames = 0
     num_updates = 0
-    pbar = tqdm.tqdm(total=cfg.total_frames)
+    pbar = tqdm.tqdm(total=cfg.total_smiles)
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
 
     for data in tqdm.tqdm(collector):
 
-        # Compute all rewards in a single call
-        data = rew_transform(data)
-
         log_info = {}
+        data_next = data.get("next")
+        done = data_next.get("done").squeeze(-1)
         frames_in_batch = data.numel()
-        total_done += data.get(("next", "done")).sum()
+        total_done + done.sum().item()
         collected_frames += frames_in_batch
-        pbar.update(data.numel())
+        pbar.update(done.sum().item())
+
+        if total_done >= cfg.total_smiles:
+            break
+
+        # Compute rewards
+        smiles = data_next.select("SMILES")[done].clone().cpu()
+        smiles_list = [
+            vocabulary.decode(smi.numpy(), ignore_indices=[-1])
+            for smi in smiles["SMILES"]
+        ]
+        data_next["reward"][done] = torch.tensor(
+            scoring_function(smiles_list), device=device
+        ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
         episode_rewards = data["next", "reward"][data["next", "done"]]

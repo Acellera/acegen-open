@@ -10,7 +10,7 @@ num_envs: 10
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 
 # Collector configuration
-total_frames: 1_000_000
+total_smiles: 12800
 frames_per_batch: 1000
 init_random_smiles: 20
 

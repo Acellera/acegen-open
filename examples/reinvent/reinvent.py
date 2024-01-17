@@ -209,7 +209,7 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        smiles = data.select("action").clone().cpu()
+        smiles = data.select("action").cpu()
 
         # Compute rewards
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
@@ -317,7 +317,7 @@ def main(cfg: "DictConfig"):
 
 def get_log_prob(data, model):
     actions = data.get("action").clone()
-    model_in = data.select(*model.in_keys, strict=False).clone()
+    model_in = data.select(*model.in_keys, strict=False)
     log_prob = model.get_dist(model_in).log_prob(actions)
     return log_prob
 

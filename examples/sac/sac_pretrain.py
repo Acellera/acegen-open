@@ -12,7 +12,7 @@ import torch
 import tqdm
 import yaml
 
-from acegen import PenaliseRepeatedSMILES, SMILESEnv, SMILESReward, SMILESVocabulary
+from acegen import SMILESEnv, SMILESVocabulary
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -142,37 +142,16 @@ def main(cfg: "DictConfig"):
         for param in actor_training.parameters():
             param.requires_grad = False
 
-    prior, _ = create_gru_actor(len(vocabulary), distribution_class=OneHotCategorical)
-    prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
-    prior = prior.to(device)
-
     # Environment
     ####################################################################################################################
 
-    # Create transform to populate initial tensordict with recurrent states equal to 0.0
-    num_layers = 3
-    hidden_size = 512
+    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
     if cfg.shared_nets:
-        primers = {
-            ("recurrent_state",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
-                dtype=torch.float32,
-            ),
-        }
+        primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
     else:
-        actor_primers = {
-            ("recurrent_state_actor",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
-                dtype=torch.float32,
-            ),
-        }
-        critic_primers = {
-            ("recurrent_state_critic",): UnboundedContinuousTensorSpec(
-                shape=torch.Size([cfg.num_envs, num_layers, hidden_size]),
-                dtype=torch.float32,
-            ),
-        }
+        actor_primers = actor_training.rnn_spec.expand(cfg.num_envs)
+        critic_primers = critic_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [
             TensorDictPrimer(actor_primers),
             TensorDictPrimer(critic_primers),
@@ -213,8 +192,7 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-        # tests rl_env
-
+    # tests rl_env
     test_env = SMILESEnv(**env_kwargs)
 
     # Scoring transform - more efficient to do it outside the environment
@@ -243,11 +221,6 @@ def main(cfg: "DictConfig"):
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
-    # Create reward transform
-    rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary
-    )
-
     # Collector
     ####################################################################################################################
 
@@ -255,10 +228,10 @@ def main(cfg: "DictConfig"):
         create_env_fn=create_env_fn,
         policy=actor_inference,
         frames_per_batch=cfg.frames_per_batch,
-        total_frames=cfg.total_frames,
+        total_frames=-1,
         device=device,
         storing_device="cpu",
-        reset_at_each_iter=True,  # To avoid burn in issues
+        reset_at_each_iter=False,
     )
 
     # Loss
@@ -286,20 +259,20 @@ def main(cfg: "DictConfig"):
     burn_in = BurnInTransform(
         modules=(actor_training, critic_training), burn_in=cfg.burn_in
     )
-    # buffer = TensorDictReplayBuffer(
-    #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
-    #     batch_size=cfg.batch_size,
-    #     prefetch=3,
-    # )
-    buffer = TensorDictPrioritizedReplayBuffer(
+    buffer = TensorDictReplayBuffer(
         storage=LazyMemmapStorage(cfg.replay_buffer_size),
-        alpha=0.7,
-        beta=0.5,
-        pin_memory=False,
-        prefetch=3,
         batch_size=cfg.batch_size,
-        priority_key="loss_qvalue",
+        prefetch=3,
     )
+    # buffer = TensorDictPrioritizedReplayBuffer(
+    #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
+    #     alpha=0.7,
+    #     beta=0.5,
+    #     pin_memory=False,
+    #     prefetch=3,
+    #     batch_size=cfg.batch_size,
+    #     priority_key="loss_qvalue",
+    # )
     buffer.append_transform(crop_seq)
     buffer.append_transform(burn_in)
 
@@ -332,19 +305,30 @@ def main(cfg: "DictConfig"):
     collected_frames = 0
     num_updates = 0
     pbar = tqdm.tqdm(total=cfg.total_frames)
-    kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
 
     for data in tqdm.tqdm(collector):
 
-        # Compute all rewards in a single call
-        data = rew_transform(data)
-
         log_info = {}
+        data_next = data.get("next")
+        done = data_next.get("done").squeeze(-1)
         frames_in_batch = data.numel()
-        total_done += data.get(("next", "done")).sum()
+        total_done + done.sum().item()
         collected_frames += frames_in_batch
-        pbar.update(data.numel())
+        pbar.update(done.sum().item())
+
+        if total_done >= cfg.total_smiles:
+            break
+
+        # Compute rewards
+        smiles = data_next.select("SMILES")[done].clone().cpu()
+        smiles_list = [
+            vocabulary.decode(smi.numpy(), ignore_indices=[-1])
+            for smi in smiles["SMILES"]
+        ]
+        data_next["reward"][done] = torch.tensor(
+            scoring_function(smiles_list), device=device
+        ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
         episode_rewards = data["next", "reward"][data["next", "done"]]
@@ -365,16 +349,21 @@ def main(cfg: "DictConfig"):
                 for key, value in log_info.items():
                     logger.log_scalar(key, value, collected_frames)
 
-        # Then exclude unnecessary tensors
-        data = data.exclude(
-            "embed",
-            "logits",
-            "features",
-            "collector",
-            "step_count",
-            ("next", "step_count"),
-            "SMILES",
-            ("next", "SMILES"),
+        # Select only the necessary tensors
+        data = data.select(
+            "action",
+            "done",
+            "is_init",
+            "observation",
+            "recurrent_state",
+            "sample_log_prob",
+            "terminated",
+            ("next", "done"),
+            ("next", "is_init"),
+            ("next", "observation"),
+            ("next", "recurrent_state"),
+            ("next", "terminated"),
+            ("next", "reward"),
         )
 
         # Zero out recurrent states
@@ -402,16 +391,8 @@ def main(cfg: "DictConfig"):
             log_info.update({f"train/loss_qvalue": loss["loss_qvalue"].detach().item()})
 
             if num_updates % cfg.actor_updates_frequency == 0:
-                # loss_sum += loss["loss_actor"] + loss["loss_alpha"]
-                # with torch.no_grad():
-                #     prior_dist = prior.get_dist(batch)
-                # kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                # mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-                # kl_div = kl_div[~mask].mean()
-                # loss_sum += kl_div * kl_coef
                 log_info.update(
                     {
-                        # "train/kl_div": kl_div.detach().item(),
                         "train/loss_actor": loss["loss_actor"].detach().item(),
                         "train/loss_alpha": loss["loss_alpha"].detach().item(),
                         "train/alpha": loss["alpha"].detach().item(),

@@ -204,7 +204,7 @@ def main(cfg: "DictConfig"):
         )
     repeated_smiles = 0
     diversity_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(20_000),
+        storage=LazyTensorStorage(cfg.total_smiles),
     )
 
     # Collector
@@ -329,7 +329,7 @@ def main(cfg: "DictConfig"):
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = cfg.num_envs // cfg.mini_batch_size
+    num_mini_batches = (cfg.num_envs + cfg.replay_batches) // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
     for data in collector:
@@ -346,7 +346,7 @@ def main(cfg: "DictConfig"):
             break
 
         # Compute rewards
-        smiles = data_next.select("SMILES")[done].clone().cpu()
+        smiles = data_next.select("SMILES")[done].cpu()
         smiles_list = [
             vocabulary.decode(smi.numpy(), ignore_indices=[-1])
             for smi in smiles["SMILES"]
@@ -394,10 +394,7 @@ def main(cfg: "DictConfig"):
 
         # Get data to be added to the replay buffer later
         replay_data = (
-            data.get("next")
-            .get_sub_tensordict(idx=done)
-            .select("SMILES", "reward")
-            .clone()
+            data.get("next").get_sub_tensordict(idx=done).select("SMILES", "reward")
         )
 
         # Select only the necessary tensors
@@ -440,16 +437,16 @@ def main(cfg: "DictConfig"):
             # Compute advantage and prior logits for extended_data
             with torch.no_grad():
                 extended_data = adv_module(extended_data)
-                # prior_logits = prior(extended_data.clone()).get("logits")
+                # prior_logits = prior(extended_data.select("is_init", "observation")).get("logits")
                 # extended_data.set("prior_logits", prior_logits)
 
             # Add extended_data to PPO buffer
             buffer.extend(extended_data)
 
-            for i in range(num_mini_batches):
+            for i, batch in enumerate(buffer):
 
                 # Get next batch
-                batch = buffer.sample()
+                # batch = buffer.sample()
 
                 # PPO loss
                 loss = loss_module(batch)
@@ -463,6 +460,11 @@ def main(cfg: "DictConfig"):
                 # )
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
+                # new_logits = prior(batch.select("is_init", "observation"))["logits"]
+
+                # import ipdb; ipdb.set_trace()
+                # assert batch["prior_logits"].sum().item() == new_logits.sum().item()
+
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
                 mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = kl_div[~mask].mean()
