@@ -8,6 +8,8 @@ seed: 101
 # Environment configuration
 num_envs: 10
 molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
+prior: morgan.ckpt
+vocabulary: morgan_vocabulary.txt
 
 # Collector configuration
 total_smiles: 12800

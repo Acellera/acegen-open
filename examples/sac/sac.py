@@ -111,7 +111,7 @@ def main(cfg: "DictConfig"):
 
     # Load pretrained weights
     ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / "reinvent.ckpt"
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
     )
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
