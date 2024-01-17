@@ -303,7 +303,7 @@ def main(cfg: "DictConfig"):
     total_done = 0
     collected_frames = 0
     num_updates = 0
-    pbar = tqdm.tqdm(total=cfg.total_frames)
+    pbar = tqdm.tqdm(total=cfg.total_smiles)
     max_grad_norm = cfg.max_grad_norm
 
     for data in tqdm.tqdm(collector):
