@@ -196,12 +196,16 @@ def main(cfg: "DictConfig"):
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
-    if cfg.penalize_repeated_smiles:
-        # Define a buffer to store unique SMILES
-        repeated_smiles = 0
-        diversity_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(10_000),
+    # Define a buffer to store unique SMILES
+    if not cfg.detect_repeated_smiles and cfg.penalize_repeated_smiles:
+        raise RuntimeError(
+            "Cannot penalize repeated smiles if detect_repeated_smiles is False. "
+            "Please set penalize_repeated_smiles to False or detect_repeated_smiles to True."
         )
+    repeated_smiles = 0
+    diversity_buffer = TensorDictReplayBuffer(
+        storage=LazyTensorStorage(20_000),
+    )
 
     # Collector
     ####################################################################################################################
@@ -339,30 +343,35 @@ def main(cfg: "DictConfig"):
         pbar.update(data.numel())
 
         # Compute rewards
-        smiles = data_next.get("SMILES")[done]
+        smiles = data_next.select("SMILES").cpu()[done]
         smiles_list = [
-            vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1]) for smi in smiles
+            vocabulary.decode(smi.numpy(), ignore_indices=[-1])
+            for smi in smiles["SMILES"]
         ]
         data_next["reward"][done] = torch.tensor(
             scoring_function(smiles_list), device=device
         ).unsqueeze(-1)
 
-        # Penalise repeated smiles
-        if cfg.penalize_repeated_smiles:
-            target = data.select("action").clone().cpu()
-            reward = data_next.get("reward").clone()[done]
-            if len(diversity_buffer) > 0:
-                is_duplicated = is_in_reference(
-                    tensordict=target,
-                    key="action",
-                    reference_tensordict=diversity_buffer[:],
-                )
+        # Detect repeated smiles
+        if len(diversity_buffer) > 0:
+            is_duplicated = is_in_reference(
+                key="SMILES",
+                tensordict=smiles,
+                reference_tensordict=diversity_buffer[:],
+            )
+            smiles = smiles[~is_duplicated]
+            repeated_smiles += is_duplicated.sum().item()
+            log_info.update({"train/repeated_smiles": repeated_smiles})
+
+            # Penalise repeated smiles
+            if cfg.penalize_repeated_smiles:
+                reward = data_next.get("reward").clone()[done]
                 reward[is_duplicated] *= cfg.repetition_penalty
                 data_next["reward"][done] = reward
-                target = target[~is_duplicated]
-                repeated_smiles += is_duplicated.sum().item()
-                log_info.update({"train/repeated_smiles": repeated_smiles})
-            diversity_buffer.extend(target)
+
+        # Add unique to the diversity buffer
+        if cfg.detect_repeated_smiles:
+            diversity_buffer.extend(smiles)
 
         # Register smiles lengths and real rewards
         episode_rewards = data_next["reward"][done]
@@ -451,10 +460,6 @@ def main(cfg: "DictConfig"):
                 # )
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
-
-                # import ipdb; ipdb.set_trace()
-                # aaa = (prior_dist.logits == prior_dist2.logits).all()
-
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
                 mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = kl_div[~mask].mean()

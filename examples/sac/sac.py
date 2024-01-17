@@ -12,7 +12,7 @@ import torch
 import tqdm
 import yaml
 
-from acegen import PenaliseRepeatedSMILES, SMILESEnv, SMILESReward, SMILESVocabulary
+from acegen import SMILESEnv, SMILESVocabulary
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -217,11 +217,6 @@ def main(cfg: "DictConfig"):
     scoring = MolScore(model_name="sac", task_config=cfg.molscore)
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
-
-    # Create reward transform
-    rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary
-    )
 
     # Collector
     ####################################################################################################################
