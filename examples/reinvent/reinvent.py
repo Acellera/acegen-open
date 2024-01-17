@@ -153,7 +153,7 @@ def main(cfg: "DictConfig"):
         )
     repeated_smiles = 0
     diversity_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(20_000),
+        storage=LazyTensorStorage(cfg.total_frames),
     )
 
     # Replay buffer

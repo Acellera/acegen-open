@@ -8,7 +8,7 @@ seed: 101
 # Environment configuration
 num_envs: 64
 molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
-detect_repeated_smiles: True
+detect_repeated_smiles: True # Slows down the training and increase the memory usage
 penalize_repeated_smiles: False
 repetition_penalty: 0.5
 prior: morgan.ckpt

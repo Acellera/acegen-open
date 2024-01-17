@@ -214,7 +214,7 @@ def main(cfg: "DictConfig"):
         policy=actor_inference,
         create_env_fn=create_env_fn,
         frames_per_batch=cfg.frames_per_batch,
-        total_frames=cfg.total_frames,
+        total_frames=-1,
         storing_device=device,
         device=device,
     )
@@ -328,7 +328,7 @@ def main(cfg: "DictConfig"):
     kl_coef = cfg.kl_coef
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
-    pbar = tqdm.tqdm(total=cfg.total_frames)
+    pbar = tqdm.tqdm(total=cfg.total_smiles)
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
@@ -340,10 +340,13 @@ def main(cfg: "DictConfig"):
         done = data_next.get("done").squeeze(-1)
         total_done += done.sum()
         collected_frames += frames_in_batch
-        pbar.update(data.numel())
+        pbar.update(done.sum())
+
+        if total_done >= cfg.total_smiles:
+            break
 
         # Compute rewards
-        smiles = data_next.select("SMILES").cpu()[done]
+        smiles = data_next.select("SMILES")[done].clone().cpu()
         smiles_list = [
             vocabulary.decode(smi.numpy(), ignore_indices=[-1])
             for smi in smiles["SMILES"]
