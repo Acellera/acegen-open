@@ -145,12 +145,11 @@ def main(cfg: "DictConfig"):
     scoring.configs["save_dir"] = save_dir
     scoring_function = scoring.score
 
-    if cfg.penalize_repeated_smiles:
-        # Define a buffer to store unique SMILES
-        repeated_smiles = 0
-        diversity_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(10_000),
-        )
+    # Define a buffer to store unique SMILES
+    repeated_smiles = 0
+    diversity_buffer = TensorDictReplayBuffer(
+        storage=LazyTensorStorage(20_000),
+    )
 
     # Replay buffer
     ####################################################################################################################
@@ -205,31 +204,34 @@ def main(cfg: "DictConfig"):
         collected_frames += frames_in_batch
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
+        smiles = data.select("action").clone().cpu()
 
         # Compute rewards
-        smiles = [
-            vocabulary.decode(smi.cpu().numpy()) for smi in data_next.get("observation")
-        ]
+        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
         data_next["reward"][done] = torch.tensor(
-            scoring_function(smiles), device=device
+            scoring_function(smiles_str), device=device
         ).unsqueeze(-1)
+
+        # Detect repeated smiles
+        if len(diversity_buffer) > 0:
+            is_duplicated = is_in_reference(
+                key="action",
+                tensordict=smiles,
+                reference_tensordict=diversity_buffer[:],
+            )
+            smiles = smiles[~is_duplicated]
+            repeated_smiles += is_duplicated.sum().item()
+            log_info.update({"train/repeated_smiles": repeated_smiles})
+
+        # Add unique to the diversity buffer
+        if cfg.detect_repeated_smiles:
+            diversity_buffer.extend(smiles)
 
         # Penalise repeated smiles
         if cfg.penalize_repeated_smiles:
-            target = data.select("action").clone().cpu()
             reward = data_next.get("reward").clone()[done]
-            if len(diversity_buffer) > 0:
-                is_duplicated = is_in_reference(
-                    tensordict=target,
-                    key="action",
-                    reference_tensordict=diversity_buffer[:],
-                )
-                reward[is_duplicated] *= cfg.repetition_penalty
-                data_next["reward"][done] = reward
-                target = target[~is_duplicated]
-                repeated_smiles += is_duplicated.sum().item()
-                log_info.update({"train/repeated_smiles": repeated_smiles})
-            diversity_buffer.extend(target)
+            reward[is_duplicated] *= cfg.repetition_penalty
+            data_next["reward"][done] = reward
 
         # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]
