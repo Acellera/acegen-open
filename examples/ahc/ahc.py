@@ -146,6 +146,11 @@ def main(cfg: "DictConfig"):
     scoring_function = scoring.score
 
     # Define a buffer to store unique SMILES
+    if not cfg.detect_repeated_smiles and cfg.penalize_repeated_smiles:
+        raise RuntimeError(
+            "Cannot penalize repeated smiles if detect_repeated_smiles is False. "
+            "Please set penalize_repeated_smiles to False or detect_repeated_smiles to True."
+        )
     repeated_smiles = 0
     diversity_buffer = TensorDictReplayBuffer(
         storage=LazyTensorStorage(20_000),
