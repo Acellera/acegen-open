@@ -7,7 +7,7 @@ seed: 101
 
 # Environment configuration
 num_envs: 10
-molscore: /home/abou/MolScore/molscore/configs/valid.json
+molscore: /shared/albert/MolScore/molscore/configs/valid.json
 prior: morgan.ckpt
 vocabulary: morgan_vocabulary.txt
 
@@ -32,7 +32,6 @@ target_entropy_weight: 0.1
 sampled_sequence_length: 10
 burn_in: 9
 batch_size: 80
-kl_coef: 0.0
 max_grad_norm: 1.0
 num_loss_updates: 500
 value_loss_function: l2
