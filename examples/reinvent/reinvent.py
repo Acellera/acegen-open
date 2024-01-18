@@ -262,6 +262,7 @@ def main(cfg: "DictConfig"):
             "observation",
             "sample_log_prob",
             ("next", "reward"),
+            inplace=True,
         )
 
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)

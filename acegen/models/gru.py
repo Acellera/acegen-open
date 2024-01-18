@@ -42,6 +42,7 @@ def create_gru_components(
     hidden_size: int = 512,
     num_layers: int = 3,
     dropout: float = 0.0,
+    layer_norm: bool = True,
     output_size: Optional[int] = None,
     in_key: str = "observation",
     out_key: str = "logits",
@@ -59,6 +60,7 @@ def create_gru_components(
         hidden_size (int): The size of the GRU hidden state.
         num_layers (int): The number of GRU layers.
         dropout (float): The GRU dropout rate.
+        layer_norm (bool): Whether to use layer normalization.
         output_size (int): The size of the output logits.
         in_key (str): The input key name.
         out_key (str): The output key name.
@@ -90,6 +92,9 @@ def create_gru_components(
             in_features=hidden_size,
             out_features=output_size or vocabulary_size,
             num_cells=[],
+            dropout=dropout,
+            norm_class=torch.nn.LayerNorm if layer_norm else None,
+            norm_kwargs={"normalized_shape": hidden_size} if layer_norm else {},
         ),
         in_keys=["features"],
         out_keys=[out_key],
@@ -104,6 +109,7 @@ def create_gru_actor(
     hidden_size: int = 512,
     num_layers: int = 3,
     dropout: float = 0.0,
+    layer_norm: bool = False,
     distribution_class=torch.distributions.Categorical,
     return_log_prob=True,
     in_key: str = "observation",
@@ -119,6 +125,7 @@ def create_gru_actor(
         hidden_size (int): The size of the GRU hidden state.
         num_layers (int): The number of GRU layers.
         dropout (float): The GRU dropout rate.
+        layer_norm (bool): Whether to use layer normalization.
         distribution_class (torch.distributions.Distribution): The
             distribution class to use.
         return_log_prob (bool): Whether to return the log probability
@@ -140,6 +147,7 @@ def create_gru_actor(
         hidden_size,
         num_layers,
         dropout,
+        layer_norm,
         vocabulary_size,
         in_key,
         out_key,
@@ -191,6 +199,7 @@ def create_gru_critic(
     hidden_size: int = 512,
     num_layers: int = 3,
     dropout: float = 0.0,
+    layer_norm: bool = False,
     critic_value_per_action=False,
     in_key: str = "observation",
     recurrent_state: str = "recurrent_state_critic",
@@ -204,6 +213,7 @@ def create_gru_critic(
         hidden_size (int): The size of the GRU hidden state.
         num_layers (int): The number of GRU layers.
         dropout (float): The GRU dropout rate.
+        layer_norm (bool): Whether to use layer normalization.
         critic_value_per_action (bool): Whether the critic should output a
             value per action or a single value.
         in_key (Union[str, List[str]]): The input key name.
@@ -225,6 +235,7 @@ def create_gru_critic(
         hidden_size,
         num_layers,
         dropout,
+        layer_norm,
         output_size,
         in_key,
         out_key,
@@ -255,7 +266,8 @@ def create_gru_actor_critic(
     embedding_size: int = 256,
     hidden_size: int = 512,
     num_layers: int = 3,
-    dropout: float = 0.0,
+    dropout: float = 0.00,
+    layer_norm: bool = False,
     distribution_class=torch.distributions.Categorical,
     return_log_prob=True,
     critic_value_per_action=False,
@@ -272,6 +284,8 @@ def create_gru_actor_critic(
         hidden_size (int): The size of the GRU hidden state.
         num_layers (int): The number of GRU layers.
         dropout (float): The GRU dropout rate.
+        layer_norm (bool): Whether to use layer normalization.
+        layer_norm (bool): Whether to use layer normalization.
         distribution_class (torch.distributions.Distribution): The
             distribution class to use.
         return_log_prob (bool): Whether to return the log probability
@@ -296,6 +310,7 @@ def create_gru_actor_critic(
         hidden_size,
         num_layers,
         dropout,
+        layer_norm,
         vocabulary_size,
         in_key,
         out_key,

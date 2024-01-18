@@ -412,6 +412,7 @@ def main(cfg: "DictConfig"):
             ("next", "recurrent_state"),
             ("next", "terminated"),
             ("next", "reward"),
+            inplace=True,
         )
 
         for j in range(ppo_epochs):

@@ -225,7 +225,7 @@ def main(cfg: "DictConfig"):
         frames_per_batch=cfg.frames_per_batch,
         total_frames=-1,
         device=device,
-        storing_device="cpu",
+        storing_device=device,
         reset_at_each_iter=True,  # To avoid burn in issues
     )
 
@@ -309,7 +309,7 @@ def main(cfg: "DictConfig"):
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
         frames_in_batch = data.numel()
-        total_done + done.sum().item()
+        total_done += done.sum().item()
         collected_frames += frames_in_batch
         pbar.update(done.sum().item())
 

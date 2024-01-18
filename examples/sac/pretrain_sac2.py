@@ -228,7 +228,7 @@ def main(cfg: "DictConfig"):
         total_frames=-1,
         device=device,
         storing_device=device,
-        reset_at_each_iter=False,
+        reset_at_each_iter=True,
     )
 
     # Loss
@@ -250,12 +250,12 @@ def main(cfg: "DictConfig"):
     # Buffer
     ####################################################################################################################
 
-    crop_seq = RandomCropTensorDict(
-        sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1
-    )
-    burn_in = BurnInTransform(
-        modules=(actor_training, critic_training), burn_in=cfg.burn_in
-    )
+    # crop_seq = RandomCropTensorDict(
+    #     sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1
+    # )
+    # burn_in = BurnInTransform(
+    #     modules=(actor_training, critic_training), burn_in=cfg.burn_in
+    # )
     buffer = TensorDictReplayBuffer(
         storage=LazyMemmapStorage(cfg.replay_buffer_size),
         batch_size=cfg.batch_size,
@@ -270,8 +270,8 @@ def main(cfg: "DictConfig"):
     #     batch_size=cfg.batch_size,
     #     priority_key="loss_qvalue",
     # )
-    buffer.append_transform(crop_seq)
-    buffer.append_transform(burn_in)
+    # buffer.append_transform(crop_seq)
+    # buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################
@@ -385,6 +385,7 @@ def main(cfg: "DictConfig"):
                 batch = batch.to(device, non_blocking=True)
 
             loss = loss_module(batch)
+            # loss, _ = loss_module._value_loss(batch)
             loss_sum = loss["loss_qvalue"]
             log_info.update({f"train/loss_qvalue": loss["loss_qvalue"].detach().item()})
 
