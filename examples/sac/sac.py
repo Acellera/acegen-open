@@ -290,7 +290,7 @@ def main(cfg: "DictConfig"):
             cfg.logger_backend,
             logger_name="sac",
             experiment_name=cfg.agent_name,
-            project_name=cfg.experiment_name,
+            wandb_kwargs={"config": dict(cfg), "project": cfg.experiment_name},
         )
 
     # Training loop

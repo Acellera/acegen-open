@@ -52,7 +52,7 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-@hydra.main(config_path=".", config_name="config_pretrain", version_base="1.2")
+@hydra.main(config_path=".", config_name="pretrain_config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -292,7 +292,7 @@ def main(cfg: "DictConfig"):
             cfg.logger_backend,
             logger_name="sac",
             experiment_name=cfg.agent_name + "_pretrain",
-            project_name=cfg.experiment_name,
+            wandb_kwargs={"config": dict(cfg), "project": cfg.experiment_name},
         )
 
     # Training loop
