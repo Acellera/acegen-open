@@ -99,6 +99,8 @@ def main(cfg: "DictConfig"):
             distribution_class=OneHotCategorical,
             critic_value_per_action=True,
             python_based=True,
+            dropout=0.01,
+            layer_norm=True,
         )
     else:
         actor_training, actor_inference = create_gru_actor(

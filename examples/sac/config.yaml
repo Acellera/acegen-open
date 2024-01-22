@@ -8,7 +8,8 @@ seed: 101
 # Environment configuration
 num_envs: 10
 molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
-prior: morgan.ckpt
+prior_actor: morgan.ckpt
+prior_critic: ckpt_240000.pt
 vocabulary: morgan_vocabulary.txt
 
 # Collector configuration
@@ -20,18 +21,18 @@ init_random_smiles: 20
 replay_buffer_size: 10_000
 
 # Architecture configuration
-shared_nets: True
+shared_nets: False
 
 # Discrete SAC configuration
-lr: 0.0005
+lr: 0.0001
 eps: 1e-06
 weight_decay: 0.0
-gamma: 0.999
+gamma: 0.99
 target_update_polyak: 0.995
-target_entropy_weight: 0.1
+target_entropy_weight: 0.01
 sampled_sequence_length: 20  # Unused
 burn_in: 0
-batch_size: 4
+batch_size: 64
 kl_coef: 0.5
 max_grad_norm: 1.0
 num_loss_updates: 500

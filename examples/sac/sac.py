@@ -100,41 +100,52 @@ def main(cfg: "DictConfig"):
             distribution_class=OneHotCategorical,
             critic_value_per_action=True,
             python_based=True,
+            dropout=0.01,
+            layer_norm=True,
         )
     else:
         actor_training, actor_inference = create_gru_actor(
             len(vocabulary), distribution_class=OneHotCategorical
         )
         critic_training, critic_inference = create_gru_critic(
-            len(vocabulary), critic_value_per_action=True, python_based=True
+            len(vocabulary),
+            critic_value_per_action=True,
+            python_based=True,
+            dropout=0.01,
+            layer_norm=True,
         )
 
     # Load pretrained weights
-    ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
+    ckpt_actor = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior_actor
     )
     actor_inference.load_state_dict(
-        adapt_state_dict(ckpt, actor_inference.state_dict())
+        adapt_state_dict(ckpt_actor, actor_inference.state_dict())
     )
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
+    actor_training.load_state_dict(
+        adapt_state_dict(ckpt_actor, actor_training.state_dict())
+    )
+
+    ckpt_critic = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior_critic
+    )["critic"]
+    critic_inference.load_state_dict(
+        adapt_state_dict(ckpt_critic, critic_inference.state_dict())
+    )
+    critic_training.load_state_dict(
+        adapt_state_dict(ckpt_critic, critic_training.state_dict())
+    )
+
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
-
-    # Load weights
-    actor_inference.load_state_dict(
-        adapt_state_dict(ckpt, actor_inference.state_dict())
-    )
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
-    # critic_inference.load_state_dict(adapt_state_dict(ckpt, critic_inference.state_dict()))
-    # critic_training.load_state_dict(adapt_state_dict(ckpt, critic_training.state_dict()))
 
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
 
     prior, _ = create_gru_actor(len(vocabulary), distribution_class=OneHotCategorical)
-    prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
+    prior.load_state_dict(adapt_state_dict(ckpt_actor, prior.state_dict()))
     prior = prior.to(device)
 
     # Environment
@@ -248,28 +259,29 @@ def main(cfg: "DictConfig"):
     # Buffer
     ####################################################################################################################
 
-    crop_seq = RandomCropTensorDict(
-        sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1
-    )
-    burn_in = BurnInTransform(
-        modules=(actor_training, critic_training), burn_in=cfg.burn_in
-    )
-    buffer = TensorDictReplayBuffer(
-        storage=LazyMemmapStorage(cfg.replay_buffer_size),
-        batch_size=cfg.batch_size,
-        prefetch=3,
-    )
-    # buffer = TensorDictPrioritizedReplayBuffer(
-    #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
-    #     alpha=0.7,
-    #     beta=0.5,
-    #     pin_memory=False,
-    #     prefetch=3,
-    #     batch_size=cfg.batch_size,
-    #     priority_key="loss_qvalue",
+    # crop_seq = RandomCropTensorDict(
+    #     sub_seq_len=cfg.sampled_sequence_length, sample_dim=-1
     # )
-    buffer.append_transform(crop_seq)
-    buffer.append_transform(burn_in)
+    # burn_in = BurnInTransform(
+    #     modules=(actor_training, critic_training), burn_in=cfg.burn_in
+    # )
+    # buffer = TensorDictReplayBuffer(
+    #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
+    #     batch_size=cfg.batch_size,
+    #     prefetch=3,
+    # )
+    buffer = TensorDictPrioritizedReplayBuffer(
+        storage=LazyMemmapStorage(cfg.replay_buffer_size),
+        alpha=0.7,
+        beta=0.5,
+        pin_memory=False,
+        prefetch=3,
+        batch_size=cfg.batch_size,
+        priority_key="loss_qvalue",
+    )
+
+    # buffer.append_transform(crop_seq)
+    # buffer.append_transform(burn_in)
 
     # Optimizer
     ####################################################################################################################
@@ -416,7 +428,7 @@ def main(cfg: "DictConfig"):
 
             if logger:
                 for key, value in log_info.items():
-                    logger.log_scalar(key, value, collected_frames)
+                    logger.log_scalar(key, value)
 
         collector.update_policy_weights_()
 

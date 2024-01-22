@@ -1,9 +1,5 @@
 import random
-
-import warnings
-from typing import Optional, Union
-
-import numpy as np
+from typing import Optional
 
 import torch
 
@@ -17,7 +13,6 @@ from tensordict.utils import expand_as_right, expand_right, NestedKey
 
 from torchrl.data.tensor_specs import CompositeSpec, TensorSpec
 from torchrl.envs.utils import exploration_type, ExplorationType
-from torchrl.modules.tensordict_module.common import _forward_hook_safe_action
 
 
 class SoftmaxSamplingModule(TensorDictModuleBase):
@@ -41,7 +36,7 @@ class SoftmaxSamplingModule(TensorDictModuleBase):
         self.action_key = action_key
         self.logits_key = logits_key
         self.in_keys = [self.logits_key]
-        self.out_keys = [self.action_key]
+        self.out_keys = [self.action_key, "chosen_action_value"]
         super().__init__()
 
         if action_spec is not None:
@@ -57,12 +52,6 @@ class SoftmaxSamplingModule(TensorDictModuleBase):
 
     def forward(self, tensordict: TensorDictBase, temperature=1.0) -> TensorDictBase:
         """Computes the softmax distribution and samples an action from it."""
-
-        import ipdb
-
-        ipdb.set_trace()
-        # TODO: if action spec available, check that logits dimension is equal to the number of actions
-
         if exploration_type() == ExplorationType.RANDOM or exploration_type() is None:
 
             # Ensure numeric stability by subtracting the maximum Q-value
@@ -70,15 +59,17 @@ class SoftmaxSamplingModule(TensorDictModuleBase):
             max_logits, _ = torch.max(logits, dim=-1, keepdim=True)
             exp_values = torch.exp((logits - max_logits) / temperature)
 
-            # Calculate probabilities using the softmax function
-            probabilities = exp_values / torch.sum(exp_values, dim=-1, keepdim=True)
+            if random.random() < 1.0:
+                # Calculate probabilities using the softmax function
+                probabilities = exp_values / torch.sum(exp_values, dim=-1, keepdim=True)
 
-            # Sample an action according to the probabilities
-            dist = torch.distributions.one_hot_categorical.OneHotCategorical(
-                probs=probabilities
-            )
-            out = dist.sample()
-            tensordict.set(self.action_key, out)
-            tensordict.set("action_probs", probabilities)
+                # Sample an action according to the probabilities
+                dist = torch.distributions.one_hot_categorical.OneHotCategorical(
+                    probs=probabilities
+                )
+                out = dist.sample()
+
+                tensordict.set(self.action_key, out)
+                tensordict.set("chosen_action_value", torch.sum(out * logits, dim=-1))
 
         return tensordict
