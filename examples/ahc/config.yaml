@@ -18,7 +18,7 @@ vocabulary: morgan_vocabulary.txt
 total_frames: 12800
 
 # Reinforce configuration
-lr: 0.0005
+lr: 0.0001
 eps: 1.0e-08
 topk: 0.5
 weight_decay: 0.0
@@ -27,4 +27,4 @@ sigma: 60
 # Replay configuration
 replay_buffer_size: 100
 experience_replay: True
-replay_batch_size: 4
+replay_batch_size: 10
