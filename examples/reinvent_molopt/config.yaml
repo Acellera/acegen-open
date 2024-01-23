@@ -6,7 +6,7 @@ logger_backend: null
 seed: 101
 
 # Environment configuration
-num_envs: 64
+num_envs: 128
 molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 prior: morgan.ckpt
 vocabulary: morgan_vocabulary.txt
@@ -21,6 +21,6 @@ total_frames: 12800
 lr: 0.0005
 eps: 1.0e-08
 weight_decay: 0.0
-sigma: 500
+sigma: 120
 experience_replay: True
 replay_batch_size: 4

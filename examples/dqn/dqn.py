@@ -341,10 +341,6 @@ def main(cfg: "DictConfig"):
             sampled_tensordict = buffer.sample()
             sampled_tensordict = sampled_tensordict.to(device)
 
-            # with torch.no_grad():
-            #     sampled_tensordict = model_training(sampled_tensordict)
-            #
-
             if logger:
                 logger.log_scalar(
                     "train/chosen_action_value",
@@ -367,7 +363,7 @@ def main(cfg: "DictConfig"):
             optim.step()
             target_net_updater.step()
             if logger:
-                logger.log_scalar("train/q_loss", q_loss.item(), collected_frames)
+                logger.log_scalar("train/q_loss", q_loss.item())
 
         # update weights of the inference policy
         collector.update_policy_weights_()

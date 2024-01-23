@@ -6,7 +6,7 @@ logger_backend: null
 seed: 101
 
 # Environment configuration
-num_envs: 64
+num_envs: 128
 molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
 detect_repeated_smiles: True  # Slows down the training and increase the memory usage
 penalize_repeated_smiles: False
@@ -21,7 +21,7 @@ total_frames: 12800
 lr: 0.0005
 eps: 1.0e-08
 weight_decay: 0.0
-sigma: 500
+sigma: 120
 
 # Replay configuration
 replay_buffer_size: 100
