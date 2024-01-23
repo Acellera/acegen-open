@@ -55,9 +55,12 @@ def test_gru_actor(
     inference_batch = inference_actor(inference_batch)
     assert "logits" in inference_batch.keys()
     assert "action" in inference_batch.keys()
-    # assert ("next", "recurrent_state_actor") in inference_batch.keys(
-    #     include_nested=True
-    # )
+    assert ("next", "recurrent_state_actor_h") in inference_batch.keys(
+        include_nested=True
+    )
+    assert ("next", "recurrent_state_actor_c") in inference_batch.keys(
+        include_nested=True
+    )
 
     # Check that the training model works
     training_actor = training_actor.to(device)
@@ -65,7 +68,12 @@ def test_gru_actor(
     training_batch = training_actor(training_batch)
     assert "logits" in training_batch.keys()
     assert "action" in training_batch.keys()
-    # assert ("next", "recurrent_state_actor") in training_batch.keys(include_nested=True)
+    assert ("next", "recurrent_state_actor_h") in training_batch.keys(
+        include_nested=True
+    )
+    assert ("next", "recurrent_state_actor_c") in training_batch.keys(
+        include_nested=True
+    )
 
 
 @pytest.mark.parametrize("vocabulary_size", [10])
@@ -100,9 +108,12 @@ def test_gru_critic(
         assert "action_value" in inference_batch.keys()
     else:
         assert "state_value" in inference_batch.keys()
-    # assert ("next", "recurrent_state_critic") in inference_batch.keys(
-    #     include_nested=True
-    # )
+    assert ("next", "recurrent_state_critic_h") in inference_batch.keys(
+        include_nested=True
+    )
+    assert ("next", "recurrent_state_critic_c") in inference_batch.keys(
+        include_nested=True
+    )
 
     # Check that the training model works
     training_critic = training_critic.to(device)
@@ -112,9 +123,12 @@ def test_gru_critic(
         assert "action_value" in training_batch.keys()
     else:
         assert "state_value" in training_batch.keys()
-    # assert ("next", "recurrent_state_critic") in training_batch.keys(
-    #     include_nested=True
-    # )
+    assert ("next", "recurrent_state_critic_h") in training_batch.keys(
+        include_nested=True
+    )
+    assert ("next", "recurrent_state_critic_c") in training_batch.keys(
+        include_nested=True
+    )
 
 
 @pytest.mark.parametrize("vocabulary_size", [10])
@@ -158,7 +172,8 @@ def test_gru_actor_critic(
         assert "action_value" in inference_batch.keys()
     else:
         assert "state_value" in inference_batch.keys()
-    # assert ("next", "recurrent_state") in inference_batch.keys(include_nested=True)
+    assert ("next", "recurrent_state_h") in inference_batch.keys(include_nested=True)
+    assert ("next", "recurrent_state_c") in inference_batch.keys(include_nested=True)
 
     # Check that the training model works
     training_actor = training_actor.to(device)
@@ -172,7 +187,8 @@ def test_gru_actor_critic(
         assert "action_value" in training_batch.keys()
     else:
         assert "state_value" in training_batch.keys()
-    # assert ("next", "recurrent_state") in training_batch.keys(include_nested=True)
+    assert ("next", "recurrent_state_h") in training_batch.keys(include_nested=True)
+    assert ("next", "recurrent_state_c") in training_batch.keys(include_nested=True)
 
 
 def test_adapt_ckpt():
