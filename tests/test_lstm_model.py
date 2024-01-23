@@ -8,6 +8,7 @@ from acegen.models.lstm import (
 from acegen.models.utils import adapt_state_dict
 from tensordict import TensorDict
 from tests.utils import get_default_devices
+from torchrl.envs import TensorDictPrimer
 
 
 def generate_valid_data_batch(
@@ -191,8 +192,23 @@ def test_gru_actor_critic(
     assert ("next", "recurrent_state_c") in training_batch.keys(include_nested=True)
 
 
-def test_adapt_ckpt():
-    pass
+@pytest.mark.parametrize("vocabulary_size", [10])
+def test_create_tensordict_primer(
+    vocabulary_size,
+):
+    (
+        training_actor,
+        _,
+        _,
+        _,
+    ) = create_lstm_actor_critic(
+        vocabulary_size,
+    )
+
+    primers = training_actor.rnn_spec.expand(10)
+    rhs_primer = TensorDictPrimer(primers)
+    assert "recurrent_state_c" in rhs_primer.primers.keys()
+    assert "recurrent_state_h" in rhs_primer.primers.keys()
 
 
 def test_adapt_state_dict():

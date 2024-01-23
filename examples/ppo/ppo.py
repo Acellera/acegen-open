@@ -443,6 +443,13 @@ def run_ppo(cfg, task):
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
 
+                # Add regularizer that penalizes high likelihood for the entire sequence
+                import ipdb
+
+                ipdb.set_trace()
+                # loss_p = -(1 / batch.get("sample_log_pron")).mean()
+                # loss_sum += 5 * 1e3 * loss_p
+
                 # Register losses
                 losses[j, i] = loss.select(
                     "loss_critic", "loss_entropy", "loss_objective"

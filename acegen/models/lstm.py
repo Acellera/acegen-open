@@ -160,10 +160,14 @@ def create_lstm_actor(
     )
     spec = CompositeSpec(
         **{
-            recurrent_state: UnboundedContinuousTensorSpec(
+            f"{recurrent_state}_h": UnboundedContinuousTensorSpec(
                 shape=torch.Size([lstm.lstm.num_layers, lstm.lstm.hidden_size]),
                 dtype=torch.float32,
-            )
+            ),
+            f"{recurrent_state}_c": UnboundedContinuousTensorSpec(
+                shape=torch.Size([lstm.lstm.num_layers, lstm.lstm.hidden_size]),
+                dtype=torch.float32,
+            ),
         }
     )
     actor_inference_model = TensorDictSequential(embedding, lstm, head)
@@ -249,10 +253,14 @@ def create_lstm_critic(
 
     spec = CompositeSpec(
         **{
-            recurrent_state: UnboundedContinuousTensorSpec(
+            f"{recurrent_state}_h": UnboundedContinuousTensorSpec(
                 shape=torch.Size([lstm.lstm.num_layers, lstm.lstm.hidden_size]),
                 dtype=torch.float32,
-            )
+            ),
+            f"{recurrent_state}_c": UnboundedContinuousTensorSpec(
+                shape=torch.Size([lstm.lstm.num_layers, lstm.lstm.hidden_size]),
+                dtype=torch.float32,
+            ),
         }
     )
 
@@ -324,10 +332,14 @@ def create_lstm_actor_critic(
 
     spec = CompositeSpec(
         **{
-            recurrent_state: UnboundedContinuousTensorSpec(
+            f"{recurrent_state}_h": UnboundedContinuousTensorSpec(
                 shape=torch.Size([lstm.lstm.num_layers, lstm.lstm.hidden_size]),
                 dtype=torch.float32,
-            )
+            ),
+            f"{recurrent_state}_c": UnboundedContinuousTensorSpec(
+                shape=torch.Size([lstm.lstm.num_layers, lstm.lstm.hidden_size]),
+                dtype=torch.float32,
+            ),
         }
     )
 
