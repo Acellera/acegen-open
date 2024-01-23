@@ -13,7 +13,7 @@ from torchrl.envs.utils import ExplorationType, step_mdp
 def generate_complete_smiles(
     environment: EnvBase,
     policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]] = None,
-    max_length: int = 100,
+    max_length: int = None,
     end_of_episode_key: str = "done",
     exploration_type: ExplorationType = ExplorationType.RANDOM,
 ):
@@ -38,6 +38,7 @@ def generate_complete_smiles(
     env_device = environment.device
     initial_observation = environment.reset()
     batch_size = initial_observation.batch_size
+    max_length = max_length or environment.max_length
 
     if policy:
         # Check that the initial observation contains the keys required by the policy

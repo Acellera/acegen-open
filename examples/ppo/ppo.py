@@ -48,6 +48,7 @@ from torchrl.record.loggers import get_logger
 
 try:
     import molscore
+    from molscore import MolScoreBenchmark
     from molscore.manager import MolScore
 
     _has_molscore = True
@@ -73,6 +74,38 @@ def main(cfg: "DictConfig"):
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+
+    # It is more efficient to score all SMILES in a single call after data collection
+    if not _has_molscore:
+        raise RuntimeError(
+            "MolScore library not found, unable to create a scoring function. "
+        ) from MOLSCORE_ERR
+
+    if cfg.molscore in MolScoreBenchmark.presets:
+        MSB = MolScoreBenchmark(
+            model_name=cfg.agent_name,
+            model_parameters=dict(cfg),
+            benchmark=cfg.molscore,
+            budget=cfg.total_smiles,
+            output_dir=os.path.abspath(save_dir),
+        )
+        for task in MSB:
+            run_ppo(cfg, task)
+    else:
+        # Save molscore output. Also redirect output to save_dir
+        cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+        data = json.load(open(cfg.molscore, "r"))
+        json.dump(data, open(cfg.molscore, "w"), indent=4)
+        task = MolScore(
+            model_name=cfg.agent_name,
+            task_config=cfg.molscore,
+            budget=cfg.total_smiles,
+            output_dir=os.path.abspath(save_dir),
+        )
+        run_ppo(cfg, task)
+
+
+def run_ppo(cfg, task):
 
     # Get available device
     device = (
@@ -169,43 +202,6 @@ def main(cfg: "DictConfig"):
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
         return env
-
-    # Scoring function - it is more efficient to score all SMILES in a single call after data collection
-    ####################################################################################################################
-
-    if not _has_molscore:
-        raise RuntimeError(
-            "MolScore library not found, unable to create a scoring function. "
-        ) from MOLSCORE_ERR
-
-    if cfg.molscore is None:
-        raise RuntimeError(
-            "MolScore config file not provided, unable to create a scoring function. "
-            "Please provide a config file,"
-            "e.g. ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json "
-        )
-
-    # Save molscore output. Also redirect output to save_dir
-    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, "r"))
-    data["output_dir"] = save_dir
-    json.dump(data, open(cfg.molscore, "w"), indent=4)
-
-    # Create scoring function
-    scoring = MolScore(model_name="ppo", task_config=cfg.molscore)
-    scoring.configs["save_dir"] = save_dir
-    scoring_function = scoring.score
-
-    # Define a buffer to store unique SMILES
-    if not cfg.detect_repeated_smiles and cfg.penalize_repeated_smiles:
-        raise RuntimeError(
-            "Cannot penalize repeated smiles if detect_repeated_smiles is False. "
-            "Please set penalize_repeated_smiles to False or detect_repeated_smiles to True."
-        )
-    repeated_smiles = 0
-    diversity_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.total_smiles),
-    )
 
     # Collector
     ####################################################################################################################
@@ -332,7 +328,7 @@ def main(cfg: "DictConfig"):
     num_mini_batches = (cfg.num_envs + cfg.replay_batches) // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
-    for data in collector:
+    while not task.finished:
 
         log_info = {}
         frames_in_batch = data.numel()
@@ -342,9 +338,6 @@ def main(cfg: "DictConfig"):
         total_done += done.sum().item()
         pbar.update(done.sum().item())
 
-        if total_done >= cfg.total_smiles:
-            break
-
         # Compute rewards
         smiles = data_next.select("SMILES")[done].cpu()
         smiles_list = [
@@ -352,29 +345,8 @@ def main(cfg: "DictConfig"):
             for smi in smiles["SMILES"]
         ]
         data_next["reward"][done] = torch.tensor(
-            scoring_function(smiles_list), device=device
+            task(smiles_list), device=device
         ).unsqueeze(-1)
-
-        # Detect repeated smiles
-        if len(diversity_buffer) > 0:
-            is_duplicated = is_in_reference(
-                key="SMILES",
-                tensordict=smiles,
-                reference_tensordict=diversity_buffer[:],
-            )
-            smiles = smiles[~is_duplicated]
-            repeated_smiles += is_duplicated.sum().item()
-            log_info.update({"train/repeated_smiles": repeated_smiles})
-
-            # Penalise repeated smiles
-            if cfg.penalize_repeated_smiles:
-                reward = data_next.get("reward").clone()[done]
-                reward[is_duplicated] *= cfg.repetition_penalty
-                data_next["reward"][done] = reward
-
-        # Add unique to the diversity buffer
-        if cfg.detect_repeated_smiles:
-            diversity_buffer.extend(smiles)
 
         # Register smiles lengths and real rewards
         episode_rewards = data_next["reward"][done]

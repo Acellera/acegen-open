@@ -151,20 +151,6 @@ def run_reinvent(cfg, task):
         env.append_transform(rhs_primer)
         return env
 
-    # Scoring function
-    ####################################################################################################################
-
-    # Define a buffer to store unique SMILES
-    if not cfg.detect_repeated_smiles and cfg.penalize_repeated_smiles:
-        raise RuntimeError(
-            "Cannot penalize repeated smiles if detect_repeated_smiles is False. "
-            "Please set penalize_repeated_smiles to False or detect_repeated_smiles to True."
-        )
-    repeated_smiles = 0
-    diversity_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.total_smiles),
-    )
-
     # Replay buffer
     ####################################################################################################################
 
@@ -227,27 +213,6 @@ def run_reinvent(cfg, task):
         data_next["reward"][done] = torch.tensor(
             task(smiles_str), device=device
         ).unsqueeze(-1)
-
-        # Detect repeated smiles
-        if len(diversity_buffer) > 0:
-            is_duplicated = is_in_reference(
-                key="action",
-                tensordict=smiles,
-                reference_tensordict=diversity_buffer[:],
-            )
-            smiles = smiles[~is_duplicated]
-            repeated_smiles += is_duplicated.sum().item()
-            log_info.update({"train/repeated_smiles": repeated_smiles})
-
-            # Penalise repeated smiles
-            if cfg.penalize_repeated_smiles:
-                reward = data_next.get("reward").clone()[done]
-                reward[is_duplicated] *= cfg.repetition_penalty
-                data_next["reward"][done] = reward
-
-        # Add unique to the diversity buffer
-        if cfg.detect_repeated_smiles:
-            diversity_buffer.extend(smiles)
 
         # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]

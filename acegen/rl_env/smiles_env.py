@@ -46,7 +46,7 @@ class SMILESEnv(EnvBase):
         start_token: int,
         end_token: int,
         length_vocabulary: int,
-        max_length: int = 140,
+        max_length: int = 100,
         device: DEVICE_TYPING = None,
         batch_size: int = 1,
         one_hot_action_encoding: bool = False,
@@ -103,6 +103,8 @@ class SMILESEnv(EnvBase):
             next_tensordict = tensordict
             next_tensordict.update(self._reset_tensordict.clone())
         else:
+            self.episode_length.zero_()
+            self.episode_length += 1
             next_tensordict = self._reset_tensordict.clone()
         return next_tensordict
 
@@ -117,7 +119,7 @@ class SMILESEnv(EnvBase):
 
         # Create termination flags
         terminated = (actions == self.end_token).unsqueeze(-1)
-        truncated = (self.episode_length == self.max_length).unsqueeze(-1)
+        truncated = (self.episode_length == self.max_length - 1).unsqueeze(-1)
         done = terminated | truncated
         self.episode_length[done.squeeze(-1)] = 1
 
