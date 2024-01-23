@@ -15,7 +15,7 @@ prior: morgan.ckpt
 vocabulary: morgan_vocabulary.txt
 
 # Collector configuration
-total_smiles: 12800
+total_smiles: 10_000
 
 # Reinforce configuration
 lr: 0.0001
