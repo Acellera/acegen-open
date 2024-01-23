@@ -21,6 +21,6 @@ total_frames: 12800
 lr: 0.0001
 eps: 1.0e-08
 weight_decay: 0.0
-sigma: 128
+sigma: 120
 experience_replay: True
 replay_batch_size: 10

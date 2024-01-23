@@ -38,6 +38,7 @@ from torchrl.record.loggers import get_logger
 
 try:
     import molscore
+    from molscore import MolScoreBenchmark
     from molscore.manager import MolScore
 
     _has_molscore = True
@@ -63,6 +64,36 @@ def main(cfg: "DictConfig"):
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+
+    # It is more efficient to score all SMILES in a single call after data collection
+    if not _has_molscore:
+        raise RuntimeError(
+            "MolScore library not found, unable to create a scoring function. "
+        ) from MOLSCORE_ERR
+
+    if cfg.molscore in MolScoreBenchmark.presets:
+        MSB = MolScoreBenchmark(
+            model_name="test",
+            model_parameters=dict(cfg),
+            output_dir=os.path.abspath(save_dir),
+            benchmark=cfg.molscore,
+        )
+        for task in MSB:
+            run_reinvent(cfg, task)
+    else:
+        # Save molscore output. Also redirect output to save_dir
+        cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+        data = json.load(open(cfg.molscore, "r"))
+        data["output_dir"] = save_dir
+        json.dump(data, open(cfg.molscore, "w"), indent=4)
+        task = MolScore(
+            model_name="reinvent", task_config=cfg.molscore, budget=cfg.total_smiles
+        )
+        task.configs["save_dir"] = save_dir
+        run_reinvent(cfg, task)
+
+
+def run_reinvent(cfg, task):
 
     # Get available device
     device = (
@@ -121,30 +152,6 @@ def main(cfg: "DictConfig"):
     # Scoring function
     ####################################################################################################################
 
-    # It is more efficient to score all SMILES in a single call after data collection
-    if not _has_molscore:
-        raise RuntimeError(
-            "MolScore library not found, unable to create a scoring function. "
-        ) from MOLSCORE_ERR
-
-    if cfg.molscore is None:
-        raise RuntimeError(
-            "MolScore config file not provided, unable to create a scoring function. "
-            "Please provide a config file,"
-            "e.g. ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json "
-        )
-
-    # Save molscore output. Also redirect output to save_dir
-    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, "r"))
-    data["output_dir"] = save_dir
-    json.dump(data, open(cfg.molscore, "w"), indent=4)
-
-    # Create scoring function
-    scoring = MolScore(model_name="reinvent", task_config=cfg.molscore)
-    scoring.configs["save_dir"] = save_dir
-    scoring_function = scoring.score
-
     # Define a buffer to store unique SMILES
     if not cfg.detect_repeated_smiles and cfg.penalize_repeated_smiles:
         raise RuntimeError(
@@ -153,7 +160,7 @@ def main(cfg: "DictConfig"):
         )
     repeated_smiles = 0
     diversity_buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.total_frames),
+        storage=LazyTensorStorage(cfg.total_smiles),
     )
 
     # Replay buffer
@@ -198,8 +205,9 @@ def main(cfg: "DictConfig"):
     env = create_env_fn()
     sigma = cfg.sigma
     frames_in_batch = cfg.num_envs
+    pbar = tqdm.tqdm(total=cfg.total_smiles)
 
-    for _ in tqdm.tqdm(range(0, cfg.total_frames, frames_in_batch)):
+    while not task.finished:
 
         data = generate_complete_smiles(policy=actor_inference, environment=env)
         data = remove_duplicates(data, key="action")
@@ -210,11 +218,12 @@ def main(cfg: "DictConfig"):
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
         smiles = data.select("action").cpu()
+        pbar.update(done.sum().item())
 
         # Compute rewards
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
         data_next["reward"][done] = torch.tensor(
-            scoring_function(smiles_str), device=device
+            task(smiles_str), device=device
         ).unsqueeze(-1)
 
         # Detect repeated smiles
