@@ -73,10 +73,11 @@ def main(cfg: "DictConfig"):
 
     if cfg.molscore in MolScoreBenchmark.presets:
         MSB = MolScoreBenchmark(
-            model_name="test",
+            model_name=cfg.agent_name,
             model_parameters=dict(cfg),
             output_dir=os.path.abspath(save_dir),
             benchmark=cfg.molscore,
+            budget=cfg.total_smiles,
         )
         for task in MSB:
             run_reinvent(cfg, task)
@@ -87,7 +88,9 @@ def main(cfg: "DictConfig"):
         data["output_dir"] = save_dir
         json.dump(data, open(cfg.molscore, "w"), indent=4)
         task = MolScore(
-            model_name="reinvent", task_config=cfg.molscore, budget=cfg.total_smiles
+            model_name=cfg.agent_name,
+            task_config=cfg.molscore,
+            budget=cfg.total_smiles,
         )
         task.configs["save_dir"] = save_dir
         run_reinvent(cfg, task)
