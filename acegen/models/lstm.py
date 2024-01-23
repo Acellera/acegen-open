@@ -83,8 +83,12 @@ def create_lstm_components(
         input_size=embedding_size,
         hidden_size=hidden_size,
         num_layers=num_layers,
-        in_keys=["embed", recurrent_state, "is_init"],
-        out_keys=["features", ("next", recurrent_state)],
+        in_keys=["embed", f"{recurrent_state}_h", f"{recurrent_state}_c", "is_init"],
+        out_keys=[
+            "features",
+            ("next", f"{recurrent_state}_h"),
+            ("next", f"{recurrent_state}_c"),
+        ],
         python_based=python_based,
     )
     head = TensorDictModule(
