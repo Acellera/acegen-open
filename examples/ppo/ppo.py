@@ -121,7 +121,7 @@ def run_ppo(cfg, task):
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
-    # Models
+    # Model
     ####################################################################################################################
 
     # Create GRU model

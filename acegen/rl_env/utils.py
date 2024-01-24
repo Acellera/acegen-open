@@ -75,11 +75,11 @@ def generate_complete_smiles(
                 tensordict_ = environment.step(tensordict_)
 
                 # Mask out finished environments
-                # tensordict_ = tensordict_.masked_fill_(finished.squeeze(), 0)
-                tensordict_.masked_fill_(finished.squeeze(), 0)
+                if finished.any():
+                    tensordict_.masked_fill_(finished.squeeze(), 0)
 
                 # Extend list of tensordicts
-                tensordicts.append(tensordict_)
+                tensordicts.append(tensordict_.clone())
 
                 # Step forward in the environment
                 tensordict_ = step_mdp(

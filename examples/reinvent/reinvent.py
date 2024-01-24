@@ -111,7 +111,7 @@ def run_reinvent(cfg, task):
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
-    # Models
+    # Model
     ####################################################################################################################
 
     ckpt = torch.load(

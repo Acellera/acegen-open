@@ -1,18 +1,18 @@
 # Logging configuration
 experiment_name: torchrl_chem
-agent_name: reinvent
-log_dir: logs_reinvent
+agent_name: ahc
+log_dir: logs_ahc
 logger_backend: null
 seed: 101
 
 # Environment configuration
 num_envs: 128
-molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
+molscore: MolOpt
 prior: morgan.ckpt
 vocabulary: morgan_vocabulary.txt
 
 # Collector configuration
-total_frames: 12800
+total_smiles: 10_000
 
 # Reinforce configuration
 lr: 0.0001
