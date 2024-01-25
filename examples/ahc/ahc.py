@@ -13,7 +13,7 @@ import torch
 import tqdm
 import yaml
 from acegen.data import is_in_reference, remove_duplicates
-from acegen.models import adapt_state_dict, create_gru_actor
+from acegen.models import adapt_state_dict, create_gru_actor, create_lstm_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
@@ -56,7 +56,7 @@ def main(cfg: "DictConfig"):
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
 
-    # Save config
+    # Save the config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
@@ -65,7 +65,6 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    # It is more efficient to score all SMILES in a single call after data collection
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
@@ -117,7 +116,14 @@ def run_ahc(cfg, task):
     ckpt = torch.load(
         Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
     )
-    actor_training, actor_inference = create_gru_actor(len(vocabulary))
+    if cfg.model == "gru":
+        create_actor = create_gru_actor
+    elif cfg.model == "lstm":
+        create_actor = create_lstm_actor
+    else:
+        raise ValueError(f"Unknown model type: {cfg.model}")
+
+    actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )

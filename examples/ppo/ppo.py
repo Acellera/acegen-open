@@ -17,6 +17,9 @@ from acegen.models import (
     create_gru_actor,
     create_gru_actor_critic,
     create_gru_critic,
+    create_lstm_actor,
+    create_lstm_actor_critic,
+    create_lstm_critic,
 )
 from acegen.rl_env import SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
@@ -66,7 +69,7 @@ def main(cfg: "DictConfig"):
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
 
-    # Save config
+    # Save the config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
@@ -75,7 +78,6 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    # It is more efficient to score all SMILES in a single call after data collection
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
@@ -124,17 +126,27 @@ def run_ppo(cfg, task):
     # Model
     ####################################################################################################################
 
-    # Create GRU model
+    if cfg.model == "gru":
+        create_actor = create_gru_actor
+        create_critic = create_gru_critic
+        create_shared = create_gru_actor_critic
+    elif cfg.model == "lstm":
+        create_actor = create_lstm_actor
+        create_critic = create_lstm_critic
+        create_shared = create_lstm_actor_critic
+    else:
+        raise ValueError(f"Unknown model type: {cfg.model}")
+
     if cfg.shared_nets:
         (
             actor_training,
             actor_inference,
             critic_training,
             critic_inference,
-        ) = create_gru_actor_critic(vocabulary_size=len(vocabulary))
+        ) = create_shared(vocabulary_size=len(vocabulary))
     else:
-        actor_training, actor_inference = create_gru_actor(len(vocabulary))
-        critic_training, critic_inference = create_gru_critic(len(vocabulary))
+        actor_training, actor_inference = create_actor(len(vocabulary))
+        critic_training, critic_inference = create_critic(len(vocabulary))
 
     # Load pretrained weights
     ckpt = torch.load(
@@ -149,7 +161,7 @@ def run_ppo(cfg, task):
     critic_training = critic_training.to(device)
 
     # Define prior
-    prior, _ = create_gru_actor(len(vocabulary))
+    prior, _ = create_actor(len(vocabulary))
     prior = prior.to(device)
     prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 
@@ -328,7 +340,10 @@ def run_ppo(cfg, task):
     num_mini_batches = (cfg.num_envs + cfg.replay_batches) // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
-    while not task.finished:
+    for data in collector:
+
+        if task.finished:
+            break
 
         log_info = {}
         frames_in_batch = data.numel()
@@ -444,9 +459,8 @@ def run_ppo(cfg, task):
                 loss_sum += kl_div * kl_coef
 
                 # Add regularizer that penalizes high likelihood for the entire sequence
-                import ipdb
-
-                ipdb.set_trace()
+                # import ipdb
+                # ipdb.set_trace()
                 # loss_p = -(1 / batch.get("sample_log_pron")).mean()
                 # loss_sum += 5 * 1e3 * loss_p
 

@@ -18,6 +18,7 @@ total_frames: 1_000_000
 frames_per_batch: 400
 
 # Architecture configuration
+model: gru
 shared_nets: True
 
 # Optimizer

@@ -119,7 +119,7 @@ class SMILESEnv(EnvBase):
 
         # Create termination flags
         terminated = (actions == self.end_token).unsqueeze(-1)
-        truncated = (self.episode_length == self.max_length - 1).unsqueeze(-1)
+        truncated = (self.episode_length == self.max_length).unsqueeze(-1)
         done = terminated | truncated
         self.episode_length[done.squeeze(-1)] = 1
 

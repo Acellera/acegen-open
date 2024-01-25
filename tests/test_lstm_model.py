@@ -250,6 +250,6 @@ def test_adapt_state_dict():
 
     key_source = "source_fc.weight"
     key_target = "target_fc.weight"
-    msg = f"The shape of {key_source} .* and {key_target} .* do not match."
+    msg = f"The shape of source key {key_source} .* and target key {key_target} .* do not match."
     with pytest.warns(UserWarning, match=msg):
         adapt_state_dict(source_state_dict_mismatched, target_state_dict)

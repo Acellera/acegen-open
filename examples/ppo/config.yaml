@@ -7,32 +7,30 @@ seed: 101
 
 # Environment configuration
 num_envs: 32
-molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
-detect_repeated_smiles: True
-penalize_repeated_smiles: False
-repetition_penalty: 0.5
+molscore: MolOpt
 prior: morgan.ckpt
 vocabulary: morgan_vocabulary.txt
 
 # Collector configuration
-total_smiles: 12800
+total_smiles: 10_000
 frames_per_batch: 3200
 
 # Architecture configuration
-shared_nets: False
+model: gru
+shared_nets: True
 
 # PPO configuration
 lr: 0.0005
 eps: 1.0e-06
 weight_decay: 1.0e-06
 gamma: 0.999
-lmbda: 0.99
+lmbda: 0.95
 critic_coef: 0.25
 entropy_coef: 0.025
 kl_coef: 0.025
 mini_batch_size: 4
-ppo_epochs: 8
+ppo_epochs: 4
 max_grad_norm: 0.25
 ppo_clip: 0.1
 experience_replay: True
-replay_batches: 12
+replay_batches: 8

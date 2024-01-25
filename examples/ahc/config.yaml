@@ -14,7 +14,10 @@ vocabulary: morgan_vocabulary.txt
 # Collector configuration
 total_smiles: 10_000
 
-# Reinforce configuration
+# Architecture
+model: gru
+
+# AHC configuration
 lr: 0.0001
 eps: 1.0e-08
 topk: 0.5

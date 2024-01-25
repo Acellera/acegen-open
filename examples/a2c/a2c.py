@@ -17,6 +17,9 @@ from acegen.models import (
     create_gru_actor,
     create_gru_actor_critic,
     create_gru_critic,
+    create_lstm_actor,
+    create_lstm_actor_critic,
+    create_lstm_critic,
 )
 from acegen.rl_env import SMILESEnv
 from acegen.transforms import PenaliseRepeatedSMILES
@@ -85,17 +88,27 @@ def main(cfg: "DictConfig"):
     # Model
     ####################################################################################################################
 
-    # Create GRU model
+    if cfg.model == "gru":
+        create_actor = create_gru_actor
+        create_critic = create_gru_critic
+        create_shared = create_gru_actor_critic
+    elif cfg.model == "lstm":
+        create_actor = create_lstm_actor
+        create_critic = create_lstm_critic
+        create_shared = create_lstm_actor_critic
+    else:
+        raise ValueError(f"Unknown model type: {cfg.model}")
+
     if cfg.shared_nets:
         (
             actor_training,
             actor_inference,
             critic_training,
             critic_inference,
-        ) = create_gru_actor_critic(vocabulary_size=len(vocabulary))
+        ) = create_shared(vocabulary_size=len(vocabulary))
     else:
-        actor_training, actor_inference = create_gru_actor(len(vocabulary))
-        critic_training, critic_inference = create_gru_critic(len(vocabulary))
+        actor_training, actor_inference = create_actor(len(vocabulary))
+        critic_training, critic_inference = create_critic(len(vocabulary))
 
     # Load pretrained weights
     ckpt = torch.load(
@@ -110,7 +123,7 @@ def main(cfg: "DictConfig"):
     critic_training = critic_training.to(device)
 
     # Define prior
-    prior, _ = create_gru_actor(len(vocabulary))
+    prior, _ = create_actor(len(vocabulary))
     prior = prior.to(device)
     prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 

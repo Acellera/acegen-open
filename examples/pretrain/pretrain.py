@@ -12,7 +12,7 @@ from acegen.data import (
     smiles_to_tensordict,
     SMILESDataset,
 )
-from acegen.models import create_gru_actor
+from acegen.models import create_gru_actor, create_lstm_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from rdkit import Chem
@@ -68,9 +68,15 @@ def main(cfg: "DictConfig"):
     )
 
     logging.info("\nCreating model...")
-    actor_training, actor_inference = create_gru_actor(
-        len(vocabulary), embedding_size=128
-    )
+
+    if cfg.model_type == "lstm":
+        create_model = create_lstm_actor
+    elif cfg.model_type == "gru":
+        create_model = create_gru_actor
+    else:
+        raise ValueError(f"Unknown model type {cfg.model_type}")
+
+    actor_training, actor_inference = create_model(vocabulary_size=len(vocabulary))
     actor_training.to(device)
     actor_inference.to(device)
 
