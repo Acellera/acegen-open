@@ -79,7 +79,7 @@ def main(cfg: "DictConfig"):
             output_dir=os.path.abspath(save_dir),
         )
         for task in MSB:
-            run_reinventN(cfg, task)
+            run_reinvent_ensemble(cfg, task)
     else:
         # Save molscore output. Also redirect output to save_dir
         cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -91,10 +91,10 @@ def main(cfg: "DictConfig"):
             budget=cfg.total_smiles,
             output_dir=os.path.abspath(save_dir),
         )
-        run_reinventN(cfg, task)
+        run_reinvent_ensemble(cfg, task)
 
 
-def run_reinventN(cfg, task):
+def run_reinvent_ensemble(cfg, task):
 
     # Get available device
     device = (
@@ -198,7 +198,7 @@ def run_reinventN(cfg, task):
     if cfg.logger_backend:
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="reinventN",
+            logger_name="reinvent_ensemble",
             experiment_name=cfg.agent_name,
             wandb_kwargs={"config": dict(cfg), "project": cfg.experiment_name},
         )
@@ -220,9 +220,6 @@ def run_reinventN(cfg, task):
             data.append(
                 generate_complete_smiles(policy=actor_inference, environment=env)
             )
-        import ipdb
-
-        ipdb.set_trace()
         data = torch.cat(data, dim=0)
         data = remove_duplicates(data, key="action")
 
@@ -267,7 +264,7 @@ def run_reinventN(cfg, task):
             inplace=True,
         )
 
-        for optim, actor_training in zip(optims, actors_training):
+        for optim, actor_training, sigma in zip(optims, actors_training, cfg.sigma):
 
             data, loss, agent_likelihood = compute_loss(
                 data, actor_training, prior, sigma

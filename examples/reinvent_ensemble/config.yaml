@@ -1,7 +1,7 @@
 # Logging configuration
 experiment_name: torchrl_chem
-agent_name: reinvent_N
-log_dir: logs_reinvent_N
+agent_name: reinvent_ensemble
+log_dir: logs_reinvent_ensemble
 logger_backend: null
 seed: 101
 
