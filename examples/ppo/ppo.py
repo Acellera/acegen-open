@@ -265,7 +265,7 @@ def run_ppo(cfg, task):
     experience_replay_buffer = None
     if cfg.experience_replay is True:
         replay_smiles_per_row = (
-            6  # Estimation of how many SMILES needed to fill up a row of data
+            8  # Estimation of how many SMILES needed to fill up a row of data
         )
         N = cfg.replay_batches * replay_smiles_per_row
         M = cfg.frames_per_batch // cfg.num_envs
@@ -359,9 +359,18 @@ def run_ppo(cfg, task):
             vocabulary.decode(smi.numpy(), ignore_indices=[-1])
             for smi in smiles["SMILES"]
         ]
-        data_next["reward"][done] = torch.tensor(
-            task(smiles_list), device=device
-        ).unsqueeze(-1)
+
+        # data_next["reward"][done] = torch.tensor(
+        #     task(smiles_list), device=device
+        # ).unsqueeze(-1)
+
+        for _ in range(3):
+            try:
+                rews = task(smiles_list)
+                break
+            except Exception as e:
+                print(f"Attempt failed with error: {e}")
+            data_next["reward"][done] = torch.tensor(rews, device=device).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
         episode_rewards = data_next["reward"][done]
@@ -505,7 +514,8 @@ def run_ppo(cfg, task):
                 replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
-            experience_replay_buffer.extend(replay_data)
+            if len(replay_data) > 0:
+                experience_replay_buffer.extend(replay_data)
 
         if logger:
             for key, value in log_info.items():
