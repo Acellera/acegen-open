@@ -370,7 +370,13 @@ def run_ppo(cfg, task):
                 break
             except Exception as e:
                 print(f"Attempt failed with error: {e}")
+
+        try:
             data_next["reward"][done] = torch.tensor(rews, device=device).unsqueeze(-1)
+        except Exception:
+            import ipdb
+
+            ipdb.set_trace()
 
         # Register smiles lengths and real rewards
         episode_rewards = data_next["reward"][done]

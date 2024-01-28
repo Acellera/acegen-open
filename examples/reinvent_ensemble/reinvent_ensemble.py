@@ -264,7 +264,9 @@ def run_reinvent_ensemble(cfg, task):
             inplace=True,
         )
 
-        for optim, actor_training, sigma in zip(optims, actors_training, cfg.sigma):
+        for num, (net_optim, actor_training, sigma) in enumerate(
+            zip(optims, actors_training, cfg.sigma)
+        ):
 
             data, loss, agent_likelihood = compute_loss(
                 data, actor_training, prior, sigma
@@ -295,6 +297,14 @@ def run_reinvent_ensemble(cfg, task):
             optim.zero_grad()
             loss.backward()
             optim.step()
+
+            # Log info
+            if logger:
+                log_info.update(
+                    {
+                        f"train/loss_{num}": loss.item(),
+                    }
+                )
 
         # Then add new experiences to the replay buffer
         if cfg.experience_replay is True:
