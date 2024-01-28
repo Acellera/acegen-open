@@ -15,7 +15,7 @@ vocabulary: morgan_vocabulary.txt
 model: reinvent
 
 # Collector configuration
-total_frames: 12800
+total_smiles: 12800
 
 # Reinforce configuration
 lr: 0.0001

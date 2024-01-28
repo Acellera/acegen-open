@@ -4,7 +4,6 @@ import logging
 import os
 import random
 import shutil
-import timeit
 from pathlib import Path
 
 import hydra
@@ -14,8 +13,8 @@ import torch
 import tqdm
 import yaml
 
-from acegen import SMILESReward, SMILESVocabulary
 from acegen.models import adapt_state_dict
+from acegen.vocabulary import SMILESVocabulary
 from model import create_reinvent_model
 from omegaconf import OmegaConf
 from replay_buffer import Experience
@@ -172,7 +171,7 @@ def run_reinvent(cfg, task):
 
     total_done = 0
     collected_frames = 0
-    pbar = tqdm.tqdm(total=cfg.total_frames)
+    pbar = tqdm.tqdm(total=cfg.total_smiles)
     env = create_env_fn()
     sigma = cfg.sigma
 
@@ -183,18 +182,14 @@ def run_reinvent(cfg, task):
         log_info = {}
         frames_in_batch = data.numel()
         data_next = data.get("next")
-        done = data_next.get("done").squeeze(-1)
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
         # Compute rewards
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in data["observation"]]
-        import ipdb
-
-        ipdb.set_trace()
-        data_next["reward"][done] = torch.tensor(
-            task(smiles_str), device=device
-        ).unsqueeze(-1)
+        smiles_str = [vocabulary.decode(smi.cpu().numpy()) for smi in data["action"]]
+        data_next["reward"] = torch.tensor(task(smiles_str), device=device).unsqueeze(
+            -1
+        )
 
         # Identify unique sequences
         arr = data.get("action").cpu().numpy()
