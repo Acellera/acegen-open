@@ -16,6 +16,7 @@ from acegen.data import is_in_reference, remove_duplicates
 from acegen.models import adapt_state_dict, create_gru_actor, create_lstm_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
+from model import create_gru_model
 from omegaconf import OmegaConf
 
 from torchrl.data import (
@@ -133,6 +134,8 @@ def run_reinvent(cfg, task):
     actor_training = actor_training.to(device)
 
     prior = deepcopy(actor_training)
+
+    actor_test = create_gru_model(len(vocabulary))
 
     # Environment
     ####################################################################################################################
