@@ -7,7 +7,7 @@ seed: 101
 
 # Environment configuration
 num_envs: 128
-molscore: MolOpt
+molscore: /shared/albert/MolScore/molscore/configs/MolOpt/Albuterol_similarity.json
 prior: morgan.ckpt
 vocabulary: morgan_vocabulary.txt
 

@@ -4,7 +4,6 @@ import logging
 import os
 import random
 import shutil
-import timeit
 from pathlib import Path
 
 import hydra
@@ -14,8 +13,8 @@ import torch
 import tqdm
 import yaml
 
-from acegen import SMILESReward, SMILESVocabulary
 from acegen.models import adapt_state_dict
+from acegen.vocabulary import SMILESVocabulary
 from model import create_reinvent_model
 from omegaconf import OmegaConf
 from replay_buffer import Experience
@@ -26,6 +25,7 @@ logging.basicConfig(level=logging.WARNING)
 
 try:
     import molscore
+    from molscore import MolScoreBenchmark
     from molscore.manager import MolScore
 
     _has_molscore = True
@@ -49,7 +49,13 @@ def unique(arr):
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
-    # Save config
+    # Set seeds
+    seed = cfg.seed
+    random.seed(int(seed))
+    np.random.seed(int(seed))
+    torch.manual_seed(int(seed))
+
+    # Save the config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
@@ -58,11 +64,36 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
+    if not _has_molscore:
+        raise RuntimeError(
+            "MolScore library not found, unable to create a scoring function. "
+        ) from MOLSCORE_ERR
+
+    if cfg.molscore in MolScoreBenchmark.presets:
+        MSB = MolScoreBenchmark(
+            model_name=cfg.agent_name,
+            model_parameters=dict(cfg),
+            benchmark=cfg.molscore,
+            budget=cfg.total_smiles,
+            output_dir=os.path.abspath(save_dir),
+        )
+        for task in MSB:
+            run_reinvent(cfg, task)
+    else:
+        # Save molscore output. Also redirect output to save_dir
+        cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+        data = json.load(open(cfg.molscore, "r"))
+        json.dump(data, open(cfg.molscore, "w"), indent=4)
+        task = MolScore(
+            model_name=cfg.agent_name,
+            task_config=cfg.molscore,
+            budget=cfg.total_smiles,
+            output_dir=os.path.abspath(save_dir),
+        )
+        run_reinvent(cfg, task)
+
+
+def run_reinvent(cfg, task):
 
     # Get available device
     device = (
@@ -108,37 +139,6 @@ def main(cfg: "DictConfig"):
         env = SingleStepSMILESEnv(**env_kwargs)
         return env
 
-    # Scoring transform - more efficient to do it outside the environment
-    ####################################################################################################################
-
-    if not _has_molscore:
-        raise RuntimeError(
-            "MolScore library not found, unable to create a scoring function. "
-        ) from MOLSCORE_ERR
-
-    if cfg.molscore is None:
-        raise RuntimeError(
-            "MolScore config file not provided, unable to create a scoring function. "
-            "Please provide a config file,"
-            "e.g. ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json "
-        )
-
-    # Save molscore output. Also redirect output to save_dir
-    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, "r"))
-    data["output_dir"] = save_dir
-    json.dump(data, open(cfg.molscore, "w"), indent=4)
-
-    # Create scoring function
-    scoring = MolScore(model_name="reinvent", task_config=cfg.molscore)
-    scoring.configs["save_dir"] = save_dir
-    scoring_function = scoring.score
-
-    # Create reward transform
-    rew_transform = SMILESReward(
-        reward_function=scoring_function, vocabulary=vocabulary, in_keys=["observation"]
-    )
-
     # Replay buffer
     ####################################################################################################################
 
@@ -171,22 +171,25 @@ def main(cfg: "DictConfig"):
 
     total_done = 0
     collected_frames = 0
-    pbar = tqdm.tqdm(total=cfg.total_frames)
+    pbar = tqdm.tqdm(total=cfg.total_smiles)
     env = create_env_fn()
     sigma = cfg.sigma
 
-    while collected_frames < cfg.total_frames:
+    while not task.finished:
 
         data = env.step(model(env.reset()))
 
         log_info = {}
         frames_in_batch = data.numel()
-        total_done += data.get(("next", "done")).sum()
+        data_next = data.get("next")
         collected_frames += frames_in_batch
         pbar.update(data.numel())
 
-        # Compute reward
-        data = rew_transform(data)
+        # Compute rewards
+        smiles_str = [vocabulary.decode(smi.cpu().numpy()) for smi in data["action"]]
+        data_next["reward"] = torch.tensor(task(smiles_str), device=device).unsqueeze(
+            -1
+        )
 
         # Identify unique sequences
         arr = data.get("action").cpu().numpy()
