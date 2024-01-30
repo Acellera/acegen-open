@@ -65,8 +65,9 @@ class RNN(nn.Module):
         log_probs = torch.zeros(batch_size).to(device)
         for step in range(seq_length):
             logits, h = self.rnn(observation=x[:, step], recurrent_state=h)
-            log_prob = F.log_softmax(logits, dim=1)
-            log_probs += NLLLoss(log_prob, target[:, step])
+            log_probs += torch.distributions.Categorical(logits=logits).log_prob(
+                target[:, step]
+            )
 
         return log_probs
 
@@ -95,10 +96,9 @@ class RNN(nn.Module):
         for step in range(max_length):
             logits, h = self.rnn(observation=x, recurrent_state=h)
             prob = F.softmax(logits, dim=1)
-            log_prob = F.log_softmax(logits, dim=1)
             x = torch.multinomial(prob, num_samples=1).view(-1)
             sequences[:, step][~finished] = x[~finished]
-            log_probs += NLLLoss(log_prob, x)
+            log_probs += torch.distributions.Categorical(logits=logits).log_prob(x)
             EOS_sampled = x == self.voc.vocab[self.voc.end_token]
             finished = torch.ge(finished + EOS_sampled, 1)
             if torch.prod(finished) == 1:
