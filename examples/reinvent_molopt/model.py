@@ -36,7 +36,7 @@ class RNN(nn.Module):
 
     def __init__(self, voc):
         super(RNN, self).__init__()
-        self.rnn = MultiGRU(voc.vocab_size)
+        self.rnn = create_gru_model(len(voc))
         self.voc = voc
 
     @property
@@ -64,7 +64,7 @@ class RNN(nn.Module):
 
         log_probs = torch.zeros(batch_size).to(device)
         for step in range(seq_length):
-            logits, h = self.rnn(x[:, step], h)
+            logits, h = self.rnn(observation=x[:, step], recurrent_state=h)
             log_prob = F.log_softmax(logits, dim=1)
             log_probs += NLLLoss(log_prob, target[:, step])
 
@@ -93,7 +93,7 @@ class RNN(nn.Module):
         finished = torch.zeros(batch_size, dtype=torch.bool).to(device)
 
         for step in range(max_length):
-            logits, h = self.rnn(x, h)
+            logits, h = self.rnn(observation=x, recurrent_state=h)
             prob = F.softmax(logits, dim=1)
             log_prob = F.log_softmax(logits, dim=1)
             x = torch.multinomial(prob, num_samples=1).view(-1)
@@ -125,6 +125,16 @@ def NLLLoss(inputs, targets):
     loss = target_expanded * inputs
     loss = torch.sum(loss, 1)
     return loss
+
+
+def create_gru_model(vocabulary):
+    model = MultiGRU(vocabulary)
+    td_model = TensorDictModule(
+        model,
+        in_keys=["observation", "recurrent_state"],
+        out_keys=["logits", ("next", "recurrent_state")],
+    )
+    return td_model
 
 
 def create_reinvent_model(vocabulary):
