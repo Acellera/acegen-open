@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from tensordict.nn import TensorDictModule
+from torchrl.envs import ExplorationType
+from torchrl.modules import ProbabilisticActor
 
 
 class MultiGRU(nn.Module):
@@ -95,13 +96,10 @@ class RNN(nn.Module):
 
         for step in range(max_length):
             logits, h = self.rnn(observation=x, recurrent_state=h)
-            dist = torch.distributions.multinomial.Multinomial(
-                logits=logits, total_count=1
-            )
-            sample = dist.sample()
-            x = sample.argmax(dim=1)
+            dist = torch.distributions.Categorical(logits=logits)
+            x = dist.sample()
             sequences[:, step][~finished] = x[~finished]
-            log_probs += dist.log_prob(sample)
+            log_probs += dist.log_prob(x)
             EOS_sampled = x == self.voc.vocab[self.voc.end_token]
             finished = torch.ge(finished + EOS_sampled, 1)
             if torch.prod(finished) == 1:
