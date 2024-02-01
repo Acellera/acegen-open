@@ -1,5 +1,5 @@
 # Logging configuration
-experiment_name: torchrl_chem
+experiment_name: torchrl_opentorchrl_opentorchrl_open
 agent_name: ppo
 log_dir: logs_ppo
 logger_backend: null

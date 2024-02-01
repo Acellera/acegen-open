@@ -1,5 +1,5 @@
 # Logging configuration
-experiment_name: torchrl_chem
+experiment_name: torchrl_open
 agent_name: a2c
 log_dir: logs_a2c
 logger_backend: null

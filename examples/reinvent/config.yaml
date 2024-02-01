@@ -1,5 +1,5 @@
 # Logging configuration
-experiment_name: torchrl_chem
+experiment_name: torchrl_open
 agent_name: reinvent
 log_dir: logs_reinvent
 logger_backend: null

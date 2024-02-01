@@ -1,5 +1,5 @@
 # Logging configuration
-experiment_name: torchrl_chem
+experiment_name: torchrl_open
 agent_name: sac
 log_dir: logs_sac
 logger_backend: null
