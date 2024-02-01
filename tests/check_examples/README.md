@@ -18,8 +18,13 @@ The following setup should allow you to run the scripts:
 
 ```bash
 conda create -n acegen-examples-check python=3.10 -y 
+
+# base dependencies
 pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu121
 pip3 install tqdm wandb hydra-core
+
+# molscore dependencies
+pip3 install rdkit func_timeout dask distributed pystow zenodo_client matplotlib scipy pandas joblib seaborn molbloom Levenshtein
 
 cd /path/to/tensordict
 python setup.py develop

@@ -23,7 +23,7 @@ python $PYTHONPATH/examples/reinvent/reinvent.py \
 exit_status=$?
 # Write the exit status to a file
 if [ $exit_status -eq 0 ]; then
-  echo "${group_name}_${SLURM_JOB_ID}=success" >>> report.log
+  echo "${agent_name}_${SLURM_JOB_ID}=success" >> report.log
 else
-  echo "${group_name}_${SLURM_JOB_ID}=error" >>> report.log
+  echo "${agent_name}_${SLURM_JOB_ID}=error" >> report.log
 fi
