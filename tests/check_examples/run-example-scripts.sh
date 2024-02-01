@@ -3,14 +3,14 @@
 # Function to display script usage
 display_usage() {
     cat <<EOF
-Usage: ./submitit-release-check.sh [OPTIONS]
+Usage: ./run-example-scripts.sh [OPTIONS]
 
 OPTIONS:
   --partition PARTITION   Specify the Slurm partition for the job.
   --n_runs N_RUNS         Specify the number of runs for each script. Default is 1.
 
 EXAMPLES:
-  ./submitit-release-check.sh --partition <PARTITION_NAME> --n_runs 5
+  ./run-example-scripts.sh --partition <PARTITION_NAME> --n_runs 5
 
 EOF
     return 1
@@ -37,17 +37,17 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     *)
-      echo "$1 is not a valid argument. See './submitit-release-check.sh --help'."
+      echo "$1 is not a valid argument. See './run-example-scripts.sh --help'."
       return 0
       ;;
   esac
 done
 
 scripts=(
-    run_a2c.sh
-    run_ppo.sh
+    # run_a2c.sh
+    # run_ppo.sh
     run_reinvent.sh
-    run_ahc.sh
+    #run_ahc.sh
 )
 
 mkdir -p "slurm_errors"
@@ -60,12 +60,14 @@ rm -f report.log
 if [ -z "$slurm_partition" ]; then
     for script in "${scripts[@]}"; do
         for ((i=1; i<=$n_runs; i++)); do
+            export N_RUN=$i
             sbatch "$script"
         done
     done
 else
   for script in "${scripts[@]}"; do
       for ((i=1; i<=$n_runs; i++)); do
+          export N_RUN=$i
           sbatch --partition="$slurm_partition" "$script"
       done
   done

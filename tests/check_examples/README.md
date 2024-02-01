@@ -9,7 +9,7 @@ into a common WandB project.
 To display the script usage, you can use the `--help` option:
 
 ```bash
-./run_scripts.sh --help
+./run-example-scripts.sh --help
 ```
 
 ## Setup

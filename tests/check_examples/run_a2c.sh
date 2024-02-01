@@ -17,7 +17,9 @@ python $PYTHONPATH/examples/a2c/a2c.py \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
   molscore=MolOpt \
-  molscore_include=[Albuterol_similarity]
+  molscore_include=[Albuterol_similarity] \
+  seed=$N_RUN \
+  log_dir="$agent_name"_seed"$N_RUN"
 
 # Capture the exit status of the Python command
 exit_status=$?
