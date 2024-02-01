@@ -16,7 +16,8 @@ python $PYTHONPATH/examples/ahc/ahc.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
-  molscore=MolOpt.Albuterol_similarity
+  molscore=MolOpt \
+  molscore_include=[Albuterol_similarity]
 
 # Capture the exit status of the Python command
 exit_status=$?

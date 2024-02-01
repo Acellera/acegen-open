@@ -7,9 +7,8 @@ seed: 101
 
 # Environment configuration
 num_envs: 4
-molscore: /home/abou/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
-penalize_repetition: False
-repetition_penalty: 0.5
+molscore: MolOpt
+molscore_include: null
 prior: reinvent.ckpt
 vocabulary: reinvent_vocabulary.txt
 

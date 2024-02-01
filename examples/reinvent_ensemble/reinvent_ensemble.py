@@ -77,6 +77,7 @@ def main(cfg: "DictConfig"):
             benchmark=cfg.molscore,
             budget=cfg.total_smiles,
             output_dir=os.path.abspath(save_dir),
+            include=cfg.molscore_include,
         )
         for task in MSB:
             run_reinvent_ensemble(cfg, task)

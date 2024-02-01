@@ -8,6 +8,7 @@ seed: 101
 # Environment configuration
 num_envs: 32
 molscore: MolOpt
+molscore_include: null
 prior: morgan.ckpt
 vocabulary: morgan_vocabulary.txt
 
