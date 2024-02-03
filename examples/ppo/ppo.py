@@ -272,9 +272,13 @@ def run_ppo(cfg, task):
         M = cfg.frames_per_batch // cfg.num_envs
 
         # Transform to populate recurrent states and is_init in replay batches
-        replay_rhs_transform = TensorDictPrimer(
-            actor_training.rnn_spec.expand(N, M - 1)
-        )
+        replay_rhs_transforms = [
+            TensorDictPrimer(actor_training.rnn_spec.expand(N, M - 1))
+        ]
+        if cfg.shared_nets is False:
+            replay_rhs_transforms.append(
+                TensorDictPrimer(critic_training.rnn_spec.expand(N, M - 1))
+            )
         replay_logp_transform = TensorDictPrimer(
             {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(N, M - 1))}
         )
@@ -293,8 +297,9 @@ def run_ppo(cfg, task):
         """Prepare a batch of replay SMILES for PPO training."""
 
         # Populate with recurrent states
-        replay_rhs_transform(batch)
-        replay_rhs_transform(batch.get("next"))
+        for replay_rhs_transform in replay_rhs_transforms:
+            replay_rhs_transform(batch)
+            replay_rhs_transform(batch.get("next"))
 
         # Populate with is_init
         batch.set("is_init", batch.get(("next", "done")).roll(1, dims=1))
