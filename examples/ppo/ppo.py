@@ -375,13 +375,7 @@ def run_ppo(cfg, task):
                 break
             except Exception as e:
                 print(f"Attempt failed with error: {e}")
-
-        try:
-            data_next["reward"][done] = torch.tensor(rews, device=device).unsqueeze(-1)
-        except Exception:
-            import ipdb
-
-            ipdb.set_trace()
+        data_next["reward"][done] = torch.tensor(rews, device=device).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
         episode_rewards = data_next["reward"][done]
@@ -405,22 +399,30 @@ def run_ppo(cfg, task):
         )
 
         # Select only the necessary tensors
-        data = data.select(
+        data_select = [
             "action",
             "done",
             "is_init",
             "observation",
-            "recurrent_state",
             "sample_log_prob",
             "terminated",
             ("next", "done"),
             ("next", "is_init"),
             ("next", "observation"),
-            ("next", "recurrent_state"),
             ("next", "terminated"),
             ("next", "reward"),
-            inplace=True,
+        ]
+        data_select += (
+            ["recurrent_state"]
+            if cfg.shared_nets
+            else ["recurrent_state_actor", "recurrent_state_critic"]
         )
+        data_select += (
+            [("next", "recurrent_state")]
+            if cfg.shared_nets
+            else [("next", "recurrent_state_actor"), ("next", "recurrent_state_critic")]
+        )
+        data = data.select(*data_select, inplace=True)
 
         for j in range(ppo_epochs):
 
