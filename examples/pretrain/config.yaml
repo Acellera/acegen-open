@@ -1,7 +1,7 @@
 # Logging configuration
 experiment_name: pretrain
 agent_name: gru
-logger: null
+logger_backend: null
 seed: 101
 dataset_log_dir: /tmp/pretrain
 model_log_dir: /tmp/pretrain

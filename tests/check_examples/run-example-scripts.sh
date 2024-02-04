@@ -49,6 +49,8 @@ scripts=(
     run_ppod.sh
     run_reinvent.sh
     run_ahc.sh
+    run_pretrain.sh
+    run_pretrain_distributed.sh
 )
 
 # Remove the previous logs and errors

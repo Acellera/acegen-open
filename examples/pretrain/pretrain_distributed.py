@@ -130,12 +130,12 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nCreating model...")
 
-    if cfg.model_type == "lstm":
+    if cfg.model == "lstm":
         create_model = create_lstm_actor
-    elif cfg.model_type == "gru":
+    elif cfg.model == "gru":
         create_model = create_gru_actor
     else:
-        raise ValueError(f"Unknown model type {cfg.model_type}")
+        raise ValueError(f"Unknown model type {cfg.model}")
 
     actor_training, actor_inference = create_model(vocabulary_size=len(vocabulary))
     actor_training = DistributedDataParallel(Model(actor_training, device))
@@ -173,13 +173,17 @@ def main(cfg: "DictConfig"):
     )
 
     logger = None
-    if cfg.logger:
+    if cfg.logger_backend:
         logging.info("\nCreating logger...")
         logger = get_logger(
-            cfg.logger,
+            cfg.logger_backend,
             logger_name="pretrain",
             experiment_name=cfg.agent_name,
-            project_name=cfg.experiment_name,
+            wandb_kwargs={
+                "config": dict(cfg),
+                "project": cfg.experiment_name,
+                "group": cfg.agent_name,
+            },
         )
 
     # Calculate number of parameters
@@ -220,7 +224,7 @@ def main(cfg: "DictConfig"):
             unique_smiles = remove_duplicates(smiles, key="action")
 
             # Log
-            if logger:
+            if logger and master:
                 logger.log_scalar("loss_actor", actor_losses.mean(), step=epoch)
                 logger.log_scalar("num_test_valid_smiles", num_valid_smiles, step=epoch)
                 logger.log_scalar(
