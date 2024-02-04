@@ -7,8 +7,7 @@ dataset_log_dir: /tmp/pretrain
 model_log_dir: /tmp/pretrain
 
 # Dataset configuration
-train_dataset_path: /shared/albert/acegen-open/priors/smiles_test_set
-recompute_dataset: True
+train_dataset_path: null
 
 # Model configuration
 model: gru
