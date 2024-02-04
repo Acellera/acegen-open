@@ -268,7 +268,11 @@ def run_a2c(cfg, task):
             cfg.logger_backend,
             logger_name="a2c",
             experiment_name=cfg.agent_name,
-            wandb_kwargs={"config": dict(cfg), "project": cfg.experiment_name},
+            wandb_kwargs={
+                "config": dict(cfg),
+                "project": cfg.experiment_name,
+                "group": cfg.agent_name,
+            },
         )
 
     # Training loop
