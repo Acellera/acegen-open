@@ -231,8 +231,8 @@ def run_a2c(cfg, task):
     )
     adv_module = adv_module.to(device)
     loss_module = A2CLoss(
-        actor=actor_training,
-        critic=critic_training,
+        actor_network=actor_training,
+        critic_network=critic_training,
         critic_coef=cfg.critic_coef,
         entropy_coef=cfg.entropy_coef,
         loss_critic_type="l2",
