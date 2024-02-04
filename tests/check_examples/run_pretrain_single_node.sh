@@ -12,14 +12,14 @@ project_name="acegen-open-example-check-$current_commit"
 agent_name="pretrain"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/examples/pretrain/pretrain.py \
+python $PYTHONPATH/examples/pretrain/pretrain_single_node.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
   seed=$N_RUN \
   model_log_dir="$agent_name"_seed"$N_RUN" \
   dataset_log_dir="$agent_name"_seed"$N_RUN" \
-  epochs=1 \
+  epochs=10 \
   train_dataset_path=$PYTHONPATH/tests/data/smiles_test_set
 
 # Capture the exit status of the Python command

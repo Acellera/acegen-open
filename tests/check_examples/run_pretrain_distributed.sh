@@ -22,7 +22,7 @@ CUDA_VISIBLE_DEVICES="0" torchrun \
   seed=$N_RUN \
   model_log_dir="$agent_name"_seed"$N_RUN" \
   dataset_log_dir="$agent_name"_seed"$N_RUN" \
-  epochs=1 \
+  epochs=10 \
   train_dataset_path=$PYTHONPATH/tests/data/smiles_test_set
 
 # Capture the exit status of the Python command
