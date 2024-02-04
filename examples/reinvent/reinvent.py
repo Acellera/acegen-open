@@ -301,7 +301,7 @@ def run_reinvent(cfg, task):
         # Log info
         if logger:
             for key, value in log_info.items():
-                logger.log_scalar(key, value, collected_frames)
+                logger.log_scalar(key, value, step=collected_frames)
 
 
 def get_log_prob(data, model):

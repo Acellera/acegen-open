@@ -528,7 +528,7 @@ def run_ppo(cfg, task):
 
         if logger:
             for key, value in log_info.items():
-                logger.log_scalar(key, value, collected_frames)
+                logger.log_scalar(key, value, step=collected_frames)
         collector.update_policy_weights_()
 
     collector.shutdown()
