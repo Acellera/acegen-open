@@ -208,10 +208,7 @@ def run_reinvent_ensemble(cfg, task):
     ####################################################################################################################
 
     total_done = 0
-    collected_frames = 0
     env = create_env_fn()
-    sigma = cfg.sigma
-    frames_in_batch = cfg.num_envs
     pbar = tqdm.tqdm(total=cfg.total_smiles)
 
     while not task.finished:
@@ -225,8 +222,7 @@ def run_reinvent_ensemble(cfg, task):
         data = remove_duplicates(data, key="action")
 
         log_info = {}
-        total_done += frames_in_batch
-        collected_frames += frames_in_batch
+        total_done += cfg.num_envs
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
         smiles = data.select("action").cpu()
@@ -329,7 +325,7 @@ def run_reinvent_ensemble(cfg, task):
         # Log info
         if logger:
             for key, value in log_info.items():
-                logger.log_scalar(key, value, collected_frames)
+                logger.log_scalar(key, value, step=total_done)
 
 
 def get_log_prob(data, model):

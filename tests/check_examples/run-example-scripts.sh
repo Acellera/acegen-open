@@ -51,10 +51,15 @@ scripts=(
     run_ahc.sh
 )
 
+# Remove the previous logs and errors
+rm -rf "slurm_errors"
+rm -rf "slurm_logs"
+
+# Create the logs and errors directories
 mkdir -p "slurm_errors"
 mkdir -p "slurm_logs"
 
-# remove the previous report
+# Remove the previous report
 rm -f report.log
 
 # Submit jobs with the specified partition the specified number of times

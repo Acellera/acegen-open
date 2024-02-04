@@ -342,7 +342,6 @@ def run_ppo(cfg, task):
     ####################################################################################################################
 
     total_done = 0
-    collected_frames = 0
     kl_coef = cfg.kl_coef
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
@@ -356,10 +355,8 @@ def run_ppo(cfg, task):
             break
 
         log_info = {}
-        frames_in_batch = data.numel()
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        collected_frames += frames_in_batch
         total_done += done.sum().item()
         pbar.update(done.sum().item())
 
@@ -528,7 +525,7 @@ def run_ppo(cfg, task):
 
         if logger:
             for key, value in log_info.items():
-                logger.log_scalar(key, value, step=collected_frames)
+                logger.log_scalar(key, value, step=total_done)
         collector.update_policy_weights_()
 
     collector.shutdown()
