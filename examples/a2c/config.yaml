@@ -9,11 +9,11 @@ seed: 101
 num_envs: 4
 molscore: MolOpt
 molscore_include: null
-prior: reinvent.ckpt
-vocabulary: reinvent_vocabulary.txt
+prior: morgan.ckpt
+vocabulary: morgan_vocabulary.txt
 
 # Collector configuration
-total_frames: 1_000_000
+total_smiles: 10_000
 frames_per_batch: 400
 
 # Architecture configuration
@@ -22,18 +22,14 @@ shared_nets: True
 
 # Optimizer
 lr: 0.0005
-eps: 1.0e-08
-weight_decay: 1.0e-08
+eps: 1.0e-06
+weight_decay: 1.0e-06
 
 # A2C configuration
 gamma: 0.999
-lmbda: 0.95
+lmbda: 0.99
 critic_coef: 0.5
 entropy_coef: 0.05
 kl_coef: 0.5
 mini_batch_size: 4
 max_grad_norm: 1.0
-experience_replay: True
-replay_batches: 1
-replay_frequency: 4
-loss_critic_type: l2

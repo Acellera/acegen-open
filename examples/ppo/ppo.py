@@ -477,19 +477,10 @@ def run_ppo(cfg, task):
                     prior_dist = prior.get_dist(batch)
                 # new_logits = prior(batch.select("is_init", "observation"))["logits"]
 
-                # import ipdb; ipdb.set_trace()
-                # assert batch["prior_logits"].sum().item() == new_logits.sum().item()
-
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
                 mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = kl_div[~mask].mean()
                 loss_sum += kl_div * kl_coef
-
-                # Add regularizer that penalizes high likelihood for the entire sequence
-                # import ipdb
-                # ipdb.set_trace()
-                # loss_p = -(1 / batch.get("sample_log_pron")).mean()
-                # loss_sum += 5 * 1e3 * loss_p
 
                 # Register losses
                 losses[j, i] = loss.select(

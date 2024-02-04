@@ -44,10 +44,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 scripts=(
-    # run_a2c.sh
-    # run_ppo.sh
+    run_a2c.sh
+    run_ppo.sh
     run_reinvent.sh
-    #run_ahc.sh
+    run_ahc.sh
 )
 
 mkdir -p "slurm_errors"

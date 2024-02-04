@@ -11,7 +11,6 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data.replay_buffer2 import Experience
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -22,7 +21,6 @@ from acegen.models import (
     create_lstm_critic,
 )
 from acegen.rl_env import SMILESEnv
-from acegen.transforms import PenaliseRepeatedSMILES
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
@@ -45,6 +43,7 @@ from torchrl.record.loggers import get_logger
 
 try:
     import molscore
+    from molscore import MolScoreBenchmark
     from molscore.manager import MolScore
 
     _has_molscore = True
@@ -62,7 +61,7 @@ def main(cfg: "DictConfig"):
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
 
-    # Save config
+    # Save the config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
     save_dir = f"{cfg.log_dir}_{timestamp_str}"
@@ -70,6 +69,38 @@ def main(cfg: "DictConfig"):
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+
+    if not _has_molscore:
+        raise RuntimeError(
+            "MolScore library not found, unable to create a scoring function. "
+        ) from MOLSCORE_ERR
+
+    if cfg.molscore in MolScoreBenchmark.presets:
+        MSB = MolScoreBenchmark(
+            model_name=cfg.agent_name,
+            model_parameters=dict(cfg),
+            benchmark=cfg.molscore,
+            budget=cfg.total_smiles,
+            output_dir=os.path.abspath(save_dir),
+            include=cfg.molscore_include,
+        )
+        for task in MSB:
+            run_a2c(cfg, task)
+    else:
+        # Save molscore output. Also redirect output to save_dir
+        cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+        data = json.load(open(cfg.molscore, "r"))
+        json.dump(data, open(cfg.molscore, "w"), indent=4)
+        task = MolScore(
+            model_name=cfg.agent_name,
+            task_config=cfg.molscore,
+            budget=cfg.total_smiles,
+            output_dir=os.path.abspath(save_dir),
+        )
+        run_a2c(cfg, task)
+
+
+def run_a2c(cfg, task):
 
     # Get available device
     device = (
@@ -130,7 +161,7 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    # Create transform to populate initial tensordict with recurrent states equal to 0.0
+    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
     if cfg.shared_nets:
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
@@ -142,6 +173,7 @@ def main(cfg: "DictConfig"):
             TensorDictPrimer(critic_primers),
         ]
 
+    # Define environment kwargs
     env_kwargs = {
         "start_token": vocabulary.vocab[vocabulary.start_token],
         "end_token": vocabulary.vocab[vocabulary.end_token],
@@ -150,13 +182,14 @@ def main(cfg: "DictConfig"):
         "device": device,
     }
 
+    # Define environment creation function
     def create_env_fn():
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
             UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["observation"], unsqueeze_dim=-1
+                in_keys=["observation"], out_keys=["SMILES"], unsqueeze_dim=-1
             )
         )
         env.append_transform(
@@ -164,7 +197,7 @@ def main(cfg: "DictConfig"):
                 N=100,
                 dim=-1,
                 padding="constant",
-                in_keys=["observation"],
+                in_keys=["SMILES"],
                 out_keys=["SMILES"],
                 padding_value=-1,
             )
@@ -175,32 +208,6 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-    # Scoring function - it is more efficient to score all SMILES in a single call after data collection
-    ####################################################################################################################
-
-    if not _has_molscore:
-        raise RuntimeError(
-            "MolScore library not found, unable to create a scoring function. "
-        ) from MOLSCORE_ERR
-
-    if cfg.molscore is None:
-        raise RuntimeError(
-            "MolScore config file not provided, unable to create a scoring function. "
-            "Please provide a config file,"
-            "e.g. ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json "
-        )
-
-    # Save molscore output. Also redirect output to save_dir
-    cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-    data = json.load(open(cfg.molscore, "r"))
-    data["output_dir"] = save_dir
-    json.dump(data, open(cfg.molscore, "w"), indent=4)
-
-    # Create scoring function
-    scoring = MolScore(model_name="a2c", task_config=cfg.molscore)
-    scoring.configs["save_dir"] = save_dir
-    scoring_function = scoring.score
-
     # Collector
     ####################################################################################################################
 
@@ -208,11 +215,10 @@ def main(cfg: "DictConfig"):
         policy=actor_inference,
         create_env_fn=create_env_fn,
         frames_per_batch=cfg.frames_per_batch,
-        total_frames=cfg.total_frames,
+        total_frames=-1,
         storing_device=device,
         device=device,
     )
-
     # Loss modules
     ####################################################################################################################
 
@@ -233,7 +239,7 @@ def main(cfg: "DictConfig"):
     )
     loss_module = loss_module.to(device)
 
-    # Buffers
+    # A2C data Buffer
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
@@ -242,20 +248,6 @@ def main(cfg: "DictConfig"):
         batch_size=cfg.mini_batch_size,
         prefetch=4,
     )
-
-    penalty_transform = None
-    if cfg.penalize_repetition is True:
-        penalty_transform = PenaliseRepeatedSMILES(
-            check_duplicate_key="SMILES",
-            in_key="reward",
-            out_key="reward",
-            penalty=cfg.repetition_penalty,
-            device=device,
-        )
-
-    experience_replay_buffer = None
-    if cfg.experience_replay is True:
-        experience_replay_buffer = Experience(vocabulary)
 
     # Optimizer
     ####################################################################################################################
@@ -293,22 +285,25 @@ def main(cfg: "DictConfig"):
 
     for data in collector:
 
+        if task.finished:
+            break
+
         log_info = {}
         frames_in_batch = data.numel()
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += done.sum()
         collected_frames += frames_in_batch
-        pbar.update(data.numel())
+        total_done += done.sum().item()
+        pbar.update(done.sum().item())
 
-        # Compute all rewards in a single call
-        # data = rew_transform(data)
-        smiles = data_next.get("SMILES")[done]
+        # Compute rewards
+        smiles = data_next.select("SMILES")[done].cpu()
         smiles_list = [
-            vocabulary.decode(smi.cpu().numpy(), ignore_indices=[-1]) for smi in smiles
+            vocabulary.decode(smi.numpy(), ignore_indices=[-1])
+            for smi in smiles["SMILES"]
         ]
         data_next["reward"][done] = torch.tensor(
-            scoring_function(smiles_list), device=device
+            task(smiles_list), device=device
         ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
@@ -327,55 +322,37 @@ def main(cfg: "DictConfig"):
                 }
             )
 
-        # Penalise repeated smiles and register penalised rewards
-        if penalty_transform is not None:
-            data = penalty_transform(data)
-            repeated_smiles = penalty_transform.repeated_smiles
-            episode_rewards = data["next", "reward"][data["next", "terminated"]]
-            log_info.update(
-                {
-                    "train/repeated_smiles": repeated_smiles,
-                    "train/penalised_reward": episode_rewards.mean().item(),
-                    "train/penalised_min_reward": episode_rewards.min().item(),
-                    "train/penalised_max_reward": episode_rewards.max().item(),
-                }
-            )
-
-        # Get data to be added to the replay buffer later
-        replay_data = data.get("next").clone()
-        replay_data = replay_data.get_sub_tensordict(
-            idx=replay_data.get("terminated").squeeze(-1)
+        # Select only the necessary tensors
+        data_select = [
+            "action",
+            "done",
+            "is_init",
+            "observation",
+            "sample_log_prob",
+            "terminated",
+            ("next", "done"),
+            ("next", "is_init"),
+            ("next", "observation"),
+            ("next", "terminated"),
+            ("next", "reward"),
+        ]
+        data_select += (
+            ["recurrent_state"]
+            if cfg.shared_nets
+            else ["recurrent_state_actor", "recurrent_state_critic"]
         )
-
-        # Then exclude unnecessary tensors
-        data = data.exclude(
-            "embed",
-            "logits",
-            "features",
-            "collector",
-            "step_count",
-            ("next", "step_count"),
-            "SMILES",
-            ("next", "SMILES"),
+        data_select += (
+            [("next", "recurrent_state")]
+            if cfg.shared_nets
+            else [("next", "recurrent_state_actor"), ("next", "recurrent_state_critic")]
         )
+        data = data.select(*data_select, inplace=True)
 
-        if experience_replay_buffer is not None and len(experience_replay_buffer) > 20:
-            to_cat = [data.clone()]
-            for _ in range(cfg.replay_batches):
-                # TODO: fix, dont loop, sample a real batch from the replay buffer!!
-                replay_batch = experience_replay_buffer.sample_replay_batch(
-                    batch_size=20, device=device
-                )
-                to_cat.append(replay_batch[..., 0 : data.shape[1]])
-            extended_data = torch.cat(to_cat)
-        else:
-            extended_data = data
-
-        # Compute advantage - only once or per mini-batch?
+        # Compute advantage
         with torch.no_grad():
-            extended_data = adv_module(extended_data)
+            data = adv_module(data)
 
-        buffer.extend(extended_data)
+        buffer.extend(data)
 
         for j, batch in enumerate(buffer):
 
@@ -407,17 +384,6 @@ def main(cfg: "DictConfig"):
         losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
         for key, value in losses_mean.items():
             log_info.update({f"train/{key}": value.item()})
-
-        # Add data to the replay buffer
-        if experience_replay_buffer is not None:
-            smiles_list = []
-            for index, seq in enumerate(replay_data.get("SMILES")):
-                smiles = vocabulary.decode(seq.cpu().numpy(), ignore_indices=[-1])
-                smiles_list.append(smiles)
-            rewards = replay_data.get("reward").squeeze(-1).cpu().numpy()
-            prior_likelihood = np.zeros_like(rewards)
-            new_experience = zip(smiles_list, rewards, rewards, prior_likelihood)
-            experience_replay_buffer.add_experience(new_experience)
 
         if logger:
             for key, value in log_info.items():
