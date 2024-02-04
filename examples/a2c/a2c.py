@@ -279,7 +279,7 @@ def run_a2c(cfg, task):
     collected_frames = 0
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
-    pbar = tqdm.tqdm(total=cfg.total_frames)
+    pbar = tqdm.tqdm(total=cfg.total_smiles)
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[num_mini_batches])
 

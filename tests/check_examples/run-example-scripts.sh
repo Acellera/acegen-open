@@ -46,6 +46,7 @@ done
 scripts=(
     run_a2c.sh
     run_ppo.sh
+    run_ppod.sh
     run_reinvent.sh
     run_ahc.sh
 )

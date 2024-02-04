@@ -1,15 +1,15 @@
 #!/bin/bash
 
-#SBATCH --job-name=ppo
+#SBATCH --job-name=ppod
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/ppo%j.txt
-#SBATCH --error=slurm_errors/ppo%j.txt
+#SBATCH --output=slurm_logs/ppod%j.txt
+#SBATCH --error=slurm_errors/ppod%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-open-example-check-$current_commit"
-agent_name="ppo"
+agent_name="ppod"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
 python $PYTHONPATH/examples/ppo/ppo.py \
@@ -17,7 +17,7 @@ python $PYTHONPATH/examples/ppo/ppo.py \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
   molscore=MolOpt \
-  experience_replay=False \
+  experience_replay=True \
   molscore_include=[Albuterol_similarity] \
   seed=$N_RUN \
   log_dir="$agent_name"_seed"$N_RUN"
