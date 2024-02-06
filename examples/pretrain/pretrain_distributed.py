@@ -98,6 +98,7 @@ def main(cfg: "DictConfig"):
     # Load vocabulary from a file
     vocabulary = SMILESVocabulary()
     vocabulary.load_state_dict(torch.load(save_path))
+    vocabulary.tokenizer = Tokenizer()
 
     logging.info("\nPreparing dataset and dataloader...")
     if master:
