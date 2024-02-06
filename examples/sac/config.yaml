@@ -8,9 +8,9 @@ seed: 101
 # Environment configuration
 num_envs: 10
 molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
-prior_actor: morgan.ckpt
+prior_actor: chembl_filtered.ckpt
 prior_critic: ckpt_240000.pt
-vocabulary: morgan_vocabulary.txt
+vocabulary: chembl_filtered_vocabulary.txt
 
 # Collector configuration
 total_smiles: 12800

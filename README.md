@@ -1,36 +1,57 @@
 # TorchRL generative Chemistry
-Language models + RL for drug discovery using TorchRL
+Generative chemistry models + RL for drug discovery using TorchRL
 
-## Conda environment
+## Overview
+
+## Installation
+
+### Conda environment
 
 To create the conda / mamba environment, run
 
-    conda/mamba env create -f environment.yml
-    conda activate torchrl_chem
+    conda create -n acegen python=3.10 -y
+    conda activate acegen
+    pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu121
+    
+### Install Tensordict
 
-## Install AceGen
+To install Tensordict, run
 
-To install AceGen, run
-
-    cd acegen-open
+    git clone https://github.com/pytorch/tensordict.git
+    cd tensordict
     python setup.py install
 
-## Install MolScore
+### Install TorchRL
+
+To install TorchRL, run
+
+    git clone https://github.com/pytorch/rl.git
+    cd rl
+    python setup.py install
+
+### Install MolScore
 
 To install MolScore, run
-    
+
+    pip3 install rdkit func_timeout dask distributed pystow zenodo_client matplotlib scipy pandas joblib seaborn molbloom Levenshtein
     git clone https://github.com/MorganCThomas/MolScore.git
     cd molscore
     python setup.py install
 
-## Run examples
+### Install AceGen
 
-### Configuration file
-    
-The configuration file is `config.yml`. It contains the parameters for the training.
+To install AceGen, run
 
-### Running the training script
+    pip3 install tqdm wandb hydra-core
+    cd acegen-open
+    python setup.py install
 
-To run the training script with kl divergence as a loss term, run
 
-    python ppo.py
+## Running training scripts
+
+To run the training scripts, run
+
+    python examples/a2c/a2c.py
+    python examples/ppo/ppo.py
+    python examples/reinvent/reinvent.py
+    python examples/ahc/ahc.py

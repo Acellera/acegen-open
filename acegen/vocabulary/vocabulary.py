@@ -42,7 +42,9 @@ class SMILESVocabulary(Vocabulary):
         tokenizer: Tokenizer = None,
     ):
         self.start_token = start_token
+        self.start_token_index = start_token_index
         self.end_token = end_token
+        self.end_token_index = end_token_index
         self.special_tokens = [end_token, start_token]
         special_indices = [end_token_index, start_token_index]
         self.additional_chars = set()
@@ -196,19 +198,25 @@ class SMILESVocabulary(Vocabulary):
         vocabulary.additional_chars = {
             char for char in vocabulary.chars if char not in vocabulary.special_tokens
         }
+        vocabulary.start_token_index = vocab[start_token]
+        vocabulary.end_token_index = vocab[end_token]
         return vocabulary
 
     def state_dict(self):
         """Returns the state of the vocabulary."""
         state_dict = deepcopy(self.vocab)
         state_dict["start_token"] = self.start_token
+        state_dict["start_token_index"] = self.start_token_index
         state_dict["end_token"] = self.end_token
+        state_dict["end_token_index"] = self.end_token_index
         return state_dict
 
     def load_state_dict(self, state_dict):
         """Loads the state of the vocabulary."""
         self.start_token = state_dict.pop("start_token")
         self.end_token = state_dict.pop("end_token")
+        self.start_token_index = state_dict[self.start_token]
+        self.end_token_index = state_dict[self.end_token]
         self.vocab = state_dict
         self.vocab_size = len(self.vocab)
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}

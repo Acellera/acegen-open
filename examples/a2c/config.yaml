@@ -9,8 +9,8 @@ seed: 101
 num_envs: 4
 molscore: MolOpt
 molscore_include: null
-prior: morgan.ckpt
-vocabulary: morgan_vocabulary.txt
+prior: chembl_filtered.ckpt
+vocabulary: chembl_filtered_vocabulary.txt
 
 # Collector configuration
 total_smiles: 10_000
