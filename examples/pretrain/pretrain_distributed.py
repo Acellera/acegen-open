@@ -39,6 +39,7 @@ class Model(torch.nn.Module):
         super().__init__()
         self.actor = actor
         self.device = device
+        self.actor.to(device)
 
     def forward(self, batch):
 
@@ -96,9 +97,13 @@ def main(cfg: "DictConfig"):
     barrier()
 
     # Load vocabulary from a file
-    vocabulary = SMILESVocabulary()
-    vocabulary.load_state_dict(torch.load(save_path))
-    vocabulary.tokenizer = Tokenizer()
+    # vocabulary = SMILESVocabulary()
+    # vocabulary.load_state_dict(torch.load(save_path))
+    # vocabulary.tokenizer = Tokenizer()
+    vocabulary = SMILESVocabulary.create_from_smiles(
+        load_dataset(cfg.train_dataset_path),
+        tokenizer=Tokenizer(),
+    )
 
     logging.info("\nPreparing dataset and dataloader...")
     if master:
