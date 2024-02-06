@@ -221,7 +221,7 @@ def test_adapt_state_dict():
     # Test with state dicts of different lengths
     with pytest.raises(
         ValueError,
-        match="The source and target state dicts must have the same number of parameters.",
+        match="The source and target state dicts don't have the same number of parameters.",
     ):
         adapt_state_dict(source_state_dict, {"fc.weight": torch.randn(10, 5)})
 
