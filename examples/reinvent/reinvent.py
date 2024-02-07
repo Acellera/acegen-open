@@ -12,11 +12,11 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data import is_in_reference, remove_duplicates
 from acegen.models import adapt_state_dict, create_gru_actor, create_lstm_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
+from tensordict.utils import isin, remove_duplicates
 
 from torchrl.data import (
     LazyTensorStorage,
@@ -34,7 +34,6 @@ from torchrl.envs import (
     UnsqueezeTransform,
 )
 from torchrl.record.loggers import get_logger
-
 
 try:
     import molscore
@@ -283,10 +282,10 @@ def run_reinvent(cfg, task):
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
-                is_duplicated = is_in_reference(
-                    tensordict=replay_data,
+                is_duplicated = isin(
+                    input=replay_data,
                     key="action",
-                    reference_tensordict=experience_replay_buffer[:],
+                    reference=experience_replay_buffer[:],
                 )
                 replay_data = replay_data[~is_duplicated]
 

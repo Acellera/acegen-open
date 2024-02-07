@@ -7,16 +7,12 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-from acegen.data import (
-    load_dataset,
-    remove_duplicates,
-    smiles_to_tensordict,
-    SMILESDataset,
-)
+from acegen.data import load_dataset, smiles_to_tensordict, SMILESDataset
 from acegen.models import create_gru_actor, create_lstm_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from rdkit import Chem
+from tensordict.utils import remove_duplicates
 from tokenizer import Tokenizer
 from torch.distributed import barrier, destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel
@@ -25,6 +21,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
+
 
 logging.basicConfig(
     level=logging.INFO,

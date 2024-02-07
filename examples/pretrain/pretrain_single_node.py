@@ -6,16 +6,12 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-from acegen.data import (
-    load_dataset,
-    remove_duplicates,
-    smiles_to_tensordict,
-    SMILESDataset,
-)
+from acegen.data import load_dataset, smiles_to_tensordict, SMILESDataset
 from acegen.models import create_gru_actor, create_lstm_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from rdkit import Chem
+from tensordict.utils import remove_duplicates
 from tokenizer import Tokenizer
 from torch.utils.data import DataLoader
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
