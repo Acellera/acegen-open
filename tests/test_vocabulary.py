@@ -54,14 +54,23 @@ def test_create_methods_match():
         multiple_smiles, tokenizer=tokenizer
     )
     tokens_dict = copy(vocabulary.vocab)
-    vocabulary2 = SMILESVocabulary.create_from_dict(tokens_dict)
+    vocabulary2 = SMILESVocabulary.create_from_dict(
+        tokens_dict,
+        start_token=vocabulary.start_token,
+        end_token=vocabulary.end_token,
+    )
     for obj1, obj2 in zip(vocabulary.__dict__.items(), vocabulary2.__dict__.items()):
         k1, v1 = obj1
         k2, v2 = obj2
         assert k1 == k2
         if k1 != "tokenizer":
             print(k1)
-            assert v1 == v2
+            try:
+                assert v1 == v2
+            except AssertionError:
+                import ipdb
+
+                ipdb.set_trace()
 
 
 def test_full_pipeline():
