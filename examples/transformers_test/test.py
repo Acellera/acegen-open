@@ -8,6 +8,8 @@ from tensordict.nn import TensorDictModule
 from transformers import GPT2Config, GPT2Model
 from torchrl.modules import ProbabilisticActor
 from torchrl.envs import ExplorationType
+from acegen.rl_env import generate_complete_smiles
+from acegen.models import adapt_state_dict
 
 # Get available device
 device = (
@@ -18,7 +20,7 @@ device = (
 ckpt = (
     Path(__file__).resolve().parent.parent.parent
     / "priors"
-    / "chembl_filtered_vocabulary.txt"
+    / "enamine_real_vocabulary.txt"
 )
 with open(ckpt, "r") as f:
     tokens = f.read().splitlines()
@@ -65,7 +67,12 @@ probabilistic_policy = ProbabilisticActor(
     default_interaction_type=ExplorationType.RANDOM,
 )
 
+ckpt = torch.load(
+    Path(__file__).resolve().parent.parent.parent / "priors" / "gpt2_enamine_real.ckpt"
+)
+
+probabilistic_policy.load_state_dict(adapt_state_dict(ckpt, probabilistic_policy.state_dict()))
+
 policy.to(device)
-import ipdb
-ipdb.set_trace()
-step = policy(env.reset())
+data = generate_complete_smiles(policy=probabilistic_policy, environment=env)
+import ipdb; ipdb.set_trace()

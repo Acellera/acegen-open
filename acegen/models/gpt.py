@@ -18,7 +18,7 @@ class GPT2(nn.Module):
         config.attn_pdrop = transformers_config.attn_pdrop
         config.embd_pdrop = transformers_config.embd_pdrop
         config.resid_pdrop = transformers_config.resid_pdrop
-        self.lm_head = nn.Linear(self.config.n_embd, self.config.vocab_size,  bias=False)
+        self.lm_head = nn.Linear(transformers_config.n_embd, transformers_config.vocab_size,  bias=False)
 
         if not isinstance(config, GPT2Config):
             raise ValueError(
@@ -44,4 +44,3 @@ class GPT2(nn.Module):
             out = out[:, -1]
 
         return self.lm_head(out)
-

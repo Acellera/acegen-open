@@ -8,7 +8,7 @@ seed: 101
 # Environment configuration
 num_envs: 10
 molscore: /shared/albert/MolScore/molscore/configs/valid.json
-prior: chembl_filtered.ckpt
+prior: gru_chembl_filtered.ckpt
 vocabulary: chembl_filtered_vocabulary.txt
 
 # Collector configuration
