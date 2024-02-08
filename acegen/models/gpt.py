@@ -18,17 +18,17 @@ class GPT2(nn.Module):
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.feature_extractor = GPT2Model(config)
 
-    def forward(self, context, context_mask):
+    def forward(self, sequence, sequence_mask):
 
         out = self.feature_extractor(
-            input_ids=context,
-            attention_mask=context_mask.long(),
+            input_ids=sequence,
+            attention_mask=sequence_mask.long(),
         ).last_hidden_state
 
         # Prepare outputs
-        has_masked_tokens = (context_mask == 0.0).any()
+        has_masked_tokens = (sequence_mask == 0.0).any()
         if has_masked_tokens:  # Data collection
-            obs_length = context_mask.sum(-1)
+            obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
         else:  # Gradient computation
             out = out[:, -1]

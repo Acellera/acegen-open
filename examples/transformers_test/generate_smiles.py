@@ -33,13 +33,10 @@ env_kwargs = {
     "start_token": vocabulary.start_token_index,
     "end_token": vocabulary.end_token_index,
     "length_vocabulary": len(vocabulary),
-    "batch_size": 100,
+    "batch_size": 4,
     "device": device,
 }
 
-import ipdb
-
-ipdb.set_trace()
 
 env = SMILESEnv(**env_kwargs)
 
@@ -59,7 +56,7 @@ model_config.initializer_range = 0.02
 
 policy = TensorDictModule(
     GPT2(model_config),
-    in_keys=["context", "context_mask"],
+    in_keys=["sequence", "sequence_mask"],
     out_keys=["logits"],
 )
 probabilistic_policy = ProbabilisticActor(
@@ -81,9 +78,7 @@ probabilistic_policy.load_state_dict(
 
 policy.to(device)
 data = generate_complete_smiles(policy=probabilistic_policy, environment=env)
-smiles_str = [
-    vocabulary.decode(smi.cpu().numpy(), ignore_indices=[0]) for smi in data["action"]
-]
+smiles_str = [vocabulary.decode(smi.cpu().numpy(), ignore_indices=[0]) for smi in data["action"]]
 
 
 def evaluate_mol(smiles: str):
@@ -95,6 +90,4 @@ def evaluate_mol(smiles: str):
 
 
 valid = [evaluate_mol(s) for s in smiles_str]
-import ipdb
-
-ipdb.set_trace()
+assert all(valid)
