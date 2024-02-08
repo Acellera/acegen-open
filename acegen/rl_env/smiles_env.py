@@ -51,6 +51,7 @@ class SMILESEnv(EnvBase):
         batch_size: int = 1,
         one_hot_action_encoding: bool = False,
         one_hot_obs_encoding: bool = False,
+        prompt: Optional[list[int]] = None,
     ):
         super().__init__(
             device=device,
@@ -73,11 +74,34 @@ class SMILESEnv(EnvBase):
                 batch_size, length_vocabulary, device=self.device, dtype=torch.int32
             )
             start_obs[:, self.start_token] = 1
+            context = torch.zeros(
+                self.num_envs,
+                self.max_length,
+                length_vocabulary,
+                device=self.device,
+                dtype=torch.int32,
+            )
+            context[:, 0, self.start_token] = 1
         else:
             start_obs = (
                 torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
                 * self.start_token
             )
+            context = torch.zeros(
+                self.num_envs, self.max_length, device=self.device, dtype=torch.int32
+            )
+            context[:, 0] = self.start_token
+
+        context_mask = torch.zeros(
+            self.num_envs, self.max_length, device=self.device, dtype=torch.bool
+        )
+        context_mask[:, 0] = True
+        if prompt is not None:
+            prompt = torch.tensor(
+                [int(c) for c in prompt], device=self.device, dtype=torch.int32
+            )
+            context[:, : prompt.shape[0]] = prompt.unsqueeze(0)
+            context_mask[:, : prompt.shape[0]] = True
 
         self._reset_tensordict = TensorDict(
             {
@@ -91,6 +115,8 @@ class SMILESEnv(EnvBase):
                 "terminated": torch.zeros(
                     self.num_envs, 1, device=self.device, dtype=torch.bool
                 ),
+                "context": context,
+                "context_mask": context_mask,
             },
             device=self.device,
             batch_size=self.batch_size,
@@ -127,6 +153,10 @@ class SMILESEnv(EnvBase):
         obs = actions.clone().long()
         if self.one_hot_obs_encoding:
             obs = torch.nn.functional.one_hot(obs, num_classes=self.length_vocabulary)
+        context = tensordict.get("context").clone()
+        context_mask = tensordict.get("context_mask").clone()
+        context[:, self.episode_length - 1] = obs.int()
+        context_mask[:, self.episode_length - 1] = True
         next_tensordict = TensorDict(
             {
                 "done": done,
@@ -134,6 +164,8 @@ class SMILESEnv(EnvBase):
                 "terminated": terminated,
                 "reward": torch.zeros(self.num_envs, device=self.device),
                 "observation": obs,
+                "context": context,
+                "context_mask": context_mask,
             },
             device=self.device,
             batch_size=self.batch_size,
