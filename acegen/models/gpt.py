@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from transformers import GPT2Config, GPT2Model
 
@@ -17,6 +18,7 @@ class GPT2(nn.Module):
         config.attn_pdrop = transformers_config.attn_pdrop
         config.embd_pdrop = transformers_config.embd_pdrop
         config.resid_pdrop = transformers_config.resid_pdrop
+        self.lm_head = nn.Linear(self.config.n_embd, self.config.vocab_size,  bias=False)
 
         if not isinstance(config, GPT2Config):
             raise ValueError(
@@ -33,16 +35,13 @@ class GPT2(nn.Module):
             attention_mask=context_mask.long(),
         ).last_hidden_state
 
-        import ipdb
+        # Prepare outputs
+        has_masked_tokens = (context_mask == 0.0).any()
+        if has_masked_tokens:  # Data collection
+            obs_length = context_mask.sum(-1)
+            out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
+        else:  # Gradient computation
+            out = out[:, -1]
 
-        ipdb.set_trace()
+        return self.lm_head(out)
 
-        # # Prepare outputs
-        # has_masked_tokens = (obs == 0.0).any()
-        # if has_masked_tokens:  # Data collection
-        #     obs_length = inputs["obs_length"]
-        #     out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
-        # else:  # Gradient computation
-        #     out = out[:, -1]
-
-        return out

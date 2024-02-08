@@ -6,6 +6,8 @@ from acegen.rl_env import SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from tensordict.nn import TensorDictModule
 from transformers import GPT2Config, GPT2Model
+from torchrl.modules import ProbabilisticActor
+from torchrl.envs import ExplorationType
 
 # Get available device
 device = (
@@ -51,13 +53,19 @@ model_config.resid_pdrop = 0.1
 
 policy = TensorDictModule(
     GPT2(model_config),
-    in_keys=["context"],
+    in_keys=["context", "context_mask"],
+    out_keys=["logits"],
+)
+probabilistic_policy = ProbabilisticActor(
+    module=policy,
+    in_keys=["logits"],
     out_keys=["action"],
+    distribution_class=torch.distributions.Categorical,
+    return_log_prob=True,
+    default_interaction_type=ExplorationType.RANDOM,
 )
 
 policy.to(device)
-
 import ipdb
-
 ipdb.set_trace()
 step = policy(env.reset())
