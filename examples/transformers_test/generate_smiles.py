@@ -78,7 +78,9 @@ probabilistic_policy.load_state_dict(
 
 policy.to(device)
 data = generate_complete_smiles(policy=probabilistic_policy, environment=env)
-smiles_str = [vocabulary.decode(smi.cpu().numpy(), ignore_indices=[0]) for smi in data["action"]]
+smiles_str = [
+    vocabulary.decode(smi.cpu().numpy(), ignore_indices=[0]) for smi in data["action"]
+]
 
 
 def evaluate_mol(smiles: str):

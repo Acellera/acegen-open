@@ -1,22 +1,22 @@
 import torch
 import torch.nn as nn
-from transformers import GPT2Config, GPT2Model
 from tensordict.nn import TensorDictModule
 from torchrl.envs import ExplorationType
 from torchrl.modules import ProbabilisticActor
+from transformers import GPT2Config, GPT2Model
 
 
 class GPT2(nn.Module):
     """..."""
 
-    def __init__(self, config=None):
+    def __init__(self, vocabulary_size, config=None):
         super(GPT2, self).__init__()
 
         # Define model
         config = GPT2Config()
 
         # Adjust model parameters
-        config.vocab_size = 63
+        config.vocab_size = vocabulary_size
         config.n_positions = 2048
         config.n_head = 16
         config.n_layer = 24
@@ -35,7 +35,10 @@ class GPT2(nn.Module):
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.feature_extractor = GPT2Model(config)
 
-    def forward(self, sequence, sequence_mask):
+    def forward(self, sequence, sequence_mask=None):
+
+        if sequence_mask is None:
+            sequence_mask = torch.ones_like(sequence, dtype=torch.float32)
 
         out = self.feature_extractor(
             input_ids=sequence,
@@ -47,16 +50,16 @@ class GPT2(nn.Module):
         if has_masked_tokens:  # Data collection
             obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
-        else:  # Gradient computation
-            out = out[:, -1]
+        # else:  # Gradient computation
+        #     out = out[:, -1]
 
         return self.lm_head(out)
 
 
-def create_gpt2_actor():
+def create_gpt2_actor(vocabulary_size):
     """..."""
     policy = TensorDictModule(
-        GPT2(),
+        GPT2(vocabulary_size),
         in_keys=["sequence", "sequence_mask"],
         out_keys=["logits"],
     )
