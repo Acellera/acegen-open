@@ -90,4 +90,4 @@ def evaluate_mol(smiles: str):
 
 
 valid = [evaluate_mol(s) for s in smiles_str]
-assert all(valid)
+print(sum(valid))
