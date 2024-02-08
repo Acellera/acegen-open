@@ -51,7 +51,6 @@ class SMILESEnv(EnvBase):
         batch_size: int = 1,
         one_hot_action_encoding: bool = False,
         one_hot_obs_encoding: bool = False,
-        prompt: Optional[list[int]] = None,
     ):
         super().__init__(
             device=device,
@@ -96,12 +95,6 @@ class SMILESEnv(EnvBase):
             self.num_envs, self.max_length, device=self.device, dtype=torch.bool
         )
         context_mask[:, 0] = True
-        if prompt is not None:
-            prompt = torch.tensor(
-                [int(c) for c in prompt], device=self.device, dtype=torch.int32
-            )
-            context[:, : prompt.shape[0]] = prompt.unsqueeze(0)
-            context_mask[:, : prompt.shape[0]] = True
 
         self._reset_tensordict = TensorDict(
             {

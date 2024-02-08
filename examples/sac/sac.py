@@ -164,8 +164,8 @@ def main(cfg: "DictConfig"):
         ]
 
     env_kwargs = {
-        "start_token": vocabulary.vocab[vocabulary.start_token],
-        "end_token": vocabulary.vocab[vocabulary.end_token],
+        "start_token": vocabulary.start_token_index,
+        "end_token": vocabulary.end_token_index,
         "length_vocabulary": len(vocabulary),
         "batch_size": cfg.num_envs,
         "device": device,

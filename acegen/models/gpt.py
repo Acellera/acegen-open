@@ -6,19 +6,8 @@ from transformers import GPT2Config, GPT2Model
 class GPT2(nn.Module):
     """..."""
 
-    def __init__(self, transformers_config):
+    def __init__(self, config):
         super(GPT2, self).__init__()
-
-        config = GPT2Config()
-        config.vocab_size = transformers_config.vocab_size
-        config.n_positions = transformers_config.n_positions
-        config.n_head = transformers_config.n_head
-        config.n_layer = transformers_config.n_layer
-        config.n_embd = transformers_config.n_embd
-        config.attn_pdrop = transformers_config.attn_pdrop
-        config.embd_pdrop = transformers_config.embd_pdrop
-        config.resid_pdrop = transformers_config.resid_pdrop
-        self.lm_head = nn.Linear(transformers_config.n_embd, transformers_config.vocab_size,  bias=False)
 
         if not isinstance(config, GPT2Config):
             raise ValueError(
@@ -26,6 +15,7 @@ class GPT2(nn.Module):
             )
 
         self.config = config
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.feature_extractor = GPT2Model(config)
 
     def forward(self, context, context_mask):
