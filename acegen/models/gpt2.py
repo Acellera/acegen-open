@@ -50,8 +50,6 @@ class GPT2(nn.Module):
         if has_masked_tokens:  # Data collection
             obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
-        # else:  # Gradient computation
-        #     out = out[:, -1]
 
         return self.lm_head(out)
 
