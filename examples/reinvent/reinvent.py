@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.models import adapt_state_dict, create_gru_actor, create_lstm_actor
+from acegen.models import adapt_state_dict, create_gru_actor, create_lstm_actor, create_gpt2_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
@@ -121,6 +121,8 @@ def run_reinvent(cfg, task):
         create_actor = create_gru_actor
     elif cfg.model == "lstm":
         create_actor = create_lstm_actor
+    elif cfg.model == "gpt2":
+        create_actor = create_gpt2_actor
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 

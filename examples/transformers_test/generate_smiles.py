@@ -2,7 +2,7 @@ from pathlib import Path
 
 import torch
 from acegen.models import adapt_state_dict
-from acegen.models.gpt import GPT2
+from acegen.models.gpt2 import GPT2
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from rdkit.Chem import AllChem, QED

@@ -1,13 +1,30 @@
 import torch
 import torch.nn as nn
 from transformers import GPT2Config, GPT2Model
+from tensordict.nn import TensorDictModule
+from torchrl.envs import ExplorationType
+from torchrl.modules import ProbabilisticActor
 
 
 class GPT2(nn.Module):
     """..."""
 
-    def __init__(self, config):
+    def __init__(self, config=None):
         super(GPT2, self).__init__()
+
+        # Define model
+        config = GPT2Config()
+
+        # Adjust model parameters
+        config.vocab_size = 63
+        config.n_positions = 2048
+        config.n_head = 16
+        config.n_layer = 24
+        config.n_embd = 128
+        config.attn_pdrop = 0.1
+        config.embd_pdrop = 0.1
+        config.resid_pdrop = 0.1
+        config.initializer_range = 0.02
 
         if not isinstance(config, GPT2Config):
             raise ValueError(
@@ -34,3 +51,21 @@ class GPT2(nn.Module):
             out = out[:, -1]
 
         return self.lm_head(out)
+
+
+def create_gpt2_actor():
+    """..."""
+    policy = TensorDictModule(
+        GPT2(),
+        in_keys=["sequence", "sequence_mask"],
+        out_keys=["logits"],
+    )
+    probabilistic_policy = ProbabilisticActor(
+        module=policy,
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=torch.distributions.Categorical,
+        return_log_prob=True,
+        default_interaction_type=ExplorationType.RANDOM,
+    )
+    return probabilistic_policy, probabilistic_policy
