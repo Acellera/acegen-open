@@ -33,5 +33,6 @@ python setup.py develop
 cd /path/to/acegen-open
 python setup.py develop
 cd /path/to/MolScore
+git checkout develop
 python setup.py develop
 ```

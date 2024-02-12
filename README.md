@@ -36,6 +36,7 @@ To install MolScore, run
     pip3 install rdkit func_timeout dask distributed pystow zenodo_client matplotlib scipy pandas joblib seaborn molbloom Levenshtein
     git clone https://github.com/MorganCThomas/MolScore.git
     cd molscore
+    git checkout develop
     python setup.py install
 
 ### Install AceGen
