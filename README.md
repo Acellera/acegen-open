@@ -1,7 +1,10 @@
-# TorchRL generative Chemistry
-Generative chemistry models + RL for drug discovery using TorchRL
+# AceGen: A TorchRL-based toolkit for reinforcement learning in generative chemistry
 
 ## Overview
+
+In recent years, reinforcement learning (RL) has been increasingly used in drug design to propose molecules with specific properties under defined constraints. However, RL problems are inherently complex, featuring independent and interchangeable components with diverse method signatures and data requirements.
+
+AceGen applies TorchRL - a modern general decision-making library that provides well-integrated reusable components - to make a robust toolkit tailored for generative drug design.
 
 ## Installation
 
@@ -36,6 +39,7 @@ To install MolScore, run
     pip3 install rdkit func_timeout dask distributed pystow zenodo_client matplotlib scipy pandas joblib seaborn molbloom Levenshtein
     git clone https://github.com/MorganCThomas/MolScore.git
     cd molscore
+    git checkout develop
     python setup.py install
 
 ### Install AceGen
@@ -55,3 +59,7 @@ To run the training scripts, run
     python examples/ppo/ppo.py
     python examples/reinvent/reinvent.py
     python examples/ahc/ahc.py
+
+To modify training parameters, edit the corresponding YAML file in each example's directory.
+
+
