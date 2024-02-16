@@ -166,7 +166,8 @@ def run_ahc(cfg, task):
         env = TransformedEnv(env)
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        env.append_transform(rhs_primer)
+        for rhs_primer in rhs_primers:
+            env.append_transform(rhs_primer)
         return env
 
     # Replay buffer
@@ -249,65 +250,65 @@ def run_ahc(cfg, task):
                 }
             )
 
-        # Select only the necessary tensors
-        data = data.select(
-            "action",
-            "mask",
-            "is_init",
-            "observation",
-            "sample_log_prob",
-            ("next", "reward"),
-            inplace=True,
-        )
-
-        data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
-        sscore, sscore_idxs = (
-            data_next["reward"][done].squeeze(-1).sort(descending=True)
-        )
-        loss = loss[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
-
-        # Compute experience replay loss
-        if (
-            cfg.experience_replay
-            and len(experience_replay_buffer) > cfg.replay_batch_size
-        ):
-            replay_batch = experience_replay_buffer.sample()
-            _, replay_loss, replay_agent_likelihood = compute_loss(
-                replay_batch, actor_training, prior, sigma
-            )
-            loss = torch.cat((loss, replay_loss), 0)
-            agent_likelihood = torch.cat((agent_likelihood, replay_agent_likelihood), 0)
-
-        # Average loss over the batch
-        loss = loss.mean()
-
-        # Add regularizer that penalizes high likelihood for the entire sequence
-        loss_p = -(1 / agent_likelihood).mean()
-        loss += 5 * 1e3 * loss_p
-
-        # Calculate gradients and make an update to the network weights
-        optim.zero_grad()
-        loss.backward()
-        optim.step()
-
-        # Then add new experiences to the replay buffer
-        if cfg.experience_replay is True:
-
-            replay_data = data.clone()
-
-            # Remove SMILES that are already in the replay buffer
-            if len(experience_replay_buffer) > 0:
-                is_duplicated = isin(
-                    input=replay_data,
-                    key="action",
-                    reference=experience_replay_buffer[:],
-                )
-                replay_data = replay_data[~is_duplicated]
-
-            # Add data to the replay buffer
-            reward = replay_data.get(("next", "reward"))
-            replay_data.set("priority", reward)
-            experience_replay_buffer.extend(replay_data)
+        # # Select only the necessary tensors
+        # data = data.select(
+        #     "action",
+        #     "mask",
+        #     "is_init",
+        #     "observation",
+        #     "sample_log_prob",
+        #     ("next", "reward"),
+        #     inplace=True,
+        # )
+        #
+        # data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
+        # sscore, sscore_idxs = (
+        #     data_next["reward"][done].squeeze(-1).sort(descending=True)
+        # )
+        # loss = loss[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
+        #
+        # # Compute experience replay loss
+        # if (
+        #     cfg.experience_replay
+        #     and len(experience_replay_buffer) > cfg.replay_batch_size
+        # ):
+        #     replay_batch = experience_replay_buffer.sample()
+        #     _, replay_loss, replay_agent_likelihood = compute_loss(
+        #         replay_batch, actor_training, prior, sigma
+        #     )
+        #     loss = torch.cat((loss, replay_loss), 0)
+        #     agent_likelihood = torch.cat((agent_likelihood, replay_agent_likelihood), 0)
+        #
+        # # Average loss over the batch
+        # loss = loss.mean()
+        #
+        # # Add regularizer that penalizes high likelihood for the entire sequence
+        # loss_p = -(1 / agent_likelihood).mean()
+        # loss += 5 * 1e3 * loss_p
+        #
+        # # Calculate gradients and make an update to the network weights
+        # optim.zero_grad()
+        # loss.backward()
+        # optim.step()
+        #
+        # # Then add new experiences to the replay buffer
+        # if cfg.experience_replay is True:
+        #
+        #     replay_data = data.clone()
+        #
+        #     # Remove SMILES that are already in the replay buffer
+        #     if len(experience_replay_buffer) > 0:
+        #         is_duplicated = isin(
+        #             input=replay_data,
+        #             key="action",
+        #             reference=experience_replay_buffer[:],
+        #         )
+        #         replay_data = replay_data[~is_duplicated]
+        #
+        #     # Add data to the replay buffer
+        #     reward = replay_data.get(("next", "reward"))
+        #     replay_data.set("priority", reward)
+        #     experience_replay_buffer.extend(replay_data)
 
         # Log info
         if logger:

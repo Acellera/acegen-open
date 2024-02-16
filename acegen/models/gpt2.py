@@ -7,9 +7,9 @@ from transformers import GPT2Config, GPT2Model
 
 
 class GPT2(nn.Module):
-    """..."""
+    """GPT2 model for language modeling. This model is a simple wrapper around the HuggingFace GPT2Model."""
 
-    def __init__(self, vocabulary_size, config=None):
+    def __init__(self, vocabulary_size):
         super(GPT2, self).__init__()
 
         # Define model
@@ -37,8 +37,10 @@ class GPT2(nn.Module):
 
     def forward(self, sequence, sequence_mask=None):
 
+        is_inference = True
         if sequence_mask is None:
-            sequence_mask = torch.ones_like(sequence, dtype=torch.float32)
+            sequence_mask = (sequence != 0).long()
+            is_inference = False
 
         out = self.feature_extractor(
             input_ids=sequence,
@@ -46,8 +48,7 @@ class GPT2(nn.Module):
         ).last_hidden_state
 
         # Prepare outputs
-        has_masked_tokens = (sequence_mask == 0.0).any()
-        if has_masked_tokens:  # Data collection
+        if is_inference:  # Data collection
             obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
 
@@ -55,7 +56,7 @@ class GPT2(nn.Module):
 
 
 def create_gpt2_actor(vocabulary_size):
-    """..."""
+    """Create a GPT2 actor for language modeling."""
     policy = TensorDictModule(
         GPT2(vocabulary_size),
         in_keys=["sequence", "sequence_mask"],
