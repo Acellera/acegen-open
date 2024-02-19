@@ -129,10 +129,8 @@ class SMILESEnv(EnvBase):
             _reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
 
         self.episode_length[_reset] = 1
-        self.sequence[_reset].copy_(self._reset_tensordict["sequence"][_reset])
-        self.sequence_mask[_reset].copy_(
-            self._reset_tensordict["sequence_mask"][_reset]
-        )
+        self.sequence[_reset] = next_tensordict["sequence"][_reset]
+        self.sequence_mask[_reset] = next_tensordict["sequence_mask"][_reset]
 
         return next_tensordict
 
