@@ -9,11 +9,10 @@ from transformers import GPT2Config, GPT2Model
 class GPT2(nn.Module):
     """GPT2 model for language modeling. This model is a simple wrapper around the HuggingFace GPT2Model."""
 
-    def __init__(self, vocabulary_size):
+    def __init__(self, config):
         super(GPT2, self).__init__()
 
         # Define model
-        config = define_gpt2_configuration(vocabulary_size)
         self.feature_extractor = GPT2Model(config)
 
     def forward(self, sequence, sequence_mask=None):
@@ -37,16 +36,19 @@ class GPT2(nn.Module):
 
 
 def define_gpt2_configuration(
-        vocabulary_size: int,
-        n_positions: int = 2048,
-        n_head: int = 16,
-        n_layer: int = 24,
-        n_embd: int = 128,
-        attn_pdrop: float = 0.1,
-        embd_pdrop: float = 0.1,
-        resid_pdrop: float = 0.1,
+    vocabulary_size: int,
+    n_positions: int = 2048,
+    n_head: int = 16,
+    n_layer: int = 24,
+    n_embd: int = 128,
+    attn_pdrop: float = 0.1,
+    embd_pdrop: float = 0.1,
+    resid_pdrop: float = 0.1,
 ):
+    """Define a GPT2 configuration.
 
+    This function is a simple wrapper around the HuggingFace GPT2Config, allowing to specify relevant parameters.
+    """
     # Define model
     config = GPT2Config()
 
@@ -97,7 +99,7 @@ def create_gpt2_critic(vocabulary_size):
         out_keys=["features"],
     )
     lm_head = TensorDictModule(
-        nn.Linear(config.n_embd, vocabulary_size, bias=False),
+        nn.Linear(config.n_embd, 1, bias=False),
         in_keys=["features"],
         out_keys=["state_value"],
     )
@@ -105,7 +107,7 @@ def create_gpt2_critic(vocabulary_size):
     return critic, critic
 
 
-def create_gru_actor_critic(vocabulary_size):
+def create_gpt2_actor_critic(vocabulary_size):
     """Create a GPT2 shared actor-critic network for language modeling."""
     config = define_gpt2_configuration(vocabulary_size)
     lm = TensorDictModule(
@@ -127,7 +129,7 @@ def create_gru_actor_critic(vocabulary_size):
         default_interaction_type=ExplorationType.RANDOM,
     )
     critic_head = TensorDictModule(
-        nn.Linear(config.n_embd, vocabulary_size, bias=False),
+        nn.Linear(config.n_embd, 1, bias=False),
         in_keys=["features"],
         out_keys=["state_value"],
     )

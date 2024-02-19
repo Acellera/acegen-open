@@ -255,7 +255,6 @@ def run_reinvent(cfg, task):
             "mask",
             "is_init",
             "observation",
-            # "sample_log_prob",
             ("next", "reward"),
             inplace=True,
         )

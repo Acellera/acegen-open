@@ -122,7 +122,8 @@ class SMILESEnv(EnvBase):
             next_tensordict = tensordict
             next_tensordict.update(self._reset_tensordict.clone())
             _reset = tensordict.get(
-                "reset", torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+                "_reset",
+                torch.ones(self.num_envs, dtype=torch.bool, device=self.device),
             )
         else:
             next_tensordict = self._reset_tensordict.clone()

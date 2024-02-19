@@ -1,4 +1,8 @@
-from acegen.models.gpt2 import create_gpt2_actor
+from acegen.models.gpt2 import (
+    create_gpt2_actor,
+    create_gpt2_actor_critic,
+    create_gpt2_critic,
+)
 from acegen.models.gru import (
     create_gru_actor,
     create_gru_actor_critic,

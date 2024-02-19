@@ -12,15 +12,7 @@ import torch
 import tqdm
 import yaml
 from acegen.data import smiles_to_tensordict
-from acegen.models import (
-    adapt_state_dict,
-    create_gru_actor,
-    create_gru_actor_critic,
-    create_gru_critic,
-    create_lstm_actor,
-    create_lstm_actor_critic,
-    create_lstm_critic,
-)
+from acegen.models import adapt_state_dict
 from acegen.rl_env import SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
@@ -129,13 +121,35 @@ def run_ppo(cfg, task):
     ####################################################################################################################
 
     if cfg.model == "gru":
+        from acegen.models import (
+            create_gru_actor,
+            create_gru_actor_critic,
+            create_gru_critic,
+        )
+
         create_actor = create_gru_actor
         create_critic = create_gru_critic
         create_shared = create_gru_actor_critic
     elif cfg.model == "lstm":
+        from acegen.models import (
+            create_lstm_actor,
+            create_lstm_actor_critic,
+            create_lstm_critic,
+        )
+
         create_actor = create_lstm_actor
         create_critic = create_lstm_critic
         create_shared = create_lstm_actor_critic
+    elif cfg.model == "gpt2":
+        from acegen.models import (
+            create_gpt2_actor,
+            create_gpt2_actor_critic,
+            create_gpt2_critic,
+        )
+
+        create_actor = create_gpt2_actor
+        create_critic = create_gpt2_critic
+        create_shared = create_gpt2_actor_critic
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
@@ -171,10 +185,11 @@ def run_ppo(cfg, task):
     ####################################################################################################################
 
     # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
-    if cfg.shared_nets:
+    rhs_primers = []
+    if cfg.shared_nets and hasattr(actor_training, "rnn_spec"):
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
-    else:
+    elif hasattr(actor_training, "rnn_spec"):
         actor_primers = actor_training.rnn_spec.expand(cfg.num_envs)
         critic_primers = critic_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [
@@ -415,17 +430,25 @@ def run_ppo(cfg, task):
             ("next", "terminated"),
             ("next", "reward"),
         ]
-        data_select += (
-            ["recurrent_state"]
-            if cfg.shared_nets
-            else ["recurrent_state_actor", "recurrent_state_critic"]
-        )
-        data_select += (
-            [("next", "recurrent_state")]
-            if cfg.shared_nets
-            else [("next", "recurrent_state_actor"), ("next", "recurrent_state_critic")]
-        )
+        if hasattr(actor_training, "rnn_spec"):
+            data_select += (
+                ["recurrent_state"]
+                if cfg.shared_nets
+                else ["recurrent_state_actor", "recurrent_state_critic"]
+            )
+            data_select += (
+                [("next", "recurrent_state")]
+                if cfg.shared_nets
+                else [
+                    ("next", "recurrent_state_actor"),
+                    ("next", "recurrent_state_critic"),
+                ]
+            )
         data = data.select(*data_select, inplace=True)
+
+        # For transformers-based policies
+        data.set("sequence", data.get("observation"))
+        data.set(("next", "sequence"), data.get(("next", "observation")))
 
         for j in range(ppo_epochs):
 
