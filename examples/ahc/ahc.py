@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.models import adapt_state_dict, create_gru_actor, create_lstm_actor
+from acegen.models import adapt_state_dict
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
@@ -117,10 +117,19 @@ def run_ahc(cfg, task):
     ckpt = torch.load(
         Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
     )
+
     if cfg.model == "gru":
+        from acegen.models import create_gru_actor
+
         create_actor = create_gru_actor
     elif cfg.model == "lstm":
+        from acegen.models import create_lstm_actor
+
         create_actor = create_lstm_actor
+    elif cfg.model == "gpt2":
+        from acegen.models import create_gpt2_actor
+
+        create_actor = create_gpt2_actor
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
@@ -137,13 +146,15 @@ def run_ahc(cfg, task):
     # Environment
     ####################################################################################################################
 
-    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
-    primers = actor_training.rnn_spec.expand(cfg.num_envs)
-    rhs_primer = TensorDictPrimer(primers)
+    # For RNNs, create a transform to populate initial tensordict with recurrent states equal to 0.0
+    rhs_primers = []
+    if hasattr(actor_training, "rnn_spec"):
+        primers = actor_training.rnn_spec.expand(cfg.num_envs)
+        rhs_primers.append(TensorDictPrimer(primers))
 
     env_kwargs = {
-        "start_token": vocabulary.vocab[vocabulary.start_token],
-        "end_token": vocabulary.vocab[vocabulary.end_token],
+        "start_token": vocabulary.start_token_index,
+        "end_token": vocabulary.end_token_index,
         "length_vocabulary": len(vocabulary),
         "batch_size": cfg.num_envs,
         "device": device,
@@ -155,7 +166,8 @@ def run_ahc(cfg, task):
         env = TransformedEnv(env)
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        env.append_transform(rhs_primer)
+        for rhs_primer in rhs_primers:
+            env.append_transform(rhs_primer)
         return env
 
     # Replay buffer
@@ -244,7 +256,6 @@ def run_ahc(cfg, task):
             "mask",
             "is_init",
             "observation",
-            "sample_log_prob",
             ("next", "reward"),
             inplace=True,
         )
@@ -306,6 +317,10 @@ def run_ahc(cfg, task):
 
 def get_log_prob(data, model):
     actions = data.get("action").clone()
+
+    # For transformers-based policies
+    data.set("sequence", data.get("observation"))
+
     model_in = data.select(*model.in_keys, strict=False)
     log_prob = model.get_dist(model_in).log_prob(actions)
     return log_prob

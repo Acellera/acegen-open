@@ -8,9 +8,7 @@ seed: 101
 # Environment configuration
 num_envs: 4
 molscore: MolOpt
-molscore_include: null
-prior: chembl_filtered.ckpt
-vocabulary: chembl_filtered_vocabulary.txt
+molscore_include: ["Albuterol_similarity"]
 
 # Collector configuration
 total_smiles: 10_000
@@ -19,6 +17,8 @@ frames_per_batch: 400
 # Architecture configuration
 model: gru
 shared_nets: True
+prior: gru_chembl_filtered.ckpt
+vocabulary: chembl_filtered_vocabulary.txt
 
 # Optimizer
 lr: 0.0005

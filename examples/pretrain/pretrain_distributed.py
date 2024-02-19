@@ -145,8 +145,8 @@ def main(cfg: "DictConfig"):
     primers = actor_inference.rnn_spec.expand(cfg.num_test_smiles)
     rhs_primer = TensorDictPrimer(primers)
     test_env = SMILESEnv(
-        start_token=vocabulary.vocab[vocabulary.start_token],
-        end_token=vocabulary.vocab[vocabulary.end_token],
+        start_token=vocabulary.start_token_index,
+        end_token=vocabulary.end_token_index,
         length_vocabulary=len(vocabulary),
         batch_size=100,
         device=device,

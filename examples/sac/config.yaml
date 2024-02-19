@@ -8,9 +8,6 @@ seed: 101
 # Environment configuration
 num_envs: 10
 molscore: /shared/albert/MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json
-prior_actor: chembl_filtered.ckpt
-prior_critic: ckpt_240000.pt
-vocabulary: chembl_filtered_vocabulary.txt
 
 # Collector configuration
 total_smiles: 12800
@@ -22,6 +19,9 @@ replay_buffer_size: 10_000
 
 # Architecture configuration
 shared_nets: False
+prior_actor: gru_chembl_filtered.ckpt
+prior_critic: ckpt_240000.pt
+vocabulary: chembl_filtered_vocabulary.txt
 
 # Discrete SAC configuration
 lr: 0.0001

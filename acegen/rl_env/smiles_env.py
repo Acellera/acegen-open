@@ -73,11 +73,28 @@ class SMILESEnv(EnvBase):
                 batch_size, length_vocabulary, device=self.device, dtype=torch.int32
             )
             start_obs[:, self.start_token] = 1
+            self.sequence = torch.zeros(
+                self.num_envs,
+                self.max_length,
+                length_vocabulary,
+                device=self.device,
+                dtype=torch.int32,
+            )
+            self.sequence[:, 0, self.start_token] = 1
         else:
             start_obs = (
                 torch.ones(self.num_envs, device=self.device, dtype=torch.int32)
                 * self.start_token
             )
+            self.sequence = torch.zeros(
+                self.num_envs, self.max_length, device=self.device, dtype=torch.int32
+            )
+            self.sequence[:, 0] = self.start_token
+
+        self.sequence_mask = torch.zeros(
+            self.num_envs, self.max_length, device=self.device, dtype=torch.bool
+        )
+        self.sequence_mask[:, 0] = True
 
         self._reset_tensordict = TensorDict(
             {
@@ -91,6 +108,8 @@ class SMILESEnv(EnvBase):
                 "terminated": torch.zeros(
                     self.num_envs, 1, device=self.device, dtype=torch.bool
                 ),
+                "sequence": self.sequence.clone(),
+                "sequence_mask": self.sequence_mask.clone(),
             },
             device=self.device,
             batch_size=self.batch_size,
@@ -102,10 +121,18 @@ class SMILESEnv(EnvBase):
         if tensordict is not None:
             next_tensordict = tensordict
             next_tensordict.update(self._reset_tensordict.clone())
+            _reset = tensordict.get(
+                "_reset",
+                torch.ones(self.num_envs, dtype=torch.bool, device=self.device),
+            )
         else:
-            self.episode_length.zero_()
-            self.episode_length += 1
             next_tensordict = self._reset_tensordict.clone()
+            _reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+
+        self.episode_length[_reset] = 1
+        self.sequence[_reset] = next_tensordict["sequence"][_reset]
+        self.sequence_mask[_reset] = next_tensordict["sequence_mask"][_reset]
+
         return next_tensordict
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
@@ -121,12 +148,17 @@ class SMILESEnv(EnvBase):
         terminated = (actions == self.end_token).unsqueeze(-1)
         truncated = (self.episode_length == self.max_length).unsqueeze(-1)
         done = terminated | truncated
-        self.episode_length[done.squeeze(-1)] = 1
 
         # Create next_tensordict
         obs = actions.clone().long()
         if self.one_hot_obs_encoding:
             obs = torch.nn.functional.one_hot(obs, num_classes=self.length_vocabulary)
+
+        # Update sequence
+        no_done = ~done.squeeze()
+        self.sequence[no_done, self.episode_length[no_done] - 1] = obs[no_done].int()
+        self.sequence_mask[no_done, self.episode_length[no_done] - 1] = True
+
         next_tensordict = TensorDict(
             {
                 "done": done,
@@ -134,6 +166,8 @@ class SMILESEnv(EnvBase):
                 "terminated": terminated,
                 "reward": torch.zeros(self.num_envs, device=self.device),
                 "observation": obs,
+                "sequence": self.sequence.clone(),
+                "sequence_mask": self.sequence_mask.clone(),
             },
             device=self.device,
             batch_size=self.batch_size,

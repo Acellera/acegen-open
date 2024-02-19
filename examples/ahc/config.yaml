@@ -8,15 +8,15 @@ seed: 101
 # Environment configuration
 num_envs: 128
 molscore: MolOpt
-molscore_include: null
-prior: chembl_filtered.ckpt
-vocabulary: chembl_filtered_vocabulary.txt
+molscore_include: ["Albuterol_similarity"]
 
 # Collector configuration
 total_smiles: 10_000
 
 # Architecture
 model: gru
+prior: gru_chembl_filtered.ckpt
+vocabulary: chembl_filtered_vocabulary.txt
 
 # AHC configuration
 lr: 0.0001
