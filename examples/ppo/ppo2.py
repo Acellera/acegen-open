@@ -386,9 +386,10 @@ def run_ppo(cfg, task):
                 # PPO loss
                 mask = batch.get("mask")
                 loss = loss_module(batch)
-                loss_sum = ((
-                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-                ) * mask).mean()
+                loss = loss.apply(lambda x: (x * mask).mean(), batch_size=[])
+                loss_sum = (
+                        loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                )
 
                 # Add KL loss
                 with torch.no_grad():

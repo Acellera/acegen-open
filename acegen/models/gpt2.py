@@ -39,7 +39,8 @@ class GPT2(nn.Module):
 
         is_inference = True
         if sequence_mask is None:
-            sequence_mask = (sequence != 0).long()
+            #  sequence_mask = (sequence != 0).long()
+            sequence_mask = torch.ones_like(sequence, dtype=torch.long)
             is_inference = False
 
         out = self.feature_extractor(
@@ -47,7 +48,6 @@ class GPT2(nn.Module):
             attention_mask=sequence_mask.long(),
         ).last_hidden_state
 
-        # Prepare outputs
         if is_inference:  # Data collection
             obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]

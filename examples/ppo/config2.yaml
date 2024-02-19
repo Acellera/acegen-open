@@ -11,10 +11,7 @@ molscore: MolOpt
 molscore_include: null
 prior: gru_chembl_filtered.ckpt
 vocabulary: chembl_filtered_vocabulary.txt
-
-# Collector configuration
 total_smiles: 10_000
-frames_per_batch: 3200
 
 # Architecture configuration
 model: gru
@@ -33,6 +30,6 @@ mini_batch_size: 8
 ppo_epochs: 4
 max_grad_norm: 0.25
 ppo_clip: 0.1
-experience_replay: True
+experience_replay: False
 replay_batch_size: 8
 replay_buffer_size: 100

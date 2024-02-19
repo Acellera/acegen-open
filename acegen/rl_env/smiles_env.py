@@ -121,10 +121,15 @@ class SMILESEnv(EnvBase):
         if tensordict is not None:
             next_tensordict = tensordict
             next_tensordict.update(self._reset_tensordict.clone())
+            _reset = tensordict.get("reset", torch.ones(self.num_envs, dtype=torch.bool, device=self.device))
         else:
-            self.episode_length.zero_()
-            self.episode_length += 1
             next_tensordict = self._reset_tensordict.clone()
+            _reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+
+        self.episode_length[_reset] = 1
+        self.sequence[_reset].copy_(self._reset_tensordict["sequence"][_reset])
+        self.sequence_mask[_reset].copy_(self._reset_tensordict["sequence_mask"][_reset])
+
         return next_tensordict
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
@@ -140,9 +145,6 @@ class SMILESEnv(EnvBase):
         terminated = (actions == self.end_token).unsqueeze(-1)
         truncated = (self.episode_length == self.max_length).unsqueeze(-1)
         done = terminated | truncated
-        self.episode_length[done.squeeze(-1)] = 1
-        self.sequence[done.squeeze(-1)][1:] = 0
-        self.sequence_mask[done.squeeze(-1)][1:] = False
 
         # Create next_tensordict
         obs = actions.clone().long()

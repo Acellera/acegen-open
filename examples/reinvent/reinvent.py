@@ -255,7 +255,7 @@ def run_reinvent(cfg, task):
             "mask",
             "is_init",
             "observation",
-            "sample_log_prob",
+            # "sample_log_prob",
             ("next", "reward"),
             inplace=True,
         )
@@ -316,7 +316,6 @@ def get_log_prob(data, model):
 
     # For transformers-based policies
     data.set("sequence", data.get("observation"))
-    data.pop("sequence_mask", None)
 
     model_in = data.select(*model.in_keys, strict=False)
     log_prob = model.get_dist(model_in).log_prob(actions)
@@ -338,6 +337,7 @@ def compute_loss(data, model, prior, sigma):
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     prior_likelihood = (prior_log_prob * mask).sum(-1)
     score = data.get(("next", "reward")).squeeze(-1).sum(-1)
+
     augmented_likelihood = prior_likelihood + sigma * score
     loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
 
