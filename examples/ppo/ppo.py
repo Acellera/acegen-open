@@ -458,9 +458,6 @@ def run_ppo(cfg, task):
 
             for i, batch in enumerate(buffer):
 
-                # Get next batch
-                # batch = buffer.sample()
-
                 # PPO loss
                 loss = loss_module(batch)
                 loss_sum = (

@@ -387,25 +387,30 @@ def run_ppo(cfg, task):
 
                 # PPO loss
                 mask = batch.get("mask")
-                loss = loss_module(batch)
-                loss = loss.apply(lambda x: (x * mask).mean(), batch_size=[])
-                loss_sum = (
-                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                loss_sum = loss_module.loss_critic(batch).mean()
+                losses[j, i] = TensorDict(
+                    {"loss_critic": loss_sum.detach().item()}, batch_size=[]
                 )
+
+                # loss = loss_module(batch)
+                # loss = loss.apply(lambda x: (x * mask).mean(), batch_size=[])
+                # loss_sum = (
+                #     loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                # )
 
                 # Add KL loss
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
 
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-                kl_div = kl_div[~mask].mean()
+                nan_mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+                kl_div = (kl_div[~nan_mask] * mask[~nan_mask]).mean()
                 loss_sum += kl_div * kl_coef
 
                 # Register losses
-                losses[j, i] = loss.select(
-                    "loss_critic", "loss_entropy", "loss_objective"
-                ).detach()
+                # losses[j, i] = loss.select(
+                #     "loss_critic", "loss_entropy", "loss_objective"
+                # ).detach()
                 losses[j, i] = TensorDict(
                     {"kl_div": kl_div.detach().item()}, batch_size=[]
                 )
