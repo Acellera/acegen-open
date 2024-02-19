@@ -133,7 +133,6 @@ def run_reinvent(cfg, task):
         raise ValueError(f"Unknown model type: {cfg.model}")
 
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
-    import ipdb; ipdb.set_trace()
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )
