@@ -2,11 +2,11 @@ from pathlib import Path
 
 import torch
 from acegen.models import adapt_state_dict
+from acegen.models.gpt2 import create_gpt2_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from rdkit.Chem import AllChem, QED
 from transformers import GPT2Config, GPT2Model
-from acegen.models.gpt2 import create_gpt2_actor
 
 # Get available device
 device = (

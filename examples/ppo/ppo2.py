@@ -365,11 +365,13 @@ def run_ppo(cfg, task):
 
             # Compute experience replay loss
             if (
-                    cfg.experience_replay
-                    and len(experience_replay_buffer) > cfg.replay_batch_size
+                cfg.experience_replay
+                and len(experience_replay_buffer) > cfg.replay_batch_size
             ):
                 replay_batch = experience_replay_buffer.sample()
-                replay_batch = replay_batch.exclude("_weight", "index", "priority", inplace=True)
+                replay_batch = replay_batch.exclude(
+                    "_weight", "index", "priority", inplace=True
+                )
                 extended_data = torch.cat([data, replay_batch], dim=0)
             else:
                 extended_data = data
@@ -388,7 +390,7 @@ def run_ppo(cfg, task):
                 loss = loss_module(batch)
                 loss = loss.apply(lambda x: (x * mask).mean(), batch_size=[])
                 loss_sum = (
-                        loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
                 )
 
                 # Add KL loss
