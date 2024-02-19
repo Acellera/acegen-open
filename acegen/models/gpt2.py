@@ -65,9 +65,28 @@ def define_gpt2_configuration(
     return config
 
 
-def create_gpt2_actor(vocabulary_size):
+def create_gpt2_actor(
+    vocabulary_size: int,
+    n_positions: int = 2048,
+    n_head: int = 16,
+    n_layer: int = 24,
+    n_embd: int = 128,
+    attn_pdrop: float = 0.1,
+    embd_pdrop: float = 0.1,
+    resid_pdrop: float = 0.1,
+    return_log_prob=True,
+):
     """Create a GPT2 actor for language modeling."""
-    config = define_gpt2_configuration(vocabulary_size)
+    config = define_gpt2_configuration(
+        vocabulary_size,
+        n_positions,
+        n_head,
+        n_layer,
+        n_embd,
+        attn_pdrop,
+        embd_pdrop,
+        resid_pdrop,
+    )
     lm = TensorDictModule(
         GPT2(config),
         in_keys=["sequence", "sequence_mask"],
@@ -84,32 +103,75 @@ def create_gpt2_actor(vocabulary_size):
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
-        return_log_prob=True,
+        return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
     return probabilistic_policy, probabilistic_policy
 
 
-def create_gpt2_critic(vocabulary_size):
+def create_gpt2_critic(
+    vocabulary_size: int,
+    n_positions: int = 2048,
+    n_head: int = 16,
+    n_layer: int = 24,
+    n_embd: int = 128,
+    attn_pdrop: float = 0.1,
+    embd_pdrop: float = 0.1,
+    resid_pdrop: float = 0.1,
+    critic_value_per_action=False,
+):
     """Create a GPT2 critic for language modeling."""
-    config = define_gpt2_configuration(vocabulary_size)
+    config = define_gpt2_configuration(
+        vocabulary_size,
+        n_positions,
+        n_head,
+        n_layer,
+        n_embd,
+        attn_pdrop,
+        embd_pdrop,
+        resid_pdrop,
+    )
     lm = TensorDictModule(
         GPT2(config),
         in_keys=["sequence", "sequence_mask"],
         out_keys=["features"],
     )
     lm_head = TensorDictModule(
-        nn.Linear(config.n_embd, 1, bias=False),
+        nn.Linear(
+            config.n_embd,
+            vocabulary_size if critic_value_per_action else 1,
+            bias=False,
+        ),
         in_keys=["features"],
-        out_keys=["state_value"],
+        out_keys=["action_value"] if critic_value_per_action else ["state_value"],
     )
     critic = TensorDictSequential(lm, lm_head)
     return critic, critic
 
 
-def create_gpt2_actor_critic(vocabulary_size):
+def create_gpt2_actor_critic(
+    vocabulary_size: int,
+    n_positions: int = 2048,
+    n_head: int = 16,
+    n_layer: int = 24,
+    n_embd: int = 128,
+    attn_pdrop: float = 0.1,
+    embd_pdrop: float = 0.1,
+    resid_pdrop: float = 0.1,
+    return_log_prob=True,
+    critic_value_per_action=False,
+):
     """Create a GPT2 shared actor-critic network for language modeling."""
-    config = define_gpt2_configuration(vocabulary_size)
+    config = define_gpt2_configuration(
+        vocabulary_size,
+        n_positions,
+        n_head,
+        n_layer,
+        n_embd,
+        attn_pdrop,
+        embd_pdrop,
+        resid_pdrop,
+    )
     lm = TensorDictModule(
         GPT2(config),
         in_keys=["sequence", "sequence_mask"],
@@ -125,13 +187,17 @@ def create_gpt2_actor_critic(vocabulary_size):
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
-        return_log_prob=True,
+        return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
     critic_head = TensorDictModule(
-        nn.Linear(config.n_embd, 1, bias=False),
+        nn.Linear(
+            config.n_embd,
+            vocabulary_size if critic_value_per_action else 1,
+            bias=False,
+        ),
         in_keys=["features"],
-        out_keys=["state_value"],
+        out_keys=["action_value"] if critic_value_per_action else ["state_value"],
     )
     actor_critic = ActorValueOperator(
         common_operator=lm,

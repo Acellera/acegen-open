@@ -113,14 +113,16 @@ def run_reinvent(cfg, task):
     # Model
     ####################################################################################################################
 
-    ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
-    )
-
     if cfg.model == "gru":
         from acegen.models import create_gru_actor
 
         create_actor = create_gru_actor
+        default_prior = (
+            Path(__file__).resolve().parent.parent.parent
+            / "priors"
+            / "gru_chembl_filtered.ckpt"
+        )
+
     elif cfg.model == "lstm":
         from acegen.models import create_lstm_actor
 
@@ -131,6 +133,10 @@ def run_reinvent(cfg, task):
         create_actor = create_gpt2_actor
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
+
+    ckpt = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
+    )
 
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(

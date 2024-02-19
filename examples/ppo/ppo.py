@@ -288,13 +288,15 @@ def run_ppo(cfg, task):
         M = cfg.frames_per_batch // cfg.num_envs
 
         # Transform to populate recurrent states and is_init in replay batches
-        replay_rhs_transforms = [
-            TensorDictPrimer(actor_training.rnn_spec.expand(N, M - 1))
-        ]
-        if cfg.shared_nets is False:
-            replay_rhs_transforms.append(
-                TensorDictPrimer(critic_training.rnn_spec.expand(N, M - 1))
-            )
+        replay_rhs_transforms = []
+        if hasattr(actor_training, "rnn_spec"):
+            replay_rhs_transforms = [
+                TensorDictPrimer(actor_training.rnn_spec.expand(N, M - 1))
+            ]
+            if cfg.shared_nets is False:
+                replay_rhs_transforms.append(
+                    TensorDictPrimer(critic_training.rnn_spec.expand(N, M - 1))
+                )
         replay_logp_transform = TensorDictPrimer(
             {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(N, M - 1))}
         )
@@ -446,10 +448,6 @@ def run_ppo(cfg, task):
             )
         data = data.select(*data_select, inplace=True)
 
-        # For transformers-based policies
-        data.set("sequence", data.get("observation"))
-        data.set(("next", "sequence"), data.get(("next", "observation")))
-
         for j in range(ppo_epochs):
 
             # Add some data from the replay data to the collected data
@@ -469,6 +467,12 @@ def run_ppo(cfg, task):
                 )
             else:
                 extended_data = data
+
+            # For transformers-based policies
+            extended_data.set("sequence", extended_data.get("observation"))
+            extended_data.set(
+                ("next", "sequence"), extended_data.get(("next", "observation"))
+            )
 
             # Compute advantage and prior logits for extended_data
             with torch.no_grad():
