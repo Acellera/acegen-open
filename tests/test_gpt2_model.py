@@ -34,7 +34,7 @@ def generate_valid_data_batch(
 
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
-def test_gru_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
+def test_gpt2_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
     torch.manual_seed(0)
     # Create the model and a data batch
     training_actor, inference_actor = create_gpt2_actor(
@@ -65,7 +65,7 @@ def test_gru_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
 @pytest.mark.parametrize("critic_value_per_action", [True, False])
-def test_gru_critic(
+def test_gpt2_critic(
     vocabulary_size,
     device,
     critic_value_per_action,
@@ -107,7 +107,7 @@ def test_gru_critic(
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
 @pytest.mark.parametrize("critic_value_per_action", [True, False])
-def test_gru_actor_critic(
+def test_gpt2_actor_critic(
     vocabulary_size,
     device,
     critic_value_per_action,
