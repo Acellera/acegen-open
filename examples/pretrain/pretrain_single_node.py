@@ -73,10 +73,8 @@ def main(cfg: "DictConfig"):
 
         create_model = create_gru_actor
     elif cfg.model == "gpt2":
-        import ipdb
         from acegen.models import create_gpt2_actor
 
-        ipdb.set_trace()
         create_model = create_gpt2_actor
     else:
         raise ValueError(f"Unknown model type {cfg.model}")
@@ -96,9 +94,9 @@ def main(cfg: "DictConfig"):
     test_env = TransformedEnv(test_env)
     test_env.append_transform(InitTracker())
 
-    if hasattr(actor_training, "rnn_spec"):
+    if hasattr(actor_inference, "rnn_spec"):
         # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
-        primers = actor_training.rnn_spec.expand(cfg.num_test_smiles)
+        primers = actor_inference.rnn_spec.expand(cfg.num_test_smiles)
         rhs_primer = TensorDictPrimer(primers)
         test_env.append_transform(rhs_primer)
 
