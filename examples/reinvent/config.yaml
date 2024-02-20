@@ -2,7 +2,7 @@
 experiment_name: torchrl_open
 agent_name: reinvent
 log_dir: logs_reinvent
-logger_backend: null
+logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
 
 # Environment configuration

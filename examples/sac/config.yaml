@@ -2,7 +2,7 @@
 experiment_name: torchrl_open
 agent_name: sac
 log_dir: logs_sac
-logger_backend: null
+logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
 
 # Environment configuration
