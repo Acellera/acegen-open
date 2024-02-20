@@ -8,11 +8,11 @@
 #SBATCH --error=slurm_errors/ahc%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
-project_name="acegen-open-example-check-$current_commit"
+project_name="acegen-scripts-check-$current_commit"
 agent_name="ahc"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/examples/ahc/ahc.py \
+python $PYTHONPATH/scripts/ahc/ahc.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \

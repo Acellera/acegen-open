@@ -17,7 +17,7 @@ To display the script usage, you can use the `--help` option:
 The following setup should allow you to run the scripts:
 
 ```bash
-conda create -n acegen-examples-check python=3.10 -y 
+conda create -n acegen-scripts-check python=3.10 -y 
 
 # base dependencies
 pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu121
