@@ -1,0 +1,36 @@
+# Logging configuration
+experiment_name: torchrl_open
+agent_name: a2c
+log_dir: logs_a2c
+logger_backend: null  # csv, wandb, tensorboard, or null
+seed: 101
+
+# Environment configuration
+num_envs: 4
+molscore: MolOpt
+molscore_include: ["Albuterol_similarity"]
+
+# Collector configuration
+total_smiles: 10_000
+frames_per_batch: 400
+
+# Architecture configuration
+shared_nets: True
+model: gru # gru, lstm, or gpt2
+prior: default # The default prior varies for each model. Refer to the README file in the root directory for more information.
+vocabulary: default # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
+
+
+# Optimizer
+lr: 0.0005
+eps: 1.0e-06
+weight_decay: 1.0e-06
+
+# A2C configuration
+gamma: 0.999
+lmbda: 0.99
+critic_coef: 0.5
+entropy_coef: 0.05
+kl_coef: 0.5
+mini_batch_size: 4
+max_grad_norm: 1.0

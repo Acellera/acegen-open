@@ -1,0 +1,42 @@
+# Logging configuration
+experiment_name: torchrl_chem
+agent_name: sac
+log_dir: logs_sac
+logger_backend: null # csv, wandb, tensorboard, or null
+seed: 101
+
+# Environment configuration
+num_envs: 10
+molscore: /shared/albert/MolScore/molscore/configs/valid.json
+
+# Collector configuration
+total_smiles: 12800
+frames_per_batch: 1000
+init_random_smiles: 100
+
+# Replay buffer configuration
+replay_buffer_size: 10_000
+
+# Architecture configuration
+shared_nets: False
+prior: gru_chembl_filtered.ckpt
+vocabulary: chembl_filtered_vocabulary.txt
+
+# Discrete SAC configuration
+lr: 0.0001
+eps: 1e-06
+weight_decay: 0.0
+gamma: 0.999
+target_update_polyak: 0.995
+target_entropy_weight: 0.1
+sampled_sequence_length: 10
+burn_in: 9
+batch_size: 80
+max_grad_norm: 1.0
+num_loss_updates: 500
+value_loss_function: l2
+actor_updates_frequency: 1
+
+# Other
+trainable_actor: False
+anneal_entropy: False

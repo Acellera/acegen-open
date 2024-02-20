@@ -55,9 +55,36 @@ To install AceGen, run
 
 To run the training scripts, run
 
-    python examples/a2c/a2c.py
-    python examples/ppo/ppo.py
-    python examples/reinvent/reinvent.py
-    python examples/ahc/ahc.py
+    python scripts/a2c/a2c.py
+    python scripts/ppo/ppo.py
+    python scripts/reinvent/reinvent.py
+    python scripts/ahc/ahc.py
 
 To modify training parameters, edit the corresponding YAML file in each example's directory.
+
+# Available models
+
+We provide a variety of example priors that can be selected in the configuration file. These include:
+
+- A Gated Recurrent Unit (GRU) model
+  - pre-training dataset1 (default): [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - pre-training dataset2: [ZINC250k](https://github.com/wenhao-gao/mol_opt/blob/main/data/zinc.txt.gz)
+  - umber of parameters: 4,363,045
+
+
+- A Long Short-Term Memory (LSTM) model
+  - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - number of parameters: 5,807,909
+ 
+
+- A GPT-2 model
+  - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
+  - number of parameters: 5,030,400
+
+  
+# Integration of custom models
+
+We encourage users to integrate their own models into AceGen, modifying the existing code as needed.
+
+`/acegen/models/gru.py` and `/acegen/models/lstm.py` offer methods to create RNNs of varying sizes, which can be use
+to load custom models. Similarly, `/acegen/models/gpt2.py` can serve as a template for integrating HuggingFace models. 

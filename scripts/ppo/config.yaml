@@ -1,0 +1,37 @@
+# Logging configuration
+experiment_name: torchrl_open
+agent_name: ppo
+log_dir: logs_ppo
+logger_backend: null # csv, wandb, tensorboard, or null
+seed: 101
+
+# Environment configuration
+num_envs: 32
+molscore: MolOpt
+molscore_include: ["Albuterol_similarity"]
+
+# Collector configuration
+total_smiles: 10_000
+frames_per_batch: 3200
+
+# Architecture configuration
+shared_nets: True
+model: gru # gru, lstm, or gpt2
+prior: default # The default prior varies for each model. Refer to the README file in the root directory for more information.
+vocabulary: default # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
+
+# PPO configuration
+lr: 0.0005
+eps: 1.0e-06
+weight_decay: 1.0e-06
+gamma: 0.999
+lmbda: 0.99
+critic_coef: 0.25
+entropy_coef: 0.025
+kl_coef: 0.025
+mini_batch_size: 4
+ppo_epochs: 4
+max_grad_norm: 0.25
+ppo_clip: 0.1
+experience_replay: True
+replay_batches: 8
