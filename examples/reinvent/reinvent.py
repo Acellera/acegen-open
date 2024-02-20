@@ -52,8 +52,16 @@ except ImportError as err:
 
 
 defaul_model_map = {
-    "gru": (create_gru_actor, "zinc_vocabulary.txt", "gru_zinc.ckpt"),
-    "lstm": (create_lstm_actor, "chembl_vocabulary.txt", "lstm_chembl.ckpt"),
+    "gru": (
+        create_gru_actor,
+        "chembl_filtered_vocabulary.txt",
+        "gru_chembl_filtered.ckpt",
+    ),
+    "lstm": (
+        create_lstm_actor,
+        "chembl_vocabulary.txt",
+        "lstm_chembl.ckpt",
+    ),
     "gpt2": (
         create_gpt2_actor,
         "enamine_real_vocabulary.txt",

@@ -12,7 +12,12 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.models import adapt_state_dict
+from acegen.models import (
+    adapt_state_dict,
+    create_gpt2_actor,
+    create_gru_actor,
+    create_lstm_actor,
+)
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
@@ -45,6 +50,25 @@ try:
 except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
+
+
+defaul_model_map = {
+    "gru": (
+        create_gru_actor,
+        "chembl_filtered_vocabulary.txt",
+        "gru_chembl_filtered.ckpt",
+    ),
+    "lstm": (
+        create_lstm_actor,
+        "chembl_vocabulary.txt",
+        "lstm_chembl.ckpt",
+    ),
+    "gpt2": (
+        create_gpt2_actor,
+        "enamine_real_vocabulary.txt",
+        "gpt2_enamine_real.ckpt",
+    ),
+}
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -102,9 +126,25 @@ def run_ahc(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Load Vocabulary
-    ckpt = Path(__file__).resolve().parent.parent.parent / "priors" / cfg.vocabulary
-    with open(ckpt, "r") as f:
+    if cfg.model in defaul_model_map:
+        create_actor, vocab_file, weights_file = defaul_model_map[cfg.model]
+        voc_path = (
+            Path(__file__).resolve().parent.parent.parent / "priors" / vocab_file
+            if cfg.prior == "default"
+            else Path(cfg.prior)
+        )
+        ckpt_path = (
+            Path(__file__).resolve().parent.parent.parent / "priors" / weights_file
+            if cfg.prior == "default"
+            else Path(cfg.prior)
+        )
+    else:
+        raise ValueError(f"Unknown model type: {cfg.model}")
+
+    # Vocabulary
+    ####################################################################################################################
+
+    with open(voc_path, "r") as f:
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
     vocabulary = SMILESVocabulary.create_from_dict(
@@ -114,24 +154,7 @@ def run_ahc(cfg, task):
     # Model
     ####################################################################################################################
 
-    ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
-    )
-
-    if cfg.model == "gru":
-        from acegen.models import create_gru_actor
-
-        create_actor = create_gru_actor
-    elif cfg.model == "lstm":
-        from acegen.models import create_lstm_actor
-
-        create_actor = create_lstm_actor
-    elif cfg.model == "gpt2":
-        from acegen.models import create_gpt2_actor
-
-        create_actor = create_gpt2_actor
-    else:
-        raise ValueError(f"Unknown model type: {cfg.model}")
+    ckpt = torch.load(ckpt_path)
 
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
