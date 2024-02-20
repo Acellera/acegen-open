@@ -212,7 +212,7 @@ def main(cfg: "DictConfig"):
                 batch_td = smiles_to_tensordict(
                     batch, replace_mask_value=0, device=device
                 )
-                batch.set("sequence", batch.get("observation"))
+                batch_td.set("sequence", batch_td.get("observation"))
 
                 # Loss
                 loss_actor = actor_training(batch_td)

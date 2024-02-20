@@ -133,9 +133,6 @@ def main(cfg: "DictConfig"):
         )
 
     # Calculate number of parameters
-    import ipdb
-
-    ipdb.set_trace()
     num_params = sum(param.numel() for param in actor_training.parameters())
     logging.info(f"Number of policy parameters {num_params:,}")
 
@@ -155,7 +152,7 @@ def main(cfg: "DictConfig"):
                 batch_td = smiles_to_tensordict(
                     batch, replace_mask_value=0, device=device
                 )
-                batch.set("sequence", batch.get("observation"))
+                batch_td.set("sequence", batch_td.get("observation"))
                 target = batch_td.get("action")
                 batch_td.set("is_init", torch.zeros_like(target).unsqueeze(-1).bool())
 
