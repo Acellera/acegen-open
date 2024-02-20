@@ -7,7 +7,6 @@ import hydra
 import numpy as np
 import torch
 from acegen.data import load_dataset, smiles_to_tensordict, SMILESDataset
-from acegen.models import create_gru_actor, create_lstm_actor
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from rdkit import Chem
@@ -66,9 +65,17 @@ def main(cfg: "DictConfig"):
     logging.info("\nCreating model...")
 
     if cfg.model == "lstm":
+        from acegen.models import create_lstm_actor
+
         create_model = create_lstm_actor
     elif cfg.model == "gru":
+        from acegen.models import create_gru_actor
+
         create_model = create_gru_actor
+    elif cfg.model == "gpt2":
+        from acegen.models import create_gpt2_actor
+
+        create_model = create_gpt2_actor
     else:
         raise ValueError(f"Unknown model type {cfg.model}")
 
@@ -141,6 +148,7 @@ def main(cfg: "DictConfig"):
                 batch_td = smiles_to_tensordict(
                     batch, replace_mask_value=0, device=device
                 )
+                batch.set("sequence", batch.get("observation"))
                 target = batch_td.get("action")
                 batch_td.set("is_init", torch.zeros_like(target).unsqueeze(-1).bool())
 

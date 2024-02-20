@@ -282,11 +282,12 @@ def run_a2c(cfg, task):
         logger = get_logger(
             cfg.logger_backend,
             logger_name="a2c",
-            experiment_name=cfg.agent_name,
+            experiment_name=f"{cfg.agent_name}_{task.configs.get('task')}",
             wandb_kwargs={
                 "config": dict(cfg),
                 "project": cfg.experiment_name,
                 "group": cfg.agent_name,
+                "reinit": True,
             },
         )
 

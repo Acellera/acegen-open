@@ -205,11 +205,12 @@ def run_reinvent(cfg, task):
         logger = get_logger(
             cfg.logger_backend,
             logger_name="reinvent",
-            experiment_name=cfg.agent_name,
+            experiment_name=f"{cfg.agent_name}_{task.configs.get('task')}",
             wandb_kwargs={
                 "config": dict(cfg),
                 "project": cfg.experiment_name,
                 "group": cfg.agent_name,
+                "reinit": True,
             },
         )
 
