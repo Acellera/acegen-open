@@ -67,15 +67,16 @@ To modify training parameters, edit the corresponding YAML file in each example'
 We provide a variety of example priors that can be selected in the configuration file. These include:
 
 - A Gated Recurrent Unit (GRU) model
-    - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
-    - number of parameters: 4,363,045
+  - pre-training dataset1 (default): [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - pre-training dataset2: [ZINC250k](https://github.com/wenhao-gao/mol_opt/blob/main/data/zinc.txt.gz)
+  - - number of parameters: 4,363,045
 
 
 - A Long Short-Term Memory (LSTM) model
-    - pre-training dataset: [ZINC250k](https://github.com/wenhao-gao/mol_opt/blob/main/data/zinc.txt.gz)
-    - number of parameters: 5,807,909
+  - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - number of parameters: 5,807,909
  
 
 - A GPT-2 model
-    - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
-    - number of parameters: XXXXXX
+  - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
+  - number of parameters: 5,030,400

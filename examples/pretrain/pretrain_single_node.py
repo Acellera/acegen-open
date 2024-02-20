@@ -73,8 +73,10 @@ def main(cfg: "DictConfig"):
 
         create_model = create_gru_actor
     elif cfg.model == "gpt2":
+        import ipdb
         from acegen.models import create_gpt2_actor
 
+        ipdb.set_trace()
         create_model = create_gpt2_actor
     else:
         raise ValueError(f"Unknown model type {cfg.model}")
@@ -84,9 +86,6 @@ def main(cfg: "DictConfig"):
     actor_inference.to(device)
 
     logging.info("\nCreating test environment...")
-    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
-    primers = actor_training.rnn_spec.expand(cfg.num_test_smiles)
-    rhs_primer = TensorDictPrimer(primers)
     test_env = SMILESEnv(
         start_token=vocabulary.start_token_index,
         end_token=vocabulary.end_token_index,
@@ -96,7 +95,12 @@ def main(cfg: "DictConfig"):
     )
     test_env = TransformedEnv(test_env)
     test_env.append_transform(InitTracker())
-    test_env.append_transform(rhs_primer)
+
+    if hasattr(actor_training, "rnn_spec"):
+        # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
+        primers = actor_training.rnn_spec.expand(cfg.num_test_smiles)
+        rhs_primer = TensorDictPrimer(primers)
+        test_env.append_transform(rhs_primer)
 
     logging.info("\nCreating test scoring function...")
 
@@ -129,6 +133,9 @@ def main(cfg: "DictConfig"):
         )
 
     # Calculate number of parameters
+    import ipdb
+
+    ipdb.set_trace()
     num_params = sum(param.numel() for param in actor_training.parameters())
     logging.info(f"Number of policy parameters {num_params:,}")
 

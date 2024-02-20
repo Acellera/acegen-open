@@ -148,9 +148,6 @@ def main(cfg: "DictConfig"):
     actor_inference.to(device)
 
     logging.info("\nCreating test environment...")
-    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
-    primers = actor_inference.rnn_spec.expand(cfg.num_test_smiles)
-    rhs_primer = TensorDictPrimer(primers)
     test_env = SMILESEnv(
         start_token=vocabulary.start_token_index,
         end_token=vocabulary.end_token_index,
@@ -160,8 +157,11 @@ def main(cfg: "DictConfig"):
     )
     test_env = TransformedEnv(test_env)
     test_env.append_transform(InitTracker())
-    test_env.append_transform(rhs_primer)
-
+    if hasattr(actor_training, "rnn_spec"):
+        # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
+        primers = actor_training.rnn_spec.expand(cfg.num_test_smiles)
+        rhs_primer = TensorDictPrimer(primers)
+        test_env.append_transform(rhs_primer)
     logging.info("\nCreating test scoring function...")
 
     def valid_smiles(smiles_list):

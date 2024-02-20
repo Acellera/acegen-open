@@ -14,9 +14,9 @@ molscore_include: ["Albuterol_similarity"]
 total_smiles: 10_000
 
 # Architecture
-model: gru
-prior: gru_chembl_filtered.ckpt
-vocabulary: chembl_filtered_vocabulary.txt
+model: gru # gru, lstm, or gpt2
+prior: default # The default prior varies for each model. Refer to the README file in the root directory for more information.
+vocabulary: default # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
 
 # Reinforce configuration
 lr: 0.0001

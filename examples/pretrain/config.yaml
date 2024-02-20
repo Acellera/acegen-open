@@ -10,7 +10,7 @@ model_log_dir: /tmp/pretrain
 train_dataset_path: null
 
 # Model configuration
-model: gru
+model: gru # gru, lstm, or gpt2
 
 # Training configuration
 lr: 0.0001
