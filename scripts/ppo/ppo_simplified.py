@@ -86,7 +86,7 @@ default_model_map = {
 }
 
 
-@hydra.main(config_path=".", config_name="config2", version_base="1.2")
+@hydra.main(config_path=".", config_name="config_simplified", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Set seeds
@@ -406,27 +406,27 @@ def run_ppo(cfg, task):
 
                 # PPO loss
                 mask = batch.get("mask")
-
                 loss = loss_module(batch)
                 loss = loss.apply(lambda x: (x * mask).mean(), batch_size=[])
-                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-
+                loss_sum = (
+                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                )
                 losses[j, i] = loss.select(
                     "loss_critic", "loss_entropy", "loss_objective"
                 ).detach()
 
-                # Add KL loss
+                # Add KL loss term
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
-
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                nan_mask = (torch.isnan(kl_div) | torch.isinf(kl_div))
+                nan_mask = torch.isnan(kl_div) | torch.isinf(kl_div)
                 kl_div = (kl_div * mask.squeeze())[~nan_mask].mean()
                 loss_sum += kl_div * kl_coef
                 losses[j, i] = TensorDict(
                     {"kl_div": kl_div.detach().item()}, batch_size=[]
                 )
 
+                # Update policy
                 loss_sum.backward()
                 torch.nn.utils.clip_grad_norm_(
                     loss_module.parameters(), max_norm=max_grad_norm

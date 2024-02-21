@@ -23,12 +23,12 @@ from acegen.models import (
     create_lstm_actor_critic,
     create_lstm_critic,
 )
-from acegen.rl_env import SMILESEnv
+from tensordict.utils import remove_duplicates
+from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
 from torch.distributions.kl import kl_divergence
-from torchrl.collectors import SyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
@@ -80,7 +80,7 @@ default_model_map = {
 }
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path=".", config_name="config_simplified", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Set seeds
@@ -221,38 +221,11 @@ def run_a2c(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(
-            UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["SMILES"], unsqueeze_dim=-1
-            )
-        )
-        env.append_transform(
-            CatFrames(
-                N=100,
-                dim=-1,
-                padding="constant",
-                in_keys=["SMILES"],
-                out_keys=["SMILES"],
-                padding_value=-1,
-            )
-        )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
         return env
-
-    # Collector
-    ####################################################################################################################
-
-    collector = SyncDataCollector(
-        policy=actor_inference,
-        create_env_fn=create_env_fn,
-        frames_per_batch=cfg.frames_per_batch,
-        total_frames=-1,
-        storing_device=device,
-        device=device,
-    )
 
     # Loss modules
     ####################################################################################################################
@@ -316,31 +289,29 @@ def run_a2c(cfg, task):
 
     total_done = 0
     num_updates = 0
+    env = create_env_fn()
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[num_mini_batches])
 
-    for data in collector:
+    while not task.finished:
 
-        if task.finished:
-            break
+        data = generate_complete_smiles(policy=actor_inference, environment=env)
+        data = remove_duplicates(data, key="action")
 
         log_info = {}
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += done.sum().item()
+        total_done += cfg.num_envs
+        smiles = data.select("action").cpu()
         pbar.update(done.sum().item())
 
         # Compute rewards
-        smiles = data_next.select("SMILES")[done].cpu()
-        smiles_list = [
-            vocabulary.decode(smi.numpy(), ignore_indices=[-1])
-            for smi in smiles["SMILES"]
-        ]
+        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
         data_next["reward"][done] = torch.tensor(
-            task(smiles_list), device=device
+            task(smiles_str), device=device
         ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
@@ -403,21 +374,29 @@ def run_a2c(cfg, task):
 
             batch = batch.to(device, non_blocking=True)
 
+            # Compute loss
+            mask = batch.get("mask")
             loss = loss_module(batch)
+            loss = loss.apply(lambda x: (x * mask).mean(), batch_size=[])
             loss_sum = (
                 loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
             )
             losses[j] = loss.select(
                 "loss_critic", "loss_entropy", "loss_objective"
             ).detach()
+
+            # Add KL loss term
             with torch.no_grad():
                 prior_dist = prior.get_dist(batch)
-            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-            mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-            kl_div = kl_div[~mask].mean()
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+            nan_mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+            kl_div = (kl_div * mask.squeeze())[~nan_mask].mean()
             loss_sum += kl_div * kl_coef
-            losses[j] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
+            losses[j] = TensorDict(
+                {"kl_div": kl_div.detach().item()}, batch_size=[]
+            )
 
+            # Update policy
             loss_sum.backward()
             torch.nn.utils.clip_grad_norm_(
                 loss_module.parameters(), max_norm=max_grad_norm
@@ -433,9 +412,6 @@ def run_a2c(cfg, task):
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done)
-        collector.update_policy_weights_()
-
-    collector.shutdown()
 
 
 if __name__ == "__main__":
