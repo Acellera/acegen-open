@@ -438,7 +438,7 @@ def run_ppo(cfg, task):
         for key, value in losses_mean.items():
             log_info.update({f"train/{key}": value.item()})
 
-            # Then add new experiences to the replay buffer
+        # Add new experiences to the replay buffer
         if cfg.experience_replay is True:
 
             # Remove SMILES that are already in the replay buffer
