@@ -1,6 +1,6 @@
 # Logging configuration
-experiment_name: pretrain
-agent_name: gru
+experiment_name: acegen
+agent_name: pretrain_gru
 logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
 dataset_log_dir: /tmp/pretrain

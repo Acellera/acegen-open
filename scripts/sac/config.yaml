@@ -1,5 +1,5 @@
 # Logging configuration
-experiment_name: torchrl_open
+experiment_name: acegen
 agent_name: sac
 log_dir: logs_sac
 logger_backend: null # csv, wandb, tensorboard, or null
