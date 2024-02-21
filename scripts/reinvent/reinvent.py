@@ -51,7 +51,7 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-defaul_model_map = {
+default_model_map = {
     "gru": (
         create_gru_actor,
         "chembl_filtered_vocabulary.txt",
@@ -125,8 +125,8 @@ def run_reinvent(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    if cfg.model in defaul_model_map:
-        create_actor, vocab_file, weights_file = defaul_model_map[cfg.model]
+    if cfg.model in default_model_map:
+        create_actor, vocab_file, weights_file = default_model_map[cfg.model]
         voc_path = (
             Path(__file__).resolve().parent.parent.parent / "priors" / vocab_file
             if cfg.prior == "default"

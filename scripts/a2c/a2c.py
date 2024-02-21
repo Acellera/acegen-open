@@ -55,7 +55,7 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-defaul_model_map = {
+default_model_map = {
     "gru": (
         create_gru_actor,
         create_gru_critic,
@@ -135,9 +135,9 @@ def run_a2c(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    if cfg.model in defaul_model_map:
+    if cfg.model in default_model_map:
         create_actor, create_critic, create_shared, vocab_file, weights_file = (
-            defaul_model_map[cfg.model]
+            default_model_map[cfg.model]
         )
         voc_path = (
             Path(__file__).resolve().parent.parent.parent / "priors" / vocab_file
@@ -253,6 +253,7 @@ def run_a2c(cfg, task):
         storing_device=device,
         device=device,
     )
+
     # Loss modules
     ####################################################################################################################
 
