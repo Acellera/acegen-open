@@ -23,11 +23,11 @@ from acegen.models import (
     create_lstm_actor_critic,
     create_lstm_critic,
 )
-from tensordict.utils import remove_duplicates
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
+from tensordict.utils import remove_duplicates
 from torch.distributions.kl import kl_divergence
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
@@ -392,9 +392,7 @@ def run_a2c(cfg, task):
             nan_mask = torch.isnan(kl_div) | torch.isinf(kl_div)
             kl_div = (kl_div * mask.squeeze())[~nan_mask].mean()
             loss_sum += kl_div * kl_coef
-            losses[j] = TensorDict(
-                {"kl_div": kl_div.detach().item()}, batch_size=[]
-            )
+            losses[j] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
 
             # Update policy
             loss_sum.backward()
