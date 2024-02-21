@@ -226,21 +226,6 @@ def run_ppo(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(
-            UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["SMILES"], unsqueeze_dim=-1
-            )
-        )
-        env.append_transform(
-            CatFrames(
-                N=100,
-                dim=-1,
-                padding="constant",
-                in_keys=["SMILES"],
-                out_keys=["SMILES"],
-                padding_value=-1,
-            )
-        )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
@@ -286,7 +271,7 @@ def run_ppo(cfg, task):
     storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
     experience_replay_buffer = TensorDictReplayBuffer(
         storage=storage,
-        sampler=PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0),
+        sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
         batch_size=cfg.replay_batch_size,
         writer=TensorDictMaxValueWriter(rank_key="priority"),
         priority_key="priority",
@@ -423,27 +408,20 @@ def run_ppo(cfg, task):
                 mask = batch.get("mask")
 
                 loss = loss_module(batch)
-                loss_sum = (
-                    loss["loss_critic"] * mask
-                    + loss["loss_objective"] * mask
-                    + loss["loss_entropy"] * mask
-                ).mean()
-                losses[j, i] = TensorDict(
-                    {
-                        "loss_critic": (loss["loss_critic"] * mask).mean().item(),
-                        "loss_objective": (loss["loss_objective"] * mask).mean().item(),
-                        "loss_entropy": (loss["loss_entropy"] * mask).mean().item(),
-                    },
-                    batch_size=[],
-                )
+                loss = loss.apply(lambda x: (x * mask).mean(), batch_size=[])
+                loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+
+                losses[j, i] = loss.select(
+                    "loss_critic", "loss_entropy", "loss_objective"
+                ).detach()
 
                 # Add KL loss
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
 
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                nan_mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-                kl_div = (kl_div[~nan_mask] * mask).mean()
+                nan_mask = (torch.isnan(kl_div) | torch.isinf(kl_div))
+                kl_div = (kl_div * mask.squeeze())[~nan_mask].mean()
                 loss_sum += kl_div * kl_coef
                 losses[j, i] = TensorDict(
                     {"kl_div": kl_div.detach().item()}, batch_size=[]
