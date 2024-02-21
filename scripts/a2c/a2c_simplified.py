@@ -165,6 +165,7 @@ def run_a2c(cfg, task):
     # Model
     ####################################################################################################################
 
+    # Create actor and critic networks
     if cfg.shared_nets:
         (
             actor_training,
@@ -194,8 +195,8 @@ def run_a2c(cfg, task):
     # Environment
     ####################################################################################################################
 
-    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
     rhs_primers = []
+    # if rnn's, create a transform to populate initial tensordict with recurrent states equal to 0.0
     if cfg.shared_nets and hasattr(actor_training, "rnn_spec"):
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
@@ -227,7 +228,7 @@ def run_a2c(cfg, task):
             env.append_transform(rhs_primer)
         return env
 
-    # Loss modules
+    # Loss module
     ####################################################################################################################
 
     adv_module = GAE(
@@ -247,7 +248,7 @@ def run_a2c(cfg, task):
     )
     loss_module = loss_module.to(device)
 
-    # A2C data Buffer
+    # Data storage
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
@@ -298,23 +299,25 @@ def run_a2c(cfg, task):
 
     while not task.finished:
 
+        # Generate data
         data = generate_complete_smiles(policy=actor_inference, environment=env)
         data = remove_duplicates(data, key="action")
 
-        log_info = {}
+        # Update progress bar
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += cfg.num_envs
-        smiles = data.select("action").cpu()
         pbar.update(done.sum().item())
 
         # Compute rewards
+        smiles = data.select("action").cpu()
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
         data_next["reward"][done] = torch.tensor(
             task(smiles_str), device=device
         ).unsqueeze(-1)
 
-        # Register smiles lengths and real rewards
+        # Register smiles lengths and real rewards and total generated smiles
+        log_info = {}
+        total_done += cfg.num_envs
         episode_rewards = data_next["reward"][done]
         episode_length = data_next["step_count"][done]
         if len(episode_rewards) > 0:
@@ -330,36 +333,6 @@ def run_a2c(cfg, task):
                 }
             )
 
-        # Select only the necessary tensors
-        data_select = [
-            "action",
-            "done",
-            "is_init",
-            "observation",
-            "sample_log_prob",
-            "terminated",
-            ("next", "done"),
-            ("next", "is_init"),
-            ("next", "observation"),
-            ("next", "terminated"),
-            ("next", "reward"),
-        ]
-        if hasattr(actor_training, "rnn_spec"):
-            data_select += (
-                ["recurrent_state"]
-                if cfg.shared_nets
-                else ["recurrent_state_actor", "recurrent_state_critic"]
-            )
-            data_select += (
-                [("next", "recurrent_state")]
-                if cfg.shared_nets
-                else [
-                    ("next", "recurrent_state_actor"),
-                    ("next", "recurrent_state_critic"),
-                ]
-            )
-        data = data.select(*data_select, inplace=True)
-
         # For transformers-based policies
         data.set("sequence", data.get("observation"))
         data.set(("next", "sequence"), data.get(("next", "observation")))
@@ -368,6 +341,7 @@ def run_a2c(cfg, task):
         with torch.no_grad():
             data = adv_module(data)
 
+        # Add extended_data to buffer
         buffer.extend(data)
 
         for j, batch in enumerate(buffer):
