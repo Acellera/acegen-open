@@ -84,7 +84,14 @@ We provide a variety of example priors that can be selected in the configuration
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
   - number of parameters: 5,030,400
 
-  
+# Changing the scoring function
+
+To change the scoring function, adjust the `molscore` parameter in any configuration file. Set it to point to a valid 
+MolScore configuration file (e.g.  ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json). 
+Alternatively, you can set the `molscore` parameter to the name of a valid MolScore benchmark 
+(such as MolOpt, GuacaMol, etc.) to automatically execute each task in the benchmark. For further details on MolScore, 
+please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) repository.
+
 # Integration of custom models
 
 We encourage users to integrate their own models into AceGen, modifying the existing code as needed.
