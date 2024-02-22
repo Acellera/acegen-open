@@ -6,7 +6,7 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-from acegen.data import load_dataset, smiles_to_tensordict, SMILESDataset
+from acegen.data import load_dataset, SMILESDataset
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from rdkit import Chem
@@ -144,12 +144,9 @@ def main(cfg: "DictConfig"):
 
             tepoch.set_description(f"Epoch {epoch}")
 
-            for step, batch in tepoch:
+            for step, batch_td in tepoch:
 
-                batch = batch.to(device)
-                batch_td = smiles_to_tensordict(
-                    batch, replace_mask_value=0, device=device
-                )
+                batch_td = batch_td.to(device)
                 batch_td.set("sequence", batch_td.get("observation"))
                 target = batch_td.get("action")
                 batch_td.set("is_init", torch.zeros_like(target).unsqueeze(-1).bool())

@@ -8,6 +8,8 @@ from rdkit import Chem
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from acegen.data import smiles_to_tensordict
+
 
 def load_dataset(file_path):
     """Reads a list of SMILES from file_path."""
@@ -137,4 +139,4 @@ class SMILESDataset(Dataset):
         collated_arr = torch.ones(len(arr), max_length) * -1
         for i, seq in enumerate(arr):
             collated_arr[i, : seq.size(0)] = seq
-        return collated_arr
+        return smiles_to_tensordict(collated_arr, replace_mask_value=0)

@@ -11,7 +11,7 @@ def smiles_to_tensordict(
     mask_value: int = -1,
     replace_mask_value: int = None,
 ):
-    """Create an episode Tensordict from a batch of SMILES.
+    """Create a Tensordict in TorchRL data format from a batch of SMILES.
 
     Args:
         smiles (torch.Tensor): Batch of SMILES. Shape: (B, T).
