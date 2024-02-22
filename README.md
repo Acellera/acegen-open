@@ -91,7 +91,7 @@ We encourage users to integrate their own models into AceGen, modifying the exis
 `/acegen/models/gru.py` and `/acegen/models/lstm.py` offer methods to create RNNs of varying sizes, which can be use
 to load custom models. Similarly, `/acegen/models/gpt2.py` can serve as a template for integrating HuggingFace models. 
 
-# Results on the MolOpt benchmark
+# Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark
 
 Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. 
 Each algorithm ran 5 times with different seeds, and results were averaged.
