@@ -146,9 +146,7 @@ def main(cfg: "DictConfig"):
             for step, batch_td in tepoch:
 
                 batch_td = batch_td.to(device)
-                batch_td.set("sequence", batch_td.get("observation"))
                 target = batch_td.get("action")
-                batch_td.set("is_init", torch.zeros_like(target).unsqueeze(-1).bool())
 
                 # Forward pass
                 dist = actor_training.get_dist(batch_td)

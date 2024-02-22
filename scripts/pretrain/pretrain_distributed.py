@@ -208,10 +208,8 @@ def main(cfg: "DictConfig"):
 
             for step, batch_td in tepoch:
 
+                # Forward pass
                 batch_td = batch_td.to(device)
-                batch_td.set("sequence", batch_td.get("observation"))
-
-                # Loss
                 loss_actor = actor_training(batch_td)
 
                 # Backward pass

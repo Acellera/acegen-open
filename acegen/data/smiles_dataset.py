@@ -139,4 +139,6 @@ class SMILESDataset(Dataset):
         collated_arr = torch.ones(len(arr), max_length) * -1
         for i, seq in enumerate(arr):
             collated_arr[i, : seq.size(0)] = seq
-        return smiles_to_tensordict(collated_arr, replace_mask_value=0)
+        batch = smiles_to_tensordict(collated_arr, replace_mask_value=0)
+        batch.set("sequence", batch.get("observation"))
+        return batch
