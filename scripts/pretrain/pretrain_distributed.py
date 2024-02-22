@@ -122,7 +122,6 @@ def main(cfg: "DictConfig"):
         drop_last=True,
         shuffle=False,  # Needs to be False with DistributedSampler
         num_workers=4,
-        pin_memory=True,
         collate_fn=dataset.collate_fn,
     )
 

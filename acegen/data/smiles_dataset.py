@@ -8,7 +8,7 @@ from rdkit import Chem
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from acegen.data import smiles_to_tensordict
+from acegen.data.utils import smiles_to_tensordict
 
 
 def load_dataset(file_path):
