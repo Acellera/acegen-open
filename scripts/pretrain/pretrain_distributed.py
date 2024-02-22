@@ -41,7 +41,6 @@ class Model(torch.nn.Module):
 
         batch = batch.to(self.device)
         target = batch.get("action")
-        batch.set("is_init", torch.zeros_like(target).unsqueeze(-1).bool())
 
         # Forward pass
         dist = self.actor.get_dist(batch)
