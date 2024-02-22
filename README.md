@@ -6,6 +6,7 @@ In recent years, reinforcement learning (RL) has been increasingly used in drug 
 
 AceGen applies TorchRL - a modern general decision-making library that provides well-integrated reusable components - to make a robust toolkit tailored for generative drug design.
 
+![Alt Text](./acegen/images/train_zaleplon.png)
 ![Alt Text](./acegen/images/chem_zaleplon.png)
 
 ## Installation
