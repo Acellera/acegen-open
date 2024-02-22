@@ -94,7 +94,7 @@ to load custom models. Similarly, `/acegen/models/gpt2.py` can serve as a templa
 # Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark
 
 Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. 
-Each algorithm ran 5 times with different seeds, and results were averaged.
+Each algorithm ran 5 times with different seeds, and results were averaged. We used the default configuration for each algorithm, including the GRU model for the prior.
 
 | Task                       | Reinvent | AHC   | A2C   | PPO   | PPOD  |
 |----------------------------|----------|-------|-------|-------|-------|
