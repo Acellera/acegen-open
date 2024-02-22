@@ -357,18 +357,6 @@ def main(cfg: "DictConfig"):
                 for key, value in log_info.items():
                     logger.log_scalar(key, value, collected_frames)
 
-        # Then exclude unnecessary tensors
-        data = data.exclude(
-            "embed",
-            "logits",
-            "features",
-            "collector",
-            "step_count",
-            ("next", "step_count"),
-            "SMILES",
-            ("next", "SMILES"),
-        )
-
         # Zero out recurrent states
         for key in data.keys():
             if key.startswith("recurrent_state"):
