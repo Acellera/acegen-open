@@ -346,24 +346,6 @@ def main(cfg: "DictConfig"):
                 for key, value in log_info.items():
                     logger.log_scalar(key, value, collected_frames)
 
-        # Select only the necessary tensors
-        # data = data.select(
-        #     "action",
-        #     "done",
-        #     "is_init",
-        #     "observation",
-        #     "sample_log_prob",
-        #     "recurrent_state_critic"
-        #     "terminated",
-        #     ("next", "done"),
-        #     ("next", "is_init"),
-        #     ("next", "observation"),
-        #     ("next", "terminated"),
-        #     ("next", "reward"),
-        #     ("next", "recurrent_state_critic"),
-        #     inplace=True,
-        # )
-
         # Zero out recurrent states
         for key in data.keys():
             if key.startswith("recurrent_state"):

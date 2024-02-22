@@ -101,5 +101,6 @@ def generate_complete_smiles(
         tensordicts[-1][("next", "done")] = ~finished.clone()
 
     output_data = torch.stack(tensordicts, dim=-1).contiguous()
+    output_data.refine_names(..., "time")
 
     return output_data

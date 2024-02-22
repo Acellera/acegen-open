@@ -171,6 +171,7 @@ def run_ppo(cfg, task):
     # Model
     ####################################################################################################################
 
+    # Create actor and critic networks
     if cfg.shared_nets:
         (
             actor_training,
@@ -200,11 +201,12 @@ def run_ppo(cfg, task):
     # Environment
     ####################################################################################################################
 
-    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
-    if cfg.shared_nets:
+    rhs_primers = []
+    # if rnn's, create a transform to populate initial tensordict with recurrent states equal to 0.0
+    if cfg.shared_nets and hasattr(actor_training, "rnn_spec"):
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
-    else:
+    elif hasattr(actor_training, "rnn_spec"):
         actor_primers = actor_training.rnn_spec.expand(cfg.num_envs)
         critic_primers = critic_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [
@@ -232,7 +234,7 @@ def run_ppo(cfg, task):
             env.append_transform(rhs_primer)
         return env
 
-    # Loss modules
+    # Loss module
     ####################################################################################################################
 
     adv_module = GAE(
@@ -255,7 +257,7 @@ def run_ppo(cfg, task):
     )
     loss_module = loss_module.to(device)
 
-    # PPO data Buffer
+    # Data storage
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
@@ -318,23 +320,25 @@ def run_ppo(cfg, task):
 
     while not task.finished:
 
+        # Generate data
         data = generate_complete_smiles(policy=actor_inference, environment=env)
         data = remove_duplicates(data, key="action")
 
-        log_info = {}
+        # Update progress bar
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += cfg.num_envs
-        smiles = data.select("action").cpu()
         pbar.update(done.sum().item())
 
         # Compute rewards
+        smiles = data.select("action").cpu()
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
         data_next["reward"][done] = torch.tensor(
             task(smiles_str), device=device
         ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
+        log_info = {}
+        total_done += cfg.num_envs
         episode_rewards = data_next["reward"][done]
         episode_length = data_next["step_count"][done]
         if len(episode_rewards) > 0:
@@ -349,33 +353,6 @@ def run_ppo(cfg, task):
                     ),
                 }
             )
-
-        # Select only the necessary tensors
-        data_select = [
-            "mask",
-            "action",
-            "done",
-            "is_init",
-            "observation",
-            "sample_log_prob",
-            "terminated",
-            ("next", "done"),
-            ("next", "is_init"),
-            ("next", "observation"),
-            ("next", "terminated"),
-            ("next", "reward"),
-        ]
-        data_select += (
-            ["recurrent_state"]
-            if cfg.shared_nets
-            else ["recurrent_state_actor", "recurrent_state_critic"]
-        )
-        data_select += (
-            [("next", "recurrent_state")]
-            if cfg.shared_nets
-            else [("next", "recurrent_state_actor"), ("next", "recurrent_state_critic")]
-        )
-        data = data.select(*data_select, inplace=True)
 
         # Get data to be potentially added to the replay buffer later
         replay_data = data.clone()
@@ -395,7 +372,7 @@ def run_ppo(cfg, task):
             else:
                 extended_data = data
 
-            # Compute advantage and prior logits for extended_data
+            # Compute advantage
             with torch.no_grad():
                 extended_data = adv_module(extended_data)
 
