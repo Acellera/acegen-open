@@ -419,7 +419,7 @@ def run_ppo(cfg, task):
         if cfg.experience_replay is True:
 
             # MaxValueWriter is not compatible with storages of more than one dimension.
-            replay_data.batch_size = [cfg.num_envs]
+            replay_data.batch_size = [replay_data.batch_size[0]]
 
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
@@ -431,9 +431,10 @@ def run_ppo(cfg, task):
                 replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
-            reward = replay_data.get(("next", "reward"))
-            replay_data.set("priority", reward)
-            experience_replay_buffer.extend(replay_data)
+            if len(replay_data) > 0:
+                reward = replay_data.get(("next", "reward"))
+                replay_data.set("priority", reward)
+                experience_replay_buffer.extend(replay_data)
 
         if logger:
             for key, value in log_info.items():

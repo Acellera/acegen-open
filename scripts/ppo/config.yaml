@@ -33,5 +33,5 @@ mini_batch_size: 4
 ppo_epochs: 4
 max_grad_norm: 0.25
 ppo_clip: 0.1
-experience_replay: True
+experience_replay: True # If True, the algorithm is PPO+D
 replay_batches: 8
