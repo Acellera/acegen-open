@@ -349,9 +349,14 @@ def run_a2c(cfg, task):
             batch = batch.to(device, non_blocking=True)
 
             # Compute loss
-            mask = batch.get("mask")
+            mask = batch.get("mask").squeeze(-1)
             loss = loss_module(batch)
-            loss = loss.apply(lambda x: (x * mask).mean(), batch_size=[])
+            loss = loss.named_apply(
+                lambda name, value: (
+                    (value * mask).mean() if name.startswith("loss_") else value
+                ),
+                batch_size=[],
+            )
             loss_sum = (
                 loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
             )

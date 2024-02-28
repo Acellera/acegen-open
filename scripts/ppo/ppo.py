@@ -11,7 +11,6 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data import smiles_to_tensordict
 from acegen.models import (
     adapt_state_dict,
     create_gpt2_actor,
@@ -24,13 +23,12 @@ from acegen.models import (
     create_lstm_actor_critic,
     create_lstm_critic,
 )
-from acegen.rl_env import SMILESEnv
+from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.utils import isin, remove_duplicates
 from torch.distributions.kl import kl_divergence
-from torchrl.collectors import SyncDataCollector
 from torchrl.data import (
     LazyTensorStorage,
     PrioritizedSampler,
@@ -38,7 +36,6 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
 from torchrl.envs import (
     CatFrames,
     ExplorationType,
@@ -62,6 +59,7 @@ try:
 except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
+
 
 default_model_map = {
     "gru": (
@@ -173,6 +171,7 @@ def run_ppo(cfg, task):
     # Model
     ####################################################################################################################
 
+    # Create actor and critic networks
     if cfg.shared_nets:
         (
             actor_training,
@@ -202,8 +201,8 @@ def run_ppo(cfg, task):
     # Environment
     ####################################################################################################################
 
-    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
     rhs_primers = []
+    # if rnn's, create a transform to populate initial tensordict with recurrent states equal to 0.0
     if cfg.shared_nets and hasattr(actor_training, "rnn_spec"):
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
@@ -229,40 +228,13 @@ def run_ppo(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(
-            UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["SMILES"], unsqueeze_dim=-1
-            )
-        )
-        env.append_transform(
-            CatFrames(
-                N=100,
-                dim=-1,
-                padding="constant",
-                in_keys=["SMILES"],
-                out_keys=["SMILES"],
-                padding_value=-1,
-            )
-        )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
         return env
 
-    # Collector
-    ####################################################################################################################
-
-    collector = SyncDataCollector(
-        policy=actor_inference,
-        create_env_fn=create_env_fn,
-        frames_per_batch=cfg.frames_per_batch,
-        total_frames=-1,
-        storing_device=device,
-        device=device,
-    )
-
-    # Loss modules
+    # Loss module
     ####################################################################################################################
 
     adv_module = GAE(
@@ -281,72 +253,31 @@ def run_ppo(cfg, task):
         clip_epsilon=cfg.ppo_clip,
         loss_critic_type="l2",
         normalize_advantage=True,
+        reduction="none",
     )
     loss_module = loss_module.to(device)
 
-    # PPO data Buffer
+    # Data storage
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_envs + cfg.replay_batches, device=device),
+        storage=LazyTensorStorage(cfg.num_envs + cfg.replay_batch_size, device=device),
         sampler=SamplerWithoutReplacement(),
         batch_size=cfg.mini_batch_size,
         prefetch=4,
     )
 
-    # Replay data Buffer
+    # Replay buffer
     ####################################################################################################################
 
-    experience_replay_buffer = None
-    if cfg.experience_replay is True:
-        replay_smiles_per_row = (
-            8  # Estimation of how many SMILES needed to fill up a row of data
-        )
-        N = cfg.replay_batches * replay_smiles_per_row
-        M = cfg.frames_per_batch // cfg.num_envs
-
-        # Transform to populate recurrent states and is_init in replay batches
-        replay_rhs_transforms = []
-        if hasattr(actor_training, "rnn_spec"):
-            replay_rhs_transforms = [
-                TensorDictPrimer(actor_training.rnn_spec.expand(N, M - 1))
-            ]
-            if cfg.shared_nets is False:
-                replay_rhs_transforms.append(
-                    TensorDictPrimer(critic_training.rnn_spec.expand(N, M - 1))
-                )
-        replay_logp_transform = TensorDictPrimer(
-            {"sample_log_prob": UnboundedContinuousTensorSpec(shape=(N, M - 1))}
-        )
-
-        # Define a replay buffer to track best SMILES
-        storage = LazyTensorStorage(100, device=device)
-        experience_replay_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(100, device=device),
-            sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
-            batch_size=N,
-            writer=TensorDictMaxValueWriter(rank_key="priority"),
-            priority_key="priority",
-        )
-
-    def prepare_replay_batch(batch, T):
-        """Prepare a batch of replay SMILES for PPO training."""
-
-        # Populate with recurrent states
-        for replay_rhs_transform in replay_rhs_transforms:
-            replay_rhs_transform(batch)
-            replay_rhs_transform(batch.get("next"))
-
-        # Populate with is_init
-        batch.set("is_init", batch.get(("next", "done")).roll(1, dims=1))
-        batch.set(("next", "is_init"), torch.zeros_like(batch.get("is_init")))
-
-        # Populate with sample log probs
-        replay_logp_transform(batch)
-
-        batches = batch.chunk(cfg.replay_batches)
-        batches = [b[b.pop("mask")][..., 0:T].expand(1, T) for b in batches]
-        return batches
+    storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
+    experience_replay_buffer = TensorDictReplayBuffer(
+        storage=storage,
+        sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
+        batch_size=cfg.replay_batch_size,
+        writer=TensorDictMaxValueWriter(rank_key="priority"),
+        priority_key="priority",
+    )
 
     # Optimizer
     ####################################################################################################################
@@ -379,44 +310,35 @@ def run_ppo(cfg, task):
     ####################################################################################################################
 
     total_done = 0
+    env = create_env_fn()
     kl_coef = cfg.kl_coef
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = (cfg.num_envs + cfg.replay_batches) // cfg.mini_batch_size
+    num_mini_batches = (cfg.num_envs + cfg.replay_batch_size) // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
-    for data in collector:
+    while not task.finished:
 
-        if task.finished:
-            break
+        # Generate data
+        data = generate_complete_smiles(policy=actor_inference, environment=env)
+        data = remove_duplicates(data, key="action")
 
-        log_info = {}
+        # Update progress bar
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += done.sum().item()
         pbar.update(done.sum().item())
 
         # Compute rewards
-        smiles = data_next.select("SMILES")[done].cpu()
-        smiles_list = [
-            vocabulary.decode(smi.numpy(), ignore_indices=[-1])
-            for smi in smiles["SMILES"]
-        ]
-
-        # data_next["reward"][done] = torch.tensor(
-        #     task(smiles_list), device=device
-        # ).unsqueeze(-1)
-
-        for _ in range(3):
-            try:
-                rews = task(smiles_list)
-                break
-            except Exception as e:
-                print(f"Attempt failed with error: {e}")
-        data_next["reward"][done] = torch.tensor(rews, device=device).unsqueeze(-1)
+        smiles = data.select("action").cpu()
+        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
+        data_next["reward"][done] = torch.tensor(
+            task(smiles_str), device=device
+        ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards
+        log_info = {}
+        total_done += cfg.num_envs
         episode_rewards = data_next["reward"][done]
         episode_length = data_next["step_count"][done]
         if len(episode_rewards) > 0:
@@ -432,72 +354,27 @@ def run_ppo(cfg, task):
                 }
             )
 
-        # Get data to be added to the replay buffer later
-        replay_data = (
-            data.get("next").get_sub_tensordict(idx=done).select("SMILES", "reward")
-        )
-
-        # Select only the necessary tensors
-        data_select = [
-            "action",
-            "done",
-            "is_init",
-            "observation",
-            "sample_log_prob",
-            "terminated",
-            ("next", "done"),
-            ("next", "is_init"),
-            ("next", "observation"),
-            ("next", "terminated"),
-            ("next", "reward"),
-        ]
-        if hasattr(actor_training, "rnn_spec"):
-            data_select += (
-                ["recurrent_state"]
-                if cfg.shared_nets
-                else ["recurrent_state_actor", "recurrent_state_critic"]
-            )
-            data_select += (
-                [("next", "recurrent_state")]
-                if cfg.shared_nets
-                else [
-                    ("next", "recurrent_state_actor"),
-                    ("next", "recurrent_state_critic"),
-                ]
-            )
-        data = data.select(*data_select, inplace=True)
+        # Get data to be potentially added to the replay buffer later
+        replay_data = data.clone()
 
         for j in range(ppo_epochs):
 
-            # Add some data from the replay data to the collected data
+            # Compute experience replay loss
             if (
-                experience_replay_buffer is not None
-                and len(experience_replay_buffer) >= 50
+                cfg.experience_replay
+                and len(experience_replay_buffer) > cfg.replay_batch_size
             ):
                 replay_batch = experience_replay_buffer.sample()
-                replay_batch = replay_batch.select(
-                    "mask", *data.keys(include_nested=True), strict=False
+                replay_batch = replay_batch.exclude(
+                    "_weight", "index", "priority", inplace=True
                 )
-                replay_batch.batch_size = torch.Size(
-                    [*replay_batch["observation"].shape]
-                )
-                extended_data = torch.cat(
-                    [data.clone(), *prepare_replay_batch(replay_batch, T=data.shape[1])]
-                )
+                extended_data = torch.cat([data, replay_batch], dim=0)
             else:
                 extended_data = data
 
-            # For transformers-based policies
-            extended_data.set("sequence", extended_data.get("observation"))
-            extended_data.set(
-                ("next", "sequence"), extended_data.get(("next", "observation"))
-            )
-
-            # Compute advantage and prior logits for extended_data
+            # Compute advantage
             with torch.no_grad():
                 extended_data = adv_module(extended_data)
-                # prior_logits = prior(extended_data.select("is_init", "observation")).get("logits")
-                # extended_data.set("prior_logits", prior_logits)
 
             # Add extended_data to PPO buffer
             buffer.extend(extended_data)
@@ -505,32 +382,33 @@ def run_ppo(cfg, task):
             for i, batch in enumerate(buffer):
 
                 # PPO loss
+                mask = batch.get("mask").squeeze(-1)
                 loss = loss_module(batch)
+                loss = loss.named_apply(
+                    lambda name, value: (
+                        (value * mask).mean() if name.startswith("loss_") else value
+                    ),
+                    batch_size=[],
+                )
                 loss_sum = (
                     loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
                 )
-
-                # Add KL loss
-                # prior_dist = torch.distributions.Categorical(
-                #     logits=batch.get("prior_logits")
-                # )
-                with torch.no_grad():
-                    prior_dist = prior.get_dist(batch)
-                # new_logits = prior(batch.select("is_init", "observation"))["logits"]
-
-                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-                kl_div = kl_div[~mask].mean()
-                loss_sum += kl_div * kl_coef
-
-                # Register losses
                 losses[j, i] = loss.select(
                     "loss_critic", "loss_entropy", "loss_objective"
                 ).detach()
+
+                # Add KL loss term
+                with torch.no_grad():
+                    prior_dist = prior.get_dist(batch)
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+                nan_mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+                kl_div = (kl_div * mask.squeeze())[~nan_mask].mean()
+                loss_sum += kl_div * kl_coef
                 losses[j, i] = TensorDict(
                     {"kl_div": kl_div.detach().item()}, batch_size=[]
                 )
 
+                # Update policy
                 loss_sum.backward()
                 torch.nn.utils.clip_grad_norm_(
                     loss_module.parameters(), max_norm=max_grad_norm
@@ -542,17 +420,8 @@ def run_ppo(cfg, task):
         for key, value in losses_mean.items():
             log_info.update({f"train/{key}": value.item()})
 
-        # Add data to the replay buffer
-        if experience_replay_buffer is not None:
-
-            # Remove duplicated SMILES
-            replay_data = remove_duplicates(replay_data, key="SMILES")
-
-            # Create a Tensordict with replay data
-            replay_data = smiles_to_tensordict(
-                replay_data["SMILES"], replay_data["reward"], device=device
-            )
-            replay_data.set("priority", replay_data.get(("next", "reward")))
+        # Add new experiences to the replay buffer
+        if cfg.experience_replay is True:
 
             # MaxValueWriter is not compatible with storages of more than one dimension.
             replay_data.batch_size = [replay_data.batch_size[0]]
@@ -568,14 +437,13 @@ def run_ppo(cfg, task):
 
             # Add data to the replay buffer
             if len(replay_data) > 0:
+                reward = replay_data.get(("next", "reward"))
+                replay_data.set("priority", reward)
                 experience_replay_buffer.extend(replay_data)
 
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done)
-        collector.update_policy_weights_()
-
-    collector.shutdown()
 
 
 if __name__ == "__main__":
