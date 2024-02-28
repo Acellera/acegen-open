@@ -247,7 +247,6 @@ def run_ppo(cfg, task):
         average_gae=False,
         shifted=True,
     )
-    adv_module = adv_module.to(device)
     loss_module = ClipPPOLoss(
         actor=actor_training,
         critic=critic_training,
@@ -258,7 +257,6 @@ def run_ppo(cfg, task):
         normalize_advantage=True,
         reduction="none",
     )
-    loss_module = loss_module.to(device)
 
     # Create data storage
     ####################################################################################################################

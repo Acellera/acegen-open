@@ -241,7 +241,6 @@ def run_a2c(cfg, task):
         average_gae=True,
         shifted=True,
     )
-    adv_module = adv_module.to(device)
     loss_module = A2CLoss(
         actor_network=actor_training,
         critic_network=critic_training,
@@ -249,7 +248,6 @@ def run_a2c(cfg, task):
         entropy_coef=cfg.entropy_coef,
         loss_critic_type="l2",
     )
-    loss_module = loss_module.to(device)
 
     # Create data storage
     ####################################################################################################################
