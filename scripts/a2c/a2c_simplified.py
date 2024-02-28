@@ -135,6 +135,7 @@ def run_a2c(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
+    # Get model and vocabulary checkpoints
     if cfg.model in default_model_map:
         create_actor, create_critic, create_shared, vocab_file, weights_file = (
             default_model_map[cfg.model]
@@ -152,7 +153,7 @@ def run_a2c(cfg, task):
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
-    # Vocabulary
+    # Create vocabulary
     ####################################################################################################################
 
     with open(voc_path, "r") as f:
@@ -162,7 +163,7 @@ def run_a2c(cfg, task):
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
-    # Model
+    # Create model
     ####################################################################################################################
 
     # Create actor and critic networks
@@ -192,7 +193,7 @@ def run_a2c(cfg, task):
     prior = prior.to(device)
     prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 
-    # Environment
+    # Create RL environment
     ####################################################################################################################
 
     rhs_primers = []
@@ -228,7 +229,9 @@ def run_a2c(cfg, task):
             env.append_transform(rhs_primer)
         return env
 
-    # Loss module
+    env = create_env_fn()
+
+    # Create loss module
     ####################################################################################################################
 
     adv_module = GAE(
@@ -248,7 +251,7 @@ def run_a2c(cfg, task):
     )
     loss_module = loss_module.to(device)
 
-    # Data storage
+    # Create data storage
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
@@ -258,7 +261,7 @@ def run_a2c(cfg, task):
         prefetch=4,
     )
 
-    # Optimizer
+    # Create optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
@@ -268,7 +271,7 @@ def run_a2c(cfg, task):
         weight_decay=cfg.weight_decay,
     )
 
-    # Logger
+    # Create logger
     ####################################################################################################################
 
     logger = None
@@ -290,7 +293,6 @@ def run_a2c(cfg, task):
 
     total_done = 0
     num_updates = 0
-    env = create_env_fn()
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)

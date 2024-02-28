@@ -141,6 +141,7 @@ def run_ppo(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
+    # Get model and vocabulary checkpoints
     if cfg.model in default_model_map:
         create_actor, create_critic, create_shared, vocab_file, weights_file = (
             default_model_map[cfg.model]
@@ -158,7 +159,7 @@ def run_ppo(cfg, task):
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
-    # Vocabulary
+    # Create vocabulary
     ####################################################################################################################
 
     with open(voc_path, "r") as f:
@@ -168,7 +169,7 @@ def run_ppo(cfg, task):
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
-    # Model
+    # Create model
     ####################################################################################################################
 
     # Create actor and critic networks
@@ -198,7 +199,7 @@ def run_ppo(cfg, task):
     prior = prior.to(device)
     prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 
-    # Environment
+    # Create RL environment
     ####################################################################################################################
 
     rhs_primers = []
@@ -234,7 +235,9 @@ def run_ppo(cfg, task):
             env.append_transform(rhs_primer)
         return env
 
-    # Loss module
+    env = create_env_fn()
+
+    # Create loss module
     ####################################################################################################################
 
     adv_module = GAE(
@@ -257,7 +260,7 @@ def run_ppo(cfg, task):
     )
     loss_module = loss_module.to(device)
 
-    # Data storage
+    # Create data storage
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
@@ -267,7 +270,7 @@ def run_ppo(cfg, task):
         prefetch=4,
     )
 
-    # Replay buffer
+    # Create replay buffer
     ####################################################################################################################
 
     storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
@@ -279,7 +282,7 @@ def run_ppo(cfg, task):
         priority_key="priority",
     )
 
-    # Optimizer
+    # Create Optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
@@ -289,7 +292,7 @@ def run_ppo(cfg, task):
         weight_decay=cfg.weight_decay,
     )
 
-    # Logger
+    # Create logger
     ####################################################################################################################
 
     logger = None
@@ -310,7 +313,6 @@ def run_ppo(cfg, task):
     ####################################################################################################################
 
     total_done = 0
-    env = create_env_fn()
     kl_coef = cfg.kl_coef
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm

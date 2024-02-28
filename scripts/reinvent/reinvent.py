@@ -125,6 +125,7 @@ def run_reinvent(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
+    # Get model and vocabulary checkpoints
     if cfg.model in default_model_map:
         create_actor, vocab_file, weights_file = default_model_map[cfg.model]
         voc_path = (
@@ -140,7 +141,7 @@ def run_reinvent(cfg, task):
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
-    # Vocabulary
+    # Create vocabulary
     ####################################################################################################################
 
     with open(voc_path, "r") as f:
@@ -150,7 +151,7 @@ def run_reinvent(cfg, task):
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
-    # Model
+    # Create model
     ####################################################################################################################
 
     ckpt = torch.load(ckpt_path)
@@ -165,7 +166,7 @@ def run_reinvent(cfg, task):
 
     prior = deepcopy(actor_training)
 
-    # Environment
+    # Create RL environment
     ####################################################################################################################
 
     # For RNNs, create a transform to populate initial tensordict with recurrent states equal to 0.0
@@ -192,7 +193,9 @@ def run_reinvent(cfg, task):
             env.append_transform(rhs_primer)
         return env
 
-    # Replay buffer
+    env = create_env_fn()
+
+    # Create replay buffer
     ####################################################################################################################
 
     storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
@@ -204,7 +207,7 @@ def run_reinvent(cfg, task):
         priority_key="priority",
     )
 
-    # Optimizer
+    # Create optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
@@ -214,7 +217,7 @@ def run_reinvent(cfg, task):
         weight_decay=cfg.weight_decay,
     )
 
-    # Logger
+    # Create logger
     ####################################################################################################################
 
     logger = None
@@ -235,7 +238,6 @@ def run_reinvent(cfg, task):
     ####################################################################################################################
 
     total_done = 0
-    env = create_env_fn()
     sigma = cfg.sigma
     pbar = tqdm.tqdm(total=cfg.total_smiles)
 
