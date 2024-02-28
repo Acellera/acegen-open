@@ -23,12 +23,12 @@ from acegen.models import (
     create_lstm_actor_critic,
     create_lstm_critic,
 )
-from acegen.rl_env import SMILESEnv
+from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
+from tensordict.utils import remove_duplicates
 from torch.distributions.kl import kl_divergence
-from torchrl.collectors import SyncDataCollector
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
@@ -135,6 +135,7 @@ def run_a2c(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
+    # Get model and vocabulary checkpoints
     if cfg.model in default_model_map:
         create_actor, create_critic, create_shared, vocab_file, weights_file = (
             default_model_map[cfg.model]
@@ -152,7 +153,7 @@ def run_a2c(cfg, task):
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
-    # Vocabulary
+    # Create vocabulary
     ####################################################################################################################
 
     with open(voc_path, "r") as f:
@@ -162,9 +163,10 @@ def run_a2c(cfg, task):
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
-    # Model
+    # Create models
     ####################################################################################################################
 
+    # Create actor and critic networks
     if cfg.shared_nets:
         (
             actor_training,
@@ -191,11 +193,11 @@ def run_a2c(cfg, task):
     prior = prior.to(device)
     prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 
-    # Environment
+    # Create RL environment
     ####################################################################################################################
 
-    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
     rhs_primers = []
+    # if rnn's, create a transform to populate initial tensordict with recurrent states equal to 0.0
     if cfg.shared_nets and hasattr(actor_training, "rnn_spec"):
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
@@ -221,40 +223,15 @@ def run_a2c(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(
-            UnsqueezeTransform(
-                in_keys=["observation"], out_keys=["SMILES"], unsqueeze_dim=-1
-            )
-        )
-        env.append_transform(
-            CatFrames(
-                N=100,
-                dim=-1,
-                padding="constant",
-                in_keys=["SMILES"],
-                out_keys=["SMILES"],
-                padding_value=-1,
-            )
-        )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
         return env
 
-    # Collector
-    ####################################################################################################################
+    env = create_env_fn()
 
-    collector = SyncDataCollector(
-        policy=actor_inference,
-        create_env_fn=create_env_fn,
-        frames_per_batch=cfg.frames_per_batch,
-        total_frames=-1,
-        storing_device=device,
-        device=device,
-    )
-
-    # Loss modules
+    # Create loss module
     ####################################################################################################################
 
     adv_module = GAE(
@@ -264,7 +241,6 @@ def run_a2c(cfg, task):
         average_gae=True,
         shifted=True,
     )
-    adv_module = adv_module.to(device)
     loss_module = A2CLoss(
         actor_network=actor_training,
         critic_network=critic_training,
@@ -272,9 +248,8 @@ def run_a2c(cfg, task):
         entropy_coef=cfg.entropy_coef,
         loss_critic_type="l2",
     )
-    loss_module = loss_module.to(device)
 
-    # A2C data Buffer
+    # Create data storage
     ####################################################################################################################
 
     buffer = TensorDictReplayBuffer(
@@ -284,7 +259,7 @@ def run_a2c(cfg, task):
         prefetch=4,
     )
 
-    # Optimizer
+    # Create optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
@@ -294,7 +269,7 @@ def run_a2c(cfg, task):
         weight_decay=cfg.weight_decay,
     )
 
-    # Logger
+    # Create logger
     ####################################################################################################################
 
     logger = None
@@ -322,28 +297,27 @@ def run_a2c(cfg, task):
     num_mini_batches = cfg.num_envs // cfg.mini_batch_size
     losses = TensorDict({}, batch_size=[num_mini_batches])
 
-    for data in collector:
+    while not task.finished:
 
-        if task.finished:
-            break
+        # Generate data
+        data = generate_complete_smiles(policy=actor_inference, environment=env)
+        data = remove_duplicates(data, key="action")
 
-        log_info = {}
+        # Update progress bar
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += done.sum().item()
         pbar.update(done.sum().item())
 
         # Compute rewards
-        smiles = data_next.select("SMILES")[done].cpu()
-        smiles_list = [
-            vocabulary.decode(smi.numpy(), ignore_indices=[-1])
-            for smi in smiles["SMILES"]
-        ]
+        smiles = data.select("action").cpu()
+        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
         data_next["reward"][done] = torch.tensor(
-            task(smiles_list), device=device
+            task(smiles_str), device=device
         ).unsqueeze(-1)
 
-        # Register smiles lengths and real rewards
+        # Register smiles lengths and real rewards and total generated smiles
+        log_info = {}
+        total_done += cfg.num_envs
         episode_rewards = data_next["reward"][done]
         episode_length = data_next["step_count"][done]
         if len(episode_rewards) > 0:
@@ -359,36 +333,6 @@ def run_a2c(cfg, task):
                 }
             )
 
-        # Select only the necessary tensors
-        data_select = [
-            "action",
-            "done",
-            "is_init",
-            "observation",
-            "sample_log_prob",
-            "terminated",
-            ("next", "done"),
-            ("next", "is_init"),
-            ("next", "observation"),
-            ("next", "terminated"),
-            ("next", "reward"),
-        ]
-        if hasattr(actor_training, "rnn_spec"):
-            data_select += (
-                ["recurrent_state"]
-                if cfg.shared_nets
-                else ["recurrent_state_actor", "recurrent_state_critic"]
-            )
-            data_select += (
-                [("next", "recurrent_state")]
-                if cfg.shared_nets
-                else [
-                    ("next", "recurrent_state_actor"),
-                    ("next", "recurrent_state_critic"),
-                ]
-            )
-        data = data.select(*data_select, inplace=True)
-
         # For transformers-based policies
         data.set("sequence", data.get("observation"))
         data.set(("next", "sequence"), data.get(("next", "observation")))
@@ -397,27 +341,39 @@ def run_a2c(cfg, task):
         with torch.no_grad():
             data = adv_module(data)
 
+        # Add extended_data to buffer
         buffer.extend(data)
 
         for j, batch in enumerate(buffer):
 
             batch = batch.to(device, non_blocking=True)
 
+            # Compute loss
+            mask = batch.get("mask").squeeze(-1)
             loss = loss_module(batch)
+            loss = loss.named_apply(
+                lambda name, value: (
+                    (value * mask).mean() if name.startswith("loss_") else value
+                ),
+                batch_size=[],
+            )
             loss_sum = (
                 loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
             )
             losses[j] = loss.select(
                 "loss_critic", "loss_entropy", "loss_objective"
             ).detach()
+
+            # Add KL loss term
             with torch.no_grad():
                 prior_dist = prior.get_dist(batch)
-            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-            mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-            kl_div = kl_div[~mask].mean()
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+            nan_mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+            kl_div = (kl_div * mask.squeeze())[~nan_mask].mean()
             loss_sum += kl_div * kl_coef
             losses[j] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
 
+            # Update policy
             loss_sum.backward()
             torch.nn.utils.clip_grad_norm_(
                 loss_module.parameters(), max_norm=max_grad_norm
@@ -433,9 +389,6 @@ def run_a2c(cfg, task):
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done)
-        collector.update_policy_weights_()
-
-    collector.shutdown()
 
 
 if __name__ == "__main__":
