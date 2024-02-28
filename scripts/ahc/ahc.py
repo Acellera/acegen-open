@@ -152,7 +152,7 @@ def run_ahc(cfg, task):
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
-    # Create model
+    # Create models
     ####################################################################################################################
 
     ckpt = torch.load(ckpt_path)

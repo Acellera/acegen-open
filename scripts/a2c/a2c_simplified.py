@@ -163,7 +163,7 @@ def run_a2c(cfg, task):
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
-    # Create model
+    # Create models
     ####################################################################################################################
 
     # Create actor and critic networks
