@@ -24,7 +24,7 @@ from acegen.models import (
     create_lstm_critic,
 )
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary, SMILESTokenizer, SMILESTokenizer2
+from acegen.vocabulary import SMILESTokenizer, SMILESTokenizer2, SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.utils import isin, remove_duplicates
@@ -68,7 +68,7 @@ default_model_map = {
         create_gru_actor_critic,
         "chembl_filtered_vocabulary.txt",
         "gru_chembl_filtered.ckpt",
-        SMILESTokenizer()
+        SMILESTokenizer(),
     ),
     "lstm": (
         create_lstm_actor,
@@ -76,7 +76,7 @@ default_model_map = {
         create_lstm_actor_critic,
         "chembl_vocabulary.txt",
         "lstm_chembl.ckpt",
-        SMILESTokenizer()
+        SMILESTokenizer(),
     ),
     "gpt2": (
         create_gpt2_actor,
@@ -84,7 +84,7 @@ default_model_map = {
         create_gpt2_actor_critic,
         "enamine_real_vocabulary.txt",
         "gpt2_enamine_real.ckpt",
-        SMILESTokenirer2()
+        SMILESTokenirer2(),
     ),
 }
 
@@ -146,9 +146,14 @@ def run_ppo(cfg, task):
 
     # Get model and vocabulary checkpoints
     if cfg.model in default_model_map:
-        create_actor, create_critic, create_shared, vocab_file, weights_file, tokenizer = (
-            default_model_map[cfg.model]
-        )
+        (
+            create_actor,
+            create_critic,
+            create_shared,
+            vocab_file,
+            weights_file,
+            tokenizer,
+        ) = default_model_map[cfg.model]
         voc_path = (
             Path(__file__).resolve().parent.parent.parent / "priors" / vocab_file
             if cfg.prior == "default"

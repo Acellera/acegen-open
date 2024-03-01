@@ -19,7 +19,7 @@ from acegen.models import (
     create_lstm_actor,
 )
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary, SMILESTokenizer, SMILESTokenizer2
+from acegen.vocabulary import SMILESTokenizer, SMILESTokenizer2, SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict.utils import isin, remove_duplicates
 
@@ -57,19 +57,19 @@ default_model_map = {
         create_gru_actor,
         "chembl_filtered_vocabulary.txt",
         "gru_chembl_filtered.ckpt",
-        SMILESTokenizer()
+        SMILESTokenizer(),
     ),
     "lstm": (
         create_lstm_actor,
         "chembl_vocabulary.txt",
         "lstm_chembl.ckpt",
-        SMILESTokenizer()
+        SMILESTokenizer(),
     ),
     "gpt2": (
         create_gpt2_actor,
         "enamine_real_vocabulary.txt",
         "gpt2_enamine_real.ckpt",
-        SMILESTokenizer2()
+        SMILESTokenizer2(),
     ),
 }
 
