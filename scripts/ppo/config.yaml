@@ -24,8 +24,8 @@ weight_decay: 1.0e-06
 gamma: 0.999
 lmbda: 0.99
 critic_coef: 0.25
-entropy_coef: 0.025
-kl_coef: 0.025
+entropy_coef: 0.01
+kl_coef: 0.001
 mini_batch_size: 16
 ppo_epochs: 4
 max_grad_norm: 0.25

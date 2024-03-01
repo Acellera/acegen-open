@@ -401,8 +401,7 @@ def run_ppo(cfg, task):
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                nan_mask = torch.isnan(kl_div) | torch.isinf(kl_div)
-                kl_div = (kl_div * mask.squeeze())[~nan_mask].mean()
+                kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
                 loss_sum += kl_div * kl_coef
                 losses[j, i] = TensorDict(
                     {"kl_div": kl_div.detach().item()}, batch_size=[]
