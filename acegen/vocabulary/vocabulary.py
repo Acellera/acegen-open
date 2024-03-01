@@ -51,7 +51,7 @@ class SMILESVocabulary(Vocabulary):
         self.end_token_index = self.vocab[end_token]
         self.special_indices = [self.end_token_index, self.start_token_index]
 
-    def encode(self, smiles: str) -> np.ndarray:
+    def encode(self, smiles: str, with_start_end: bool = True) -> np.ndarray:
         """Takes a list of characters (eg '[NH]') and encodes to array of indices.
 
         Args:
@@ -67,6 +67,8 @@ class SMILESVocabulary(Vocabulary):
             )
 
         char_list = self.tokenizer.tokenize(smiles)
+        if with_start_end:
+            char_list = [self.start_token] + char_list + [self.end_token]
         smiles_matrix = np.zeros(len(char_list), dtype=np.float32)
         for i, char in enumerate(char_list):
             smiles_matrix[i] = self.vocab[char]
