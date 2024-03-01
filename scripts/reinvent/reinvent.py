@@ -319,6 +319,9 @@ def run_reinvent(cfg, task):
 
             replay_data = data.clone()
 
+            # MaxValueWriter is not compatible with storages of more than one dimension.
+            replay_data.batch_size = [replay_data.batch_size[0]]
+
             # Remove SMILES that are already in the replay buffer
             if len(experience_replay_buffer) > 0:
                 is_duplicated = isin(
