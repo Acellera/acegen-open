@@ -136,18 +136,17 @@ def generate_complete_smiles(
             policy_device = env_device
 
         if prompt:
-            import pdb; pdb.set_trace()
-            if isinstance(prompt, str): prompt = [prompt]*batch_size[0]
+            if isinstance(prompt, str):
+                prompt = [prompt] * batch_size[0]
             tokens = [torch.tensor(vocabulary.encode(smi, with_end=True)) for smi in prompt]
             enc_prompts = torch.vstack([torch.nn.functional.pad(tok, (0, max_length+1-tok.size()[0])) for tok in tokens])
             enc_prompts = smiles_to_tensordict(enc_prompts, mask_value=0, device=policy_device)
             enc_prompts.set('is_init', torch.zeros_like(enc_prompts.get('done')))
             policy(enc_prompts)
             done_prompts = enc_prompts.get(('next', 'done')).squeeze(-1)
-            done_state = torch.roll(done_prompts.clone(), shifts=-1, dims=-1)
-            initial_observation.update(enc_prompts.get('next').select('observation')[done_state])
-            initial_observation.update(enc_prompts.get('next').select('recurrent_state_actor')[done_state])
-        
+            initial_observation.update(enc_prompts.get('next').select('observation')[done_prompts])
+            initial_observation.update(enc_prompts.get('next').select('recurrent_state_actor')[done_prompts])
+
         initial_observation = initial_observation.to(policy_device)
         tensordict_ = initial_observation
         finished = (
@@ -201,13 +200,12 @@ def generate_complete_smiles(
             tensordicts[-1][("next", "done")] = ~finished.clone()
 
         output_data = torch.stack(tensordicts, dim=-1).contiguous()
-        #import pdb; pdb.set_trace()
         output_data.refine_names(..., "time")
 
     if return_smiles_only:
         smiles = output_data.select("action").cpu()
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
-        smiles_str = [p + s for p, s in zip(prompt, smiles_str)]
+        smiles_str = [p[:-1] + s for p, s in zip(prompt, smiles_str)]
         return smiles_str
     else:
         return output_data
