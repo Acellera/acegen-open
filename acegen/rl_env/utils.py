@@ -205,7 +205,7 @@ def generate_complete_smiles(
     if return_smiles_only:
         smiles = output_data.select("action").cpu()
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
-        smiles_str = [p[:-1] + s for p, s in zip(prompt, smiles_str)]
+        smiles_str = [p + s for p, s in zip(prompt, smiles_str)]
         return smiles_str
     else:
         return output_data
