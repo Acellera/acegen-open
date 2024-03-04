@@ -94,7 +94,7 @@ def generate_complete_smiles(
                 batch_prompts=True,
                 optimize_prompts=promptsmiles_optimize,
                 shuffle=promptsmiles_shuffle,
-                return_all=False,  # True -> [[SMILES@1], [SMILES@2], ...], [[NLLS@1], [NLLS@2], ...]
+                return_all=False,
             )
             smiles = PS.sample()
             tokens = [torch.tensor(vocabulary.encode(smi)) for smi in smiles]
@@ -104,7 +104,7 @@ def generate_complete_smiles(
 
         if isinstance(promptsmiles, list):
             # We are linking fragments
-            PS = FragmenterLinker(
+            PS = FragmentLinker(
                 fragments=promptsmiles,
                 batch_size=batch_size[0],
                 sample_fn=sample_fn,
@@ -112,7 +112,7 @@ def generate_complete_smiles(
                 batch_prompts=True,
                 optimize_prompts=promptsmiles_optimize,
                 shuffle=promptsmiles_shuffle,
-                return_all=False,  # True -> [[SMILES@1], [SMILES@2], ...], [[NLLS@1], [NLLS@2], ...]
+                return_all=False,
             )
             smiles = PS.sample()
             tokens = [torch.tensor(vocabulary.encode(smi)) for smi in smiles]
@@ -138,14 +138,8 @@ def generate_complete_smiles(
         if prompt:
             if isinstance(prompt, str):
                 prompt = [prompt] * batch_size[0]
-            tokens = [torch.tensor(vocabulary.encode(smi, with_end=True)) for smi in prompt]
+            tokens = [torch.tensor(vocabulary.encode(smi, with_start=False, with_end=False)) for smi in prompt]
             enc_prompts = torch.vstack([torch.nn.functional.pad(tok, (0, max_length+1-tok.size()[0])) for tok in tokens])
-            enc_prompts = smiles_to_tensordict(enc_prompts, mask_value=0, device=policy_device)
-            enc_prompts.set('is_init', torch.zeros_like(enc_prompts.get('done')))
-            policy(enc_prompts)
-            done_prompts = enc_prompts.get(('next', 'done')).squeeze(-1)
-            initial_observation.update(enc_prompts.get('next').select('observation')[done_prompts])
-            initial_observation.update(enc_prompts.get('next').select('recurrent_state_actor')[done_prompts])
 
         initial_observation = initial_observation.to(policy_device)
         tensordict_ = initial_observation
@@ -158,15 +152,21 @@ def generate_complete_smiles(
             for _ in range(max_length):
 
                 if not finished.all():
-
                     # Define mask tensors
                     tensordict_.set("mask", torch.ones_like(finished))
                     tensordict_.set(("next", "mask"), torch.ones_like(finished))
+                    if prompt:
+                        enforce_mask = (enc_prompts[:, _] != 0)
 
                     # Execute policy
                     tensordict_ = tensordict_.to(policy_device)
                     policy(tensordict_)
                     tensordict_ = tensordict_.to(env_device)
+
+                    # Enforce prompt
+                    if prompt:
+                        new_action = (~enforce_mask * tensordict_.get("action")) + (enforce_mask * enc_prompts[:, _]).long()
+                        tensordict_.set("action", new_action)
 
                     # Step forward in the environment
                     tensordict_ = environment.step(tensordict_)
@@ -203,9 +203,8 @@ def generate_complete_smiles(
         output_data.refine_names(..., "time")
 
     if return_smiles_only:
-        smiles = output_data.select("action").cpu()
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
-        smiles_str = [p + s for p, s in zip(prompt, smiles_str)]
+        smiles = output_data.get("action").cpu()
+        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
         return smiles_str
     else:
         return output_data
