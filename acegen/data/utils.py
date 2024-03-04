@@ -30,6 +30,7 @@ def smiles_to_tensordict(
     if reward is not None:
         rewards[:, -1] = reward.reshape(-1, 1)
     done = torch.zeros(B, T, 1, dtype=torch.bool)
+    truncated = done.clone()
 
     lengths = mask.cumsum(dim=1).argmax(dim=1)
     done[torch.arange(B), lengths] = True
@@ -40,6 +41,7 @@ def smiles_to_tensordict(
             "action": smiles[:, 1:],
             "done": done[:, :-1],
             "terminated": done[:, :-1],
+            "truncated": truncated[:, :-1],
             "mask": mask[:, :-1],
             "next": TensorDict(
                 {
@@ -47,6 +49,7 @@ def smiles_to_tensordict(
                     "reward": rewards[:, 1:],
                     "done": done[:, 1:],
                     "terminated": done[:, 1:],
+                    "truncated": truncated[:, 1:],
                 },
                 batch_size=[B, T - 1],
             ),
