@@ -3,13 +3,25 @@ import torch.nn as nn
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
 from torchrl.modules import ActorValueOperator, ProbabilisticActor
-from transformers import GPT2Config, GPT2Model
+
+try:
+    from transformers import GPT2Config, GPT2Model
+
+    _has_transformers = True
+except ImportError as err:
+    _has_transformers = False
+    TRANSFORMERS_ERR = err
 
 
 class GPT2(nn.Module):
     """GPT2 model for language modeling. This model is a simple wrapper around the HuggingFace GPT2Model."""
 
     def __init__(self, config):
+        if not _has_transformers:
+            raise RuntimeError(
+                "transformers library not found, please install with pip install transformers."
+            ) from TRANSFORMERS_ERR
+
         super(GPT2, self).__init__()
 
         # Define model
