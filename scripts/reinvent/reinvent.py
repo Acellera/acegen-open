@@ -30,14 +30,7 @@ from torchrl.data import (
     TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import (
-    CatFrames,
-    InitTracker,
-    StepCounter,
-    TensorDictPrimer,
-    TransformedEnv,
-    UnsqueezeTransform,
-)
+from torchrl.envs import CatFrames, TensorDictPrimer, TransformedEnv, UnsqueezeTransform
 from torchrl.record.loggers import get_logger
 
 try:
@@ -190,8 +183,6 @@ def run_reinvent(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(StepCounter())
-        env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
         return env
@@ -271,7 +262,7 @@ def run_reinvent(cfg, task):
 
         # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]
-        episode_length = data_next["step_count"][done]
+        episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
         if len(episode_rewards) > 0:
             log_info.update(
                 {
@@ -279,8 +270,7 @@ def run_reinvent(cfg, task):
                     "train/reward": episode_rewards.mean().item(),
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
-                    "train/episode_length": episode_length.sum().item()
-                    / len(episode_length),
+                    "train/episode_length": episode_length.item(),
                 }
             )
 

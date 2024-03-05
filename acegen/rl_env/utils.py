@@ -259,7 +259,6 @@ def _get_log_prob(
         ]
     )
     data = smiles_to_tensordict(enc_smiles, mask_value=0, device=policy.device)
-    data.set("is_init", torch.zeros_like(data.get("done")))
 
     actions = data.get("action").clone()
 
