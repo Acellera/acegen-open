@@ -86,7 +86,7 @@ We provide a variety of example priors that can be selected in the configuration
 
 # Changing the scoring function
 
-To change the scoring function, adjust the `molscore` parameter in any configuration file. Set it to point to a valid 
+To change the scoring function, adjust the `molscore` parameter in any configuration files. Set it to point to a valid 
 MolScore configuration file (e.g.  ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json). 
 Alternatively, you can set the `molscore` parameter to the name of a valid MolScore benchmark 
 (such as MolOpt, GuacaMol, etc.) to automatically execute each task in the benchmark. For further details on MolScore, 
