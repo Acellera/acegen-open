@@ -14,6 +14,7 @@ from acegen.vocabulary import SMILESVocabulary, Vocabulary
 
 try:
     from promptsmiles import FragmentLinker, ScaffoldDecorator
+
     _has_promptsmiles = True
 except ImportError as err:
     _has_promptsmiles = False
@@ -133,10 +134,13 @@ def generate_complete_smiles(
                 )
             )
         # Create output_data format from final completed SMILES
-        output_data = smiles_to_tensordict(enc_smiles[-1], mask_value=0)
+        output_data = smiles_to_tensordict(
+            enc_smiles[-1], mask_value=0, device=env_device
+        )
         # Also append all intermediate steps, skip the start token to be the same as action
         output_data.set(
-            "promptsmiles", torch.stack([e[:, 1:] for e in enc_smiles], dim=-1)
+            "promptsmiles",
+            torch.stack([e[:, 1:] for e in enc_smiles], dim=-1).to(env_device),
         )
         return output_data
 
@@ -167,7 +171,7 @@ def generate_complete_smiles(
                     torch.nn.functional.pad(tok, (0, max_length + 1 - tok.size()[0]))
                     for tok in tokens
                 ]
-            )
+            ).to(policy_device)
 
         initial_observation = initial_observation.to(policy_device)
         tensordict_ = initial_observation
@@ -254,7 +258,7 @@ def _get_log_prob(
             for tok in tokens
         ]
     )
-    data = smiles_to_tensordict(enc_smiles, mask_value=0)
+    data = smiles_to_tensordict(enc_smiles, mask_value=0, device=policy.device)
     data.set("is_init", torch.zeros_like(data.get("done")))
 
     actions = data.get("action").clone()
@@ -265,4 +269,4 @@ def _get_log_prob(
     policy_in = data.select(*policy.in_keys, strict=False)
     log_prob = policy.get_dist(policy_in).log_prob(actions)
     log_prob = log_prob.sum(-1)
-    return log_prob
+    return log_prob.cpu()
