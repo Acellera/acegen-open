@@ -7,8 +7,14 @@ seed: 101
 
 # Environment configuration
 num_envs: 128
-molscore: MolOpt
-molscore_include: ["Albuterol_similarity"]
+molscore: LibINVENT_Exp1
+molscore_include: null 
+
+# Promptsmiles configuration
+promptsmiles: N1(*)CCN(CC1)CCCCN(*)
+promptsmiles_optimize: True
+promptsmiles_shuffle: True
+promptsmiles_multi: False
 
 # Collector configuration
 total_smiles: 10_000

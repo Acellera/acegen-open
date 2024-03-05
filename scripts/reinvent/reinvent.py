@@ -151,7 +151,7 @@ def run_reinvent(cfg, task):
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
     vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, start_token="GO", end_token="EOS"
+        tokens_dict, start_token="GO", end_token="EOS", tokenizer=tokenizer
     )
 
     # Create models
@@ -246,7 +246,14 @@ def run_reinvent(cfg, task):
 
     while not task.finished:
 
-        data = generate_complete_smiles(policy=actor_inference, environment=env)
+        data = generate_complete_smiles(
+            policy=actor_inference,
+            vocabulary=vocabulary,
+            environment=env,
+            promptsmiles=cfg.get("promptsmiles"),
+            promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
+            promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
+        )
         data = remove_duplicates(data, key="action")
 
         log_info = {}
