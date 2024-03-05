@@ -94,6 +94,7 @@ def main(cfg: "DictConfig"):
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
+            "MolScore can be installed from `https://github.com/MorganCThomas/MolScore`."
         ) from MOLSCORE_ERR
 
     if cfg.molscore in MolScoreBenchmark.presets:
