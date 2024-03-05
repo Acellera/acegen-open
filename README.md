@@ -113,6 +113,7 @@ The following example demonstrates how to use a custom scoring function:
             return 0.0
     
     # Define a function to evaluate a list of molecules
+    # Should accept a list of SMILES strings and return a list or array of floats
     def evaluate_mols(smiles: list):
         return [evaluate_mol(smi) for smi in smiles]
     
