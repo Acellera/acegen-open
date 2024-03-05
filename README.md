@@ -86,11 +86,50 @@ We provide a variety of example priors that can be selected in the configuration
 
 # Changing the scoring function
 
-To change the scoring function, adjust the `molscore` parameter in any configuration file. Set it to point to a valid 
+To change the scoring function, adjust the `molscore` parameter in any configuration files. Set it to point to a valid 
 MolScore configuration file (e.g.  ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json). 
 Alternatively, you can set the `molscore` parameter to the name of a valid MolScore benchmark 
 (such as MolOpt, GuacaMol, etc.) to automatically execute each task in the benchmark. For further details on MolScore, 
 please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) repository.
+
+Alternatively, training scripts can be edited to use any custom scoring function.
+The following example demonstrates how to use a custom scoring function:
+
+    from rdkit.Chem import AllChem, QED
+    from acegen.rl_env import SMILESEnv
+    from acegen.vocabulary import SMILESVocabulary
+    from torchrl.collectors import RandomPolicy
+    
+    # Create a vocabulary from a list of characters
+    chars = ["START", "END", "(", ")", "1", "=", "C", "N", "O"]
+    chars_dict = {char: index for index, char in enumerate(chars)}
+    vocab = SMILESVocabulary.create_from_dict(chars_dict, start_token="START", end_token="END")
+        
+    def evaluate_mol(smiles: str):
+        mol = AllChem.MolFromSmiles(smiles)
+        if mol:
+            return QED(mol)
+        else:
+            return 0.0
+    
+    # Define a function to evaluate a list of molecules
+    # Should accept a list of SMILES strings and return a list or array of floats
+    def evaluate_mols(smiles: list):
+        return [evaluate_mol(smi) for smi in smiles]
+    
+    # Generate molecules
+    env =  SMILESEnv(
+        start_token=vocab.start_token_index,
+        end_token=vocab.end_token_index,
+        length_vocabulary=len(vocab),
+        batch_size=1,
+    )
+    data = env.rollout(max_steps=100)
+
+    # Use the custom scoring function to compute the rewards
+    # These lines can be found in the training scripts, so if the scoring function is changed, it should be updated accordingly
+    smiles_str = [vocab.decode(smi.numpy()) for smi in data["action"]]
+    reward = evaluate_mols(smiles_str)
 
 # Integration of custom models
 

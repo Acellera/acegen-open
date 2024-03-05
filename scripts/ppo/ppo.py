@@ -84,7 +84,7 @@ default_model_map = {
         create_gpt2_actor_critic,
         "enamine_real_vocabulary.txt",
         "gpt2_enamine_real.ckpt",
-        SMILESTokenirer2(),
+        SMILESTokenizer2(),
     ),
 }
 
