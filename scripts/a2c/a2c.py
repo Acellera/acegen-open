@@ -35,7 +35,6 @@ from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.envs import (
     CatFrames,
     InitTracker,
-    StepCounter,
     TensorDictPrimer,
     TransformedEnv,
     UnsqueezeTransform,
@@ -231,7 +230,6 @@ def run_a2c(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
@@ -327,7 +325,7 @@ def run_a2c(cfg, task):
         log_info = {}
         total_done += cfg.num_envs
         episode_rewards = data_next["reward"][done]
-        episode_length = data_next["step_count"][done]
+        episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
         if len(episode_rewards) > 0:
             log_info.update(
                 {
@@ -335,9 +333,7 @@ def run_a2c(cfg, task):
                     "train/reward": episode_rewards.mean().item(),
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
-                    "train/episode_length": episode_length.sum().item() / len(
-                        episode_length
-                    ),
+                    "train/episode_length": episode_length.item(),
                 }
             )
 

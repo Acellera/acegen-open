@@ -30,7 +30,13 @@ from torchrl.data import (
     TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import CatFrames, TensorDictPrimer, TransformedEnv, UnsqueezeTransform
+from torchrl.envs import (
+    CatFrames,
+    InitTracker,
+    TensorDictPrimer,
+    TransformedEnv,
+    UnsqueezeTransform,
+)
 from torchrl.record.loggers import get_logger
 
 try:
@@ -183,6 +189,7 @@ def run_reinvent(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
+        env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
         return env
