@@ -14,7 +14,6 @@ from acegen.vocabulary import SMILESVocabulary, Vocabulary
 
 try:
     from promptsmiles import FragmentLinker, ScaffoldDecorator
-
     _has_promptsmiles = True
 except ImportError as err:
     _has_promptsmiles = False
@@ -43,16 +42,27 @@ def generate_complete_smiles(
 
     Args:
         environment (EnvBase): Environment to sample from.
+        vocabulary (SMILESVocabulary): Vocabulary to use for encoding and decoding SMILES strings,
+        necessary for promptsmiles.
         policy (Callable): Policy to be executed in the environment.
         Must accept :class:`tensordict.tensordict.TensorDictBase` object as input.
         If ``None`` is provided, the policy used will be a
         :class:`~torchrl.collectors.RandomPolicy` instance with the environment
         ``action_spec``.
+        prompt (Union[str, list], optional): SMILES string or list of SMILES strings to be used as prompts.
         max_length (int, optional): Maximum length of SMILES. Defaults to 100.
         end_of_episode_key (str, optional): Key in the environment ``TensorDict`` that
         indicates the end of an episode. Defaults to "done".
         exploration_type (ExplorationType, optional): Exploration type to use. Defaults to
         :class:`~torchrl.envs.utils.ExplorationType.RANDOM`.
+        promptsmiles (Union[str, list], optional): SMILES string or list of SMILES strings
+        with specified attachment points.
+        promptsmiles_optimize (bool, optional): Optimize the prompt for the model being used.
+        Defaults to True.
+        promptsmiles_shuffle (bool, optional): Shuffle the selected attachmented point within the batch.
+        Defaults to True.
+        return_smiles_only (bool, optional): If ``True``, only the SMILES strings are returned.
+        Only when not using a PrompSMILES argument. Defaults to False.
     """
     env_device = environment.device
     initial_observation = environment.reset()
@@ -78,11 +88,8 @@ def generate_complete_smiles(
             return_smiles_only=True,
         )
         evaluate_fn = partial(
-            get_log_prob,
-            policy=policy,
-            vocabulary=vocabulary,
-            max_length=max_length
-            )
+            _get_log_prob, policy=policy, vocabulary=vocabulary, max_length=max_length
+        )
 
         if isinstance(promptsmiles, str):
             # We are decorating a Scaffold
@@ -94,13 +101,8 @@ def generate_complete_smiles(
                 batch_prompts=True,
                 optimize_prompts=promptsmiles_optimize,
                 shuffle=promptsmiles_shuffle,
-                return_all=False,
+                return_all=True,
             )
-            smiles = PS.sample()
-            tokens = [torch.tensor(vocabulary.encode(smi)) for smi in smiles]
-            enc_smiles = torch.vstack([torch.nn.functional.pad(tok, (0, max_length+1-tok.size()[0])) for tok in tokens])
-            output_data = smiles_to_tensordict(enc_smiles, mask_value=0)
-            return output_data
 
         if isinstance(promptsmiles, list):
             # We are linking fragments
@@ -112,13 +114,31 @@ def generate_complete_smiles(
                 batch_prompts=True,
                 optimize_prompts=promptsmiles_optimize,
                 shuffle=promptsmiles_shuffle,
-                return_all=False,
+                return_all=True,
             )
-            smiles = PS.sample()
-            tokens = [torch.tensor(vocabulary.encode(smi)) for smi in smiles]
-            enc_smiles = torch.vstack([torch.nn.functional.pad(tok, (0, max_length+1-tok.size()[0])) for tok in tokens])
-            output_data = smiles_to_tensordict(enc_smiles, mask_value=0)
-            return output_data
+
+        smiles = PS.sample()
+        # Encode all smiles
+        enc_smiles = []
+        for promptiteration in smiles:
+            tokens = [torch.tensor(vocabulary.encode(smi)) for smi in promptiteration]
+            enc_smiles.append(
+                torch.vstack(
+                    [
+                        torch.nn.functional.pad(
+                            tok, (0, max_length + 1 - tok.size()[0])
+                        )
+                        for tok in tokens
+                    ]
+                )
+            )
+        # Create output_data format from final completed SMILES
+        output_data = smiles_to_tensordict(enc_smiles[-1], mask_value=0)
+        # Also append all intermediate steps, skip the start token to be the same as action
+        output_data.set(
+            "promptsmiles", torch.stack([e[:, 1:] for e in enc_smiles], dim=-1)
+        )
+        return output_data
 
     # ----------------------------------------
 
@@ -138,8 +158,16 @@ def generate_complete_smiles(
         if prompt:
             if isinstance(prompt, str):
                 prompt = [prompt] * batch_size[0]
-            tokens = [torch.tensor(vocabulary.encode(smi, with_start=False, with_end=False)) for smi in prompt]
-            enc_prompts = torch.vstack([torch.nn.functional.pad(tok, (0, max_length+1-tok.size()[0])) for tok in tokens])
+            tokens = [
+                torch.tensor(vocabulary.encode(smi, with_start=False, with_end=False))
+                for smi in prompt
+            ]
+            enc_prompts = torch.vstack(
+                [
+                    torch.nn.functional.pad(tok, (0, max_length + 1 - tok.size()[0]))
+                    for tok in tokens
+                ]
+            )
 
         initial_observation = initial_observation.to(policy_device)
         tensordict_ = initial_observation
@@ -156,7 +184,7 @@ def generate_complete_smiles(
                     tensordict_.set("mask", torch.ones_like(finished))
                     tensordict_.set(("next", "mask"), torch.ones_like(finished))
                     if prompt:
-                        enforce_mask = (enc_prompts[:, _] != 0)
+                        enforce_mask = enc_prompts[:, _] != 0
 
                     # Execute policy
                     tensordict_ = tensordict_.to(policy_device)
@@ -165,7 +193,9 @@ def generate_complete_smiles(
 
                     # Enforce prompt
                     if prompt:
-                        new_action = (~enforce_mask * tensordict_.get("action")) + (enforce_mask * enc_prompts[:, _]).long()
+                        new_action = (~enforce_mask * tensordict_.get("action")) + (
+                            enforce_mask * enc_prompts[:, _]
+                        ).long()
                         tensordict_.set("action", new_action)
 
                     # Step forward in the environment
@@ -210,7 +240,7 @@ def generate_complete_smiles(
         return output_data
 
 
-def get_log_prob(
+def _get_log_prob(
     smiles: list,
     policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]],
     vocabulary: Vocabulary,
@@ -218,9 +248,14 @@ def get_log_prob(
 ):
     # Convert SMILES to TensorDict
     tokens = [torch.tensor(vocabulary.encode(smi)) for smi in smiles]
-    enc_smiles = torch.vstack([torch.nn.functional.pad(tok, (0, max_length-tok.size()[0])) for tok in tokens])
+    enc_smiles = torch.vstack(
+        [
+            torch.nn.functional.pad(tok, (0, max_length - tok.size()[0]))
+            for tok in tokens
+        ]
+    )
     data = smiles_to_tensordict(enc_smiles, mask_value=0)
-    data.set('is_init', torch.zeros_like(data.get('done')))
+    data.set("is_init", torch.zeros_like(data.get("done")))
 
     actions = data.get("action").clone()
 
