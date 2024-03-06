@@ -297,13 +297,6 @@ def run_ppo(cfg, task):
         done = data_next.get("done").squeeze(-1)
         pbar.update(done.sum().item())
 
-        # Compute rewards
-        smiles = data.get("action").cpu()
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
-        data_next["reward"][done] = torch.tensor(
-            task(smiles_str), device=device
-        ).unsqueeze(-1)
-
         # Register smiles lengths and real rewards
         log_info = {}
         total_done += cfg.num_envs
@@ -320,37 +313,12 @@ def run_ppo(cfg, task):
                 }
             )
 
-        # For promptsmiles, update the action key
-        if cfg.get("promptsmiles"):
-            if cfg.get("promptsmiles_multi"):
-                print(
-                    NotImplementedError(
-                        "promptsmiles with multi updates is not implemented yet, running with single update."
-                    )
-                )
-
-            # Depending on fragment or scaffold
-            ps_idx = 0 if "." in cfg.get("promptsmiles") else -1
-            data.set("action", data.get("promptsmiles")[:, :, ps_idx])
-
-            # For transformers-based policies
-            start_token = torch.full(
-                (data.batch_size[0], 1), vocabulary.start_token_index, dtype=torch.long
-            ).to(data.device)
-            data.set(
-                "sequence",
-                torch.cat(
-                    [start_token, data.get("promptsmiles")[:, :-1, ps_idx]], dim=1
-                ),
-            )
-            data.set(("next", "sequence"), data.get("promptsmiles")[:, :, ps_idx])
-
-            # Recompute policy log_prob
-            if (
-                "sample_log_prob" not in data
-            ):  # Not ideal, because we do an unnecessary forward pass, but it works
-                with torch.no_grad():
-                    actor_training(data)
+        # Recompute policy log_prob
+        if (
+            "sample_log_prob" not in data
+        ):  # Not ideal, because we do an unnecessary forward pass, but it works
+            with torch.no_grad():
+                actor_training(data)
 
         # Get data to be potentially added to the replay buffer later
         replay_data = data.clone()

@@ -242,33 +242,6 @@ def run_ahc(cfg, task):
                 }
             )
 
-        # Select only the necessary tensors, promptsmiles ignored if not present
-        data = data.select(
-            "action",
-            "mask",
-            "is_init",
-            "observation",
-            "promptsmiles",
-            ("next", "reward"),
-            inplace=True,
-            strict=False,
-        )
-
-        # For promptsmiles, update the action key
-        if cfg.get("promptsmiles"):
-            if cfg.get("promptsmiles_multi"):
-                print(
-                    NotImplementedError(
-                        "promptsmiles with multi updates is not implemented yet, running with single update."
-                    )
-                )
-            # Depending on fragment or scaffold
-            if "." in cfg.get("promptsmiles"):
-                ps_idx = 0
-            else:
-                ps_idx = -1
-            data.set("action", data.get("promptsmiles")[:, :, ps_idx])
-
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
         sscore, sscore_idxs = (
             data_next["reward"][done].squeeze(-1).sort(descending=True)

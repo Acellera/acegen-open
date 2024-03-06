@@ -253,12 +253,32 @@ def generate_complete_smiles(
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
         return smiles_str
     else:
+
+        # Compute rewards
         done = output_data.get("done").squeeze(-1)
         smiles = output_data.get("action").cpu()
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
         output_data["reward"][done] = torch.tensor(
             scoring_function(smiles_str), device=output_data.device
         ).unsqueeze(-1)
+
+        # For promptsmiles, update the action key
+        if promptsmiles:
+
+            # if cfg.get("promptsmiles_multi"):
+            #     print(
+            #         NotImplementedError(
+            #             "promptsmiles with multi updates is not implemented yet, running with single update."
+            #         )
+            #     )
+
+            # Depending on fragment or scaffold
+            if "." in promptsmiles:
+                ps_idx = 0
+            else:
+                ps_idx = -1
+            output_data.set("action", output_data.get("promptsmiles")[:, :, ps_idx])
+
         return output_data
 
 
