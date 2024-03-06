@@ -167,7 +167,7 @@ def run_a2c(cfg, task):
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
     vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, start_token="GO", end_token="EOS"
+        tokens_dict, start_token="GO", end_token="EOS", tokenizer=tokenizer
     )
 
     # Create models
@@ -306,7 +306,14 @@ def run_a2c(cfg, task):
     while not task.finished:
 
         # Generate data
-        data = generate_complete_smiles(policy=actor_inference, environment=env)
+        data = generate_complete_smiles(
+            policy=actor_inference,
+            vocabulary=vocabulary,
+            environment=env,
+            promptsmiles=cfg.get("promptsmiles"),
+            promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
+            promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
+        )
         data = remove_duplicates(data, key="action")
 
         # Update progress bar
@@ -340,6 +347,32 @@ def run_a2c(cfg, task):
         # For transformers-based policies
         data.set("sequence", data.get("observation"))
         data.set(("next", "sequence"), data.get(("next", "observation")))
+
+        # For promptsmiles, update the action key
+        if cfg.get("promptsmiles"):
+            if cfg.get("promptsmiles_multi"):
+                print(
+                    NotImplementedError(
+                        "promptsmiles with multi updates is not implemented yet, running with single update."
+                    )
+                )
+            # Depending on fragment or scaffold
+            if "." in cfg.get("promptsmiles"):
+                ps_idx = 0
+            else:
+                ps_idx = -1
+            data.set("action", data.get("promptsmiles")[:, :, ps_idx])
+            # For transformers-based policies
+            start_token = torch.full(
+                (data.batch_size[0], 1), vocabulary.start_token_index, dtype=torch.long
+            ).to(data.device)
+            data.set(
+                "sequence",
+                torch.cat(
+                    [start_token, data.get("promptsmiles")[:, :-1, ps_idx]], dim=1
+                ),
+            )
+            data.set(("next", "sequence"), data.get("promptsmiles")[:, :, ps_idx])
 
         # Compute advantage
         with torch.no_grad():

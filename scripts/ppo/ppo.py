@@ -173,7 +173,7 @@ def run_ppo(cfg, task):
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
     vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, start_token="GO", end_token="EOS"
+        tokens_dict, start_token="GO", end_token="EOS", tokenizer=tokenizer
     )
 
     # Create models
@@ -327,7 +327,14 @@ def run_ppo(cfg, task):
     while not task.finished:
 
         # Generate data
-        data = generate_complete_smiles(policy=actor_inference, environment=env)
+        data = generate_complete_smiles(
+            policy=actor_inference,
+            vocabulary=vocabulary,
+            environment=env,
+            promptsmiles=cfg.get("promptsmiles"),
+            promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
+            promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
+        )
         data = remove_duplicates(data, key="action")
 
         # Update progress bar
@@ -357,6 +364,21 @@ def run_ppo(cfg, task):
                     "train/episode_length": episode_length.item(),
                 }
             )
+
+        # For promptsmiles, update the action key
+        if cfg.get("promptsmiles"):
+            if cfg.get("promptsmiles_multi"):
+                print(
+                    NotImplementedError(
+                        "promptsmiles with multi updates is not implemented yet, running with single update."
+                    )
+                )
+            # Depending on fragment or scaffold
+            if "." in cfg.get("promptsmiles"):
+                ps_idx = 0
+            else:
+                ps_idx = -1
+            data.set("action", data.get("promptsmiles")[:, :, ps_idx])
 
         # Get data to be potentially added to the replay buffer later
         replay_data = data.clone()

@@ -151,7 +151,7 @@ def run_ahc(cfg, task):
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
     vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, start_token="GO", end_token="EOS"
+        tokens_dict, start_token="GO", end_token="EOS", tokenizer=tokenizer
     )
 
     # Create models
@@ -245,7 +245,15 @@ def run_ahc(cfg, task):
 
     while not task.finished:
 
-        data = generate_complete_smiles(policy=actor_inference, environment=env)
+        # Generate data
+        data = generate_complete_smiles(
+            policy=actor_inference,
+            vocabulary=vocabulary,
+            environment=env,
+            promptsmiles=cfg.get("promptsmiles"),
+            promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
+            promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
+        )
         data = remove_duplicates(data, key="action")
 
         log_info = {}
@@ -275,15 +283,32 @@ def run_ahc(cfg, task):
                 }
             )
 
-        # Select only the necessary tensors
+        # Select only the necessary tensors, promptsmiles ignored if not present
         data = data.select(
             "action",
             "mask",
             "is_init",
             "observation",
+            "promptsmiles",
             ("next", "reward"),
             inplace=True,
+            strict=False,
         )
+
+        # For promptsmiles, update the action key
+        if cfg.get("promptsmiles"):
+            if cfg.get("promptsmiles_multi"):
+                print(
+                    NotImplementedError(
+                        "promptsmiles with multi updates is not implemented yet, running with single update."
+                    )
+                )
+            # Depending on fragment or scaffold
+            if "." in cfg.get("promptsmiles"):
+                ps_idx = 0
+            else:
+                ps_idx = -1
+            data.set("action", data.get("promptsmiles")[:, :, ps_idx])
 
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
         sscore, sscore_idxs = (

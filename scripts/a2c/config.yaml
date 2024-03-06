@@ -2,13 +2,19 @@
 experiment_name: acegen
 agent_name: a2c
 log_dir: logs_a2c
-logger_backend: wandb  # csv, wandb, tensorboard, or null
+logger_backend: null  # csv, wandb, tensorboard, or null
 seed: 101
 
 # Environment configuration
 num_envs: 16
 molscore: MolOpt
 molscore_include: ["Albuterol_similarity"]
+
+# Promptsmiles configuration
+promptsmiles: "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O" # Scaffold N1(*)CCN(CC1)CCCCN(*)
+promptsmiles_optimize: True
+promptsmiles_shuffle: True
+promptsmiles_multi: True
 
 # Collector configuration
 total_smiles: 10_000

@@ -10,6 +10,12 @@ num_envs: 128
 molscore: MolOpt
 molscore_include: ["Albuterol_similarity"]
 
+# Promptsmiles configuration
+promptsmiles: "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O" # Scaffold N1(*)CCN(CC1)CCCCN(*)
+promptsmiles_optimize: True
+promptsmiles_shuffle: True
+promptsmiles_multi: True
+
 # Collector configuration
 total_smiles: 10_000
 

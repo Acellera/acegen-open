@@ -30,7 +30,7 @@ def generate_complete_smiles(
     max_length: int = None,
     end_of_episode_key: str = "done",
     exploration_type: ExplorationType = ExplorationType.RANDOM,
-    promptsmiles: Union[str, list] = None,
+    promptsmiles: str = None,
     promptsmiles_optimize: bool = True,
     promptsmiles_shuffle: bool = True,
     return_smiles_only: bool = False,
@@ -56,8 +56,8 @@ def generate_complete_smiles(
         indicates the end of an episode. Defaults to "done".
         exploration_type (ExplorationType, optional): Exploration type to use. Defaults to
         :class:`~torchrl.envs.utils.ExplorationType.RANDOM`.
-        promptsmiles (Union[str, list], optional): SMILES string or list of SMILES strings
-        with specified attachment points.
+        promptsmiles (str, optional): SMILES string of scaffold with attachment points or fragments seperated
+        by "." with one attachment point each.
         promptsmiles_optimize (bool, optional): Optimize the prompt for the model being used.
         Defaults to True.
         promptsmiles_shuffle (bool, optional): Shuffle the selected attachmented point within the batch.
@@ -77,6 +77,7 @@ def generate_complete_smiles(
                 "PromptSMILES library not found, please install with pip install promptsmiles ."
             ) from PROMPTSMILES_ERR
 
+        # Setup sample fn passed to promptsmiles
         sample_fn = partial(
             generate_complete_smiles,
             environment=environment,
@@ -88,9 +89,14 @@ def generate_complete_smiles(
             exploration_type=exploration_type,
             return_smiles_only=True,
         )
+        # Setup evaluate fn passed to promptsmiles
         evaluate_fn = partial(
             _get_log_prob, policy=policy, vocabulary=vocabulary, max_length=max_length
         )
+        # Split fragments into a list if there are multiple
+        promptsmiles = promptsmiles.split(".")
+        if len(promptsmiles) == 1:
+            promptsmiles = promptsmiles[0]
 
         if isinstance(promptsmiles, str):
             # We are decorating a Scaffold
