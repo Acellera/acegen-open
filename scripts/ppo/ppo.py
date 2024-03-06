@@ -282,7 +282,8 @@ def run_ppo(cfg, task):
 
         # Generate data
         data = generate_complete_smiles(
-            policy=actor_inference,
+            policy_sample=actor_inference,
+            policy_evaluate=actor_training,
             vocabulary=vocabulary,
             scoring_function=task,
             environment=env,
@@ -315,7 +316,7 @@ def run_ppo(cfg, task):
 
         # Recompute policy log_prob
         if (
-            "sample_log_prob" not in data
+            "sample_log_prob" not in data.keys()
         ):  # Not ideal, because we do an unnecessary forward pass, but it works
             with torch.no_grad():
                 actor_training(data)

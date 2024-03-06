@@ -212,7 +212,8 @@ def run_reinvent(cfg, task):
 
         # Generate data
         data = generate_complete_smiles(
-            policy=actor_inference,
+            policy_sample=actor_inference,
+            policy_evaluate=actor_training,
             vocabulary=vocabulary,
             scoring_function=task,
             environment=env,

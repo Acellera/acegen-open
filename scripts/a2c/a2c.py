@@ -261,7 +261,8 @@ def run_a2c(cfg, task):
 
         # Generate data
         data = generate_complete_smiles(
-            policy=actor_inference,
+            policy_sample=actor_inference,
+            policy_evaluate=actor_training,
             vocabulary=vocabulary,
             scoring_function=task,
             environment=env,
@@ -295,36 +296,6 @@ def run_a2c(cfg, task):
         # For transformers-based policies
         data.set("sequence", data.get("observation"))
         data.set(("next", "sequence"), data.get(("next", "observation")))
-
-        # For promptsmiles, update the action key
-        if cfg.get("promptsmiles"):
-            if cfg.get("promptsmiles_multi"):
-                print(
-                    NotImplementedError(
-                        "promptsmiles with multi updates is not implemented yet, running with single update."
-                    )
-                )
-
-            # Depending on fragment or scaffold
-            ps_idx = 0 if "." in cfg.get("promptsmiles") else -1
-
-            # TODO: why do we re-set the action but not the observation, next observation etc?
-            # TODO: Also, do "action" and "promptsmiles" have the same length? because otherwise we should also change
-            # TODO: Maybe it is easier to do data = smiles_to_tensordict(data.get("promptsmiles")[:, :, ps_idx], data.get("reward"))
-            # the position of the reward and the done/terminated/truncated flags
-            data.set("action", data.get("promptsmiles")[:, :, ps_idx])
-
-            # For transformers-based policies
-            start_token = torch.full(
-                (data.batch_size[0], 1), vocabulary.start_token_index, dtype=torch.long
-            ).to(data.device)
-            data.set(
-                "sequence",
-                torch.cat(
-                    [start_token, data.get("promptsmiles")[:, :-1, ps_idx]], dim=1
-                ),
-            )
-            data.set(("next", "sequence"), data.get("promptsmiles")[:, :, ps_idx])
 
         # Compute advantage
         with torch.no_grad():

@@ -26,7 +26,12 @@ def generate_complete_smiles(
     environment: EnvBase,
     vocabulary: SMILESVocabulary,
     scoring_function: Callable = None,
-    policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]] = None,
+    policy_sample: Union[
+        TensorDictModule, Callable[[TensorDictBase], TensorDictBase]
+    ] = None,
+    policy_evaluate: Union[
+        TensorDictModule, Callable[[TensorDictBase], TensorDictBase]
+    ] = None,
     prompt: Union[str, list] = None,
     max_length: int = None,
     end_of_episode_key: str = "done",
@@ -47,8 +52,10 @@ def generate_complete_smiles(
         vocabulary (SMILESVocabulary): Vocabulary to use for encoding and decoding SMILES strings,
             necessary for promptsmiles.
         scoring_function (Callable, optional): Scoring function to be used to evaluate the generated SMILES.
-        policy (Callable): Policy to be executed in the environment.
+        policy_sample (Callable): Policy to be executed in the environment step-by_step of shape (batch_size, 1).
             Must accept :class:`tensordict.tensordict.TensorDictBase` object as input.
+        policy_evaluate (Callable, optional): Policy to be used to evaluate the log probability of the actions.
+            of shape (batch_size, time). Must accept :class:`tensordict.tensordict.TensorDictBase` object as input.
         If ``None`` is provided, the policy used will be a
             :class:`~torchrl.collectors.RandomPolicy` instance with the environment
             ``action_spec``.
@@ -71,16 +78,16 @@ def generate_complete_smiles(
     initial_observation = environment.reset()
     batch_size = initial_observation.batch_size
     max_length = max_length or environment.max_length
-    if policy:
+    if policy_sample:
         # Check that the initial observation contains the keys required by the policy
-        for key in policy.in_keys:
+        for key in policy_sample.in_keys:
             if key not in initial_observation.keys():
                 raise ValueError(
                     f"Key {key}, required by the policy, is missing in the provided initial_observation."
                 )
-        policy_device = policy.device
+        policy_device = policy_sample.device
     else:
-        policy = RandomPolicy(environment.action_spec)
+        policy_evaluate = RandomPolicy(environment.action_spec)
         policy_device = env_device
 
     # ----- Insertion of PROMPTSMILES -----
@@ -96,7 +103,8 @@ def generate_complete_smiles(
             generate_complete_smiles,
             environment=environment,
             vocabulary=vocabulary,
-            policy=policy,
+            policy_sample=policy_sample,
+            policy_evaluate=policy_evaluate,
             promptsmiles=None,
             max_length=max_length,
             end_of_episode_key=end_of_episode_key,
@@ -104,8 +112,17 @@ def generate_complete_smiles(
             return_smiles_only=True,
         )
         # Setup evaluate fn passed to promptsmiles
+
+        if policy_evaluate is None:
+            raise ValueError(
+                "policy_evaluate parameter must be provided when using promptsmiles."
+            )
+
         evaluate_fn = partial(
-            _get_log_prob, policy=policy, vocabulary=vocabulary, max_length=max_length
+            _get_log_prob,
+            policy=policy_evaluate,
+            vocabulary=vocabulary,
+            max_length=max_length,
         )
         # Split fragments into a list if there are multiple
         promptsmiles = promptsmiles.split(".")
@@ -204,7 +221,7 @@ def generate_complete_smiles(
 
                     # Execute policy
                     tensordict_ = tensordict_.to(policy_device)
-                    policy(tensordict_)
+                    policy_sample(tensordict_)
                     tensordict_ = tensordict_.to(env_device)
 
                     # Enforce prompt
@@ -279,12 +296,28 @@ def generate_complete_smiles(
                 ps_idx = -1
             output_data.set("action", output_data.get("promptsmiles")[:, :, ps_idx])
 
+            # # TODO: why do we re-set the action but not the observation, next observation etc?
+            # # TODO: Also, do "action" and "promptsmiles" have the same length? because otherwise we should also change
+            # # TODO: Maybe it is easier to do data = smiles_to_tensordict(data.get("promptsmiles")[:, :, ps_idx],
+            #  data.get("reward"))
+            # # the position of the reward and the done/terminated/truncated flags
+            # data.set("action", data.get("promptsmiles")[:, :, ps_idx])
+            #
+            # # For transformers-based policies
+            # start_token = torch.full(
+            #     (data.batch_size[0], 1), vocabulary.start_token_index, dtype=torch.long
+            # ).to(data.device)
+            # data.set(
+            #     "sequence",
+            #     torch.cat(
+            #         [start_token, data.get("promptsmiles")[:, :-1, ps_idx]], dim=1
+            #     ),
+            # )
+            # data.set(("next", "sequence"), data.get("promptsmiles")[:, :, ps_idx])
+
         return output_data
 
 
-# TODO: this method returns the wrong log_prob because the policy is an inference model, it reshapes the input as
-#  (-1, 1) and thus does not use the rhs
-# TODO: easiest option is to pass on the training policy besides the inference policy
 def _get_log_prob(
     smiles: list,
     policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]],
