@@ -12,14 +12,10 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.models import (
-    adapt_state_dict,
-    create_gpt2_actor,
-    create_gru_actor,
-    create_lstm_actor,
-)
+from acegen import model_mapping
+from acegen.models import adapt_state_dict
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESTokenizer, SMILESTokenizer2, SMILESVocabulary
+from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict.utils import isin, remove_duplicates
 
@@ -39,7 +35,6 @@ from torchrl.envs import (
 )
 from torchrl.record.loggers import get_logger
 
-
 try:
     import molscore
     from molscore import MolScoreBenchmark
@@ -49,28 +44,6 @@ try:
 except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
-
-
-default_model_map = {
-    "gru": (
-        create_gru_actor,
-        "chembl_filtered_vocabulary.txt",
-        "gru_chembl_filtered.ckpt",
-        SMILESTokenizer(),
-    ),
-    "lstm": (
-        create_lstm_actor,
-        "chembl_vocabulary.txt",
-        "lstm_chembl.ckpt",
-        SMILESTokenizer(),
-    ),
-    "gpt2": (
-        create_gpt2_actor,
-        "enamine_real_vocabulary.txt",
-        "gpt2_enamine_real.ckpt",
-        SMILESTokenizer2(),
-    ),
-}
 
 
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
@@ -94,8 +67,10 @@ def main(cfg: "DictConfig"):
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
+            "MolScore can be installed from `https://github.com/MorganCThomas/MolScore`."
         ) from MOLSCORE_ERR
 
+    # Define training task and run
     if cfg.molscore in MolScoreBenchmark.presets:
         MSB = MolScoreBenchmark(
             model_name=cfg.agent_name,
@@ -129,18 +104,8 @@ def run_ahc(cfg, task):
     )
 
     # Get model and vocabulary checkpoints
-    if cfg.model in default_model_map:
-        create_actor, vocab_file, weights_file, tokenizer = default_model_map[cfg.model]
-        voc_path = (
-            Path(__file__).resolve().parent.parent.parent / "priors" / vocab_file
-            if cfg.prior == "default"
-            else Path(cfg.prior)
-        )
-        ckpt_path = (
-            Path(__file__).resolve().parent.parent.parent / "priors" / weights_file
-            if cfg.prior == "default"
-            else Path(cfg.prior)
-        )
+    if cfg.model in model_mapping:
+        create_actor, _, _, voc_path, ckpt_path, tokenizer = model_mapping[cfg.model]
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
@@ -394,6 +359,7 @@ def compute_loss(data, model, prior, sigma):
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     prior_likelihood = (prior_log_prob * mask).sum(-1)
     score = data.get(("next", "reward")).squeeze(-1).sum(-1)
+
     augmented_likelihood = prior_likelihood + sigma * score
     loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
 

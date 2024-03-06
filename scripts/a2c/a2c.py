@@ -11,20 +11,10 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.models import (
-    adapt_state_dict,
-    create_gpt2_actor,
-    create_gpt2_actor_critic,
-    create_gpt2_critic,
-    create_gru_actor,
-    create_gru_actor_critic,
-    create_gru_critic,
-    create_lstm_actor,
-    create_lstm_actor_critic,
-    create_lstm_critic,
-)
+from acegen import model_mapping
+from acegen.models import adapt_state_dict
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESTokenizer, SMILESTokenizer2, SMILESVocabulary
+from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.utils import remove_duplicates
@@ -54,34 +44,6 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-default_model_map = {
-    "gru": (
-        create_gru_actor,
-        create_gru_critic,
-        create_gru_actor_critic,
-        "chembl_filtered_vocabulary.txt",
-        "gru_chembl_filtered.ckpt",
-        SMILESTokenizer(),
-    ),
-    "lstm": (
-        create_lstm_actor,
-        create_lstm_critic,
-        create_lstm_actor_critic,
-        "chembl_vocabulary.txt",
-        "lstm_chembl.ckpt",
-        SMILESTokenizer(),
-    ),
-    "gpt2": (
-        create_gpt2_actor,
-        create_gpt2_critic,
-        create_gpt2_actor_critic,
-        "enamine_real_vocabulary.txt",
-        "gpt2_enamine_real.ckpt",
-        SMILESTokenizer2(),
-    ),
-}
-
-
 @hydra.main(config_path=".", config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
@@ -103,8 +65,10 @@ def main(cfg: "DictConfig"):
     if not _has_molscore:
         raise RuntimeError(
             "MolScore library not found, unable to create a scoring function. "
+            "MolScore can be installed from `https://github.com/MorganCThomas/MolScore`."
         ) from MOLSCORE_ERR
 
+    # Define training task and run
     if cfg.molscore in MolScoreBenchmark.presets:
         MSB = MolScoreBenchmark(
             model_name=cfg.agent_name,
@@ -138,25 +102,15 @@ def run_a2c(cfg, task):
     )
 
     # Get model and vocabulary checkpoints
-    if cfg.model in default_model_map:
+    if cfg.model in model_mapping:
         (
             create_actor,
             create_critic,
             create_shared,
-            vocab_file,
-            weights_file,
+            voc_path,
+            ckpt_path,
             tokenizer,
-        ) = default_model_map[cfg.model]
-        voc_path = (
-            Path(__file__).resolve().parent.parent.parent / "priors" / vocab_file
-            if cfg.prior == "default"
-            else Path(cfg.prior)
-        )
-        ckpt_path = (
-            Path(__file__).resolve().parent.parent.parent / "priors" / weights_file
-            if cfg.prior == "default"
-            else Path(cfg.prior)
-        )
+        ) = model_mapping[cfg.model]
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
