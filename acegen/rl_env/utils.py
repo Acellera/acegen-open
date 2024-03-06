@@ -69,6 +69,17 @@ def generate_complete_smiles(
     initial_observation = environment.reset()
     batch_size = initial_observation.batch_size
     max_length = max_length or environment.max_length
+    if policy:
+            # Check that the initial observation contains the keys required by the policy
+            for key in policy.in_keys:
+                if key not in initial_observation.keys():
+                    raise ValueError(
+                        f"Key {key}, required by the policy, is missing in the provided initial_observation."
+                    )
+            policy_device = policy.device
+    else:
+        policy = RandomPolicy(environment.action_spec)
+        policy_device = env_device
 
     # ----- Insertion of PROMPTSMILES -----
     if promptsmiles:
@@ -153,17 +164,6 @@ def generate_complete_smiles(
     # ----------------------------------------
 
     else:
-        if policy:
-            # Check that the initial observation contains the keys required by the policy
-            for key in policy.in_keys:
-                if key not in initial_observation.keys():
-                    raise ValueError(
-                        f"Key {key}, required by the policy, is missing in the provided initial_observation."
-                    )
-            policy_device = policy.device
-        else:
-            policy = RandomPolicy(environment.action_spec)
-            policy_device = env_device
 
         if prompt:
             if isinstance(prompt, str):
