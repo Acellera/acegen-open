@@ -11,7 +11,7 @@ molscore: LibINVENT_Exp1
 molscore_include: null 
 
 # Promptsmiles configuration
-promptsmiles: "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O" # Scaffold N1(*)CCN(CC1)CCCCN(*)
+promptsmiles: "N1(*)CCN(CC1)CCCCN(*)" # Scaffold N1(*)CCN(CC1)CCCCN(*) # Fragments "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O"
 promptsmiles_optimize: True
 promptsmiles_shuffle: True
 promptsmiles_multi: True
