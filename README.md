@@ -35,16 +35,6 @@ To install TorchRL, run
     cd rl
     python setup.py install
 
-### Install MolScore
-
-To install MolScore, run
-
-    pip3 install rdkit func_timeout dask distributed pystow zenodo_client matplotlib scipy pandas joblib seaborn molbloom Levenshtein
-    git clone https://github.com/MorganCThomas/MolScore.git
-    cd molscore
-    git checkout develop
-    python setup.py install
-
 ### Install AceGen
 
 To install AceGen, run
