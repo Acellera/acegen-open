@@ -75,6 +75,7 @@ def main(cfg: "DictConfig"):
             "MolScore can be installed from `https://github.com/MorganCThomas/MolScore`."
         ) from MOLSCORE_ERR
 
+    # Define training task and run
     if cfg.molscore in MolScoreBenchmark.presets:
         MSB = MolScoreBenchmark(
             model_name=cfg.agent_name,

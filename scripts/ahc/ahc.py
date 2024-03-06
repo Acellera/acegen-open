@@ -36,7 +36,6 @@ from torchrl.envs import (
 )
 from torchrl.record.loggers import get_logger
 
-
 try:
     import molscore
     from molscore import MolScoreBenchmark
@@ -72,6 +71,7 @@ def main(cfg: "DictConfig"):
             "MolScore can be installed from `https://github.com/MorganCThomas/MolScore`."
         ) from MOLSCORE_ERR
 
+    # Define training task and run
     if cfg.molscore in MolScoreBenchmark.presets:
         MSB = MolScoreBenchmark(
             model_name=cfg.agent_name,
@@ -338,6 +338,7 @@ def compute_loss(data, model, prior, sigma):
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     prior_likelihood = (prior_log_prob * mask).sum(-1)
     score = data.get(("next", "reward")).squeeze(-1).sum(-1)
+
     augmented_likelihood = prior_likelihood + sigma * score
     loss = torch.pow((augmented_likelihood - agent_likelihood), 2)
 
