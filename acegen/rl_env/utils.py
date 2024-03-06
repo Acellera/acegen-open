@@ -150,10 +150,12 @@ def generate_complete_smiles(
                     ]
                 )
             )
+
         # Create output_data format from final completed SMILES
         output_data = smiles_to_tensordict(
             enc_smiles[-1], mask_value=0, device=env_device
         )
+
         # Also append all intermediate steps, skip the start token to be the same as action
         output_data.set(
             "promptsmiles",
