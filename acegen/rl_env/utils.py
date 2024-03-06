@@ -70,13 +70,13 @@ def generate_complete_smiles(
     batch_size = initial_observation.batch_size
     max_length = max_length or environment.max_length
     if policy:
-            # Check that the initial observation contains the keys required by the policy
-            for key in policy.in_keys:
-                if key not in initial_observation.keys():
-                    raise ValueError(
-                        f"Key {key}, required by the policy, is missing in the provided initial_observation."
-                    )
-            policy_device = policy.device
+        # Check that the initial observation contains the keys required by the policy
+        for key in policy.in_keys:
+            if key not in initial_observation.keys():
+                raise ValueError(
+                    f"Key {key}, required by the policy, is missing in the provided initial_observation."
+                )
+        policy_device = policy.device
     else:
         policy = RandomPolicy(environment.action_spec)
         policy_device = env_device
@@ -265,7 +265,6 @@ def _get_log_prob(
         ]
     )
     data = smiles_to_tensordict(enc_smiles, mask_value=0, device=policy.device)
-
     actions = data.get("action").clone()
 
     # For transformers-based policies

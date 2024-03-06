@@ -1,20 +1,21 @@
 import pytest
 import torch
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary, SMILESTokenizer
+from acegen.vocabulary import SMILESTokenizer, SMILESVocabulary
 from tests.utils import get_default_devices
 from torchrl.collectors import RandomPolicy
 from torchrl.envs.utils import step_mdp
 
 try:
     import promptsmiles
+
     promptsmiles_available = True
 except ImportError:
     promptsmiles_available = False
 
 skip_if_promptsmiles_not_available = pytest.mark.skipif(
     not promptsmiles_available,
-    reason="prompsmiles library is not available, skipping this test"
+    reason="prompsmiles library is not available, skipping this test",
 )
 
 
@@ -136,7 +137,9 @@ def test_sample_smiles(
 @pytest.mark.parametrize("batch_size", [2, 4])
 @pytest.mark.parametrize("one_hot_action_encoding", [False, True])
 @pytest.mark.parametrize("one_hot_obs_encoding", [False, True])
-@pytest.mark.parametrize("promptsmiles", ["N1(*)CCN(CC1)CCCCN(*)", "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O"])
+@pytest.mark.parametrize(
+    "promptsmiles", ["N1(*)CCN(CC1)CCCCN(*)", "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O"]
+)
 @pytest.mark.parametrize("promptsmiles_optimize", [False, True])
 @pytest.mark.parametrize("promptsmiles_shuffle", [False, True])
 def test_sample_promptsmiles(
@@ -150,7 +153,7 @@ def test_sample_promptsmiles(
     one_hot_obs_encoding,
     promptsmiles,
     promptsmiles_optimize,
-    promptsmiles_shuffle
+    promptsmiles_shuffle,
 ):
     torch.manual_seed(0)
     env = SMILESEnv(
@@ -165,11 +168,11 @@ def test_sample_promptsmiles(
     smiles = generate_complete_smiles(
         env,
         vocabulary=SMILESVocabulary(tokenizer=SMILESTokenizer()),
-        policy=None, 
+        policy=None,
         promptsmiles=promptsmiles,
         promptsmiles_optimize=promptsmiles_optimize,
         promptsmiles_shuffle=promptsmiles_shuffle,
-        max_length=10
+        max_length=10,
     )
     terminated = smiles.get(("next", "terminated")).squeeze(
         dim=-1
