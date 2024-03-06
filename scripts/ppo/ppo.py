@@ -336,7 +336,7 @@ def run_ppo(cfg, task):
 
             # Recompute policy log_prob
             if (
-                "sample_log_prob" not in data
+                "sample_log_prob" not in data.keys()
             ):  # Not ideal, because we do an unnecessary forward pass, but it works
                 with torch.no_grad():
                     actor_training(data)
