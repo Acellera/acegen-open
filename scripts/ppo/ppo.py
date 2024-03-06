@@ -284,6 +284,7 @@ def run_ppo(cfg, task):
         data = generate_complete_smiles(
             policy=actor_inference,
             vocabulary=vocabulary,
+            scoring_function=task,
             environment=env,
             promptsmiles=cfg.get("promptsmiles"),
             promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
@@ -297,8 +298,8 @@ def run_ppo(cfg, task):
         pbar.update(done.sum().item())
 
         # Compute rewards
-        smiles = data.select("action").cpu()
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
+        smiles = data.get("action").cpu()
+        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
         data_next["reward"][done] = torch.tensor(
             task(smiles_str), device=device
         ).unsqueeze(-1)
@@ -327,16 +328,26 @@ def run_ppo(cfg, task):
                         "promptsmiles with multi updates is not implemented yet, running with single update."
                     )
                 )
+
             # Depending on fragment or scaffold
-            if "." in cfg.get("promptsmiles"):
-                ps_idx = 0
-            else:
-                ps_idx = -1
+            ps_idx = 0 if "." in cfg.get("promptsmiles") else -1
             data.set("action", data.get("promptsmiles")[:, :, ps_idx])
+
+            # For transformers-based policies
+            start_token = torch.full(
+                (data.batch_size[0], 1), vocabulary.start_token_index, dtype=torch.long
+            ).to(data.device)
+            data.set(
+                "sequence",
+                torch.cat(
+                    [start_token, data.get("promptsmiles")[:, :-1, ps_idx]], dim=1
+                ),
+            )
+            data.set(("next", "sequence"), data.get("promptsmiles")[:, :, ps_idx])
 
             # Recompute policy log_prob
             if (
-                "sample_log_prob" not in data.keys()
+                "sample_log_prob" not in data
             ):  # Not ideal, because we do an unnecessary forward pass, but it works
                 with torch.no_grad():
                     actor_training(data)

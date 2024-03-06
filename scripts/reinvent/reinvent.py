@@ -214,6 +214,7 @@ def run_reinvent(cfg, task):
         data = generate_complete_smiles(
             policy=actor_inference,
             vocabulary=vocabulary,
+            scoring_function=task,
             environment=env,
             promptsmiles=cfg.get("promptsmiles"),
             promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
@@ -225,14 +226,7 @@ def run_reinvent(cfg, task):
         total_done += cfg.num_envs
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        smiles = data.select("action").cpu()
         pbar.update(done.sum().item())
-
-        # Compute rewards
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
-        data_next["reward"][done] = torch.tensor(
-            task(smiles_str), device=device
-        ).unsqueeze(-1)
 
         # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]

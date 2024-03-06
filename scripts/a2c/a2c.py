@@ -263,6 +263,7 @@ def run_a2c(cfg, task):
         data = generate_complete_smiles(
             policy=actor_inference,
             vocabulary=vocabulary,
+            scoring_function=task,
             environment=env,
             promptsmiles=cfg.get("promptsmiles"),
             promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
@@ -274,13 +275,6 @@ def run_a2c(cfg, task):
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
         pbar.update(done.sum().item())
-
-        # Compute rewards
-        smiles = data.select("action").cpu()
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
-        data_next["reward"][done] = torch.tensor(
-            task(smiles_str), device=device
-        ).unsqueeze(-1)
 
         # Register smiles lengths and real rewards and total generated smiles
         log_info = {}
@@ -310,12 +304,16 @@ def run_a2c(cfg, task):
                         "promptsmiles with multi updates is not implemented yet, running with single update."
                     )
                 )
+
             # Depending on fragment or scaffold
-            if "." in cfg.get("promptsmiles"):
-                ps_idx = 0
-            else:
-                ps_idx = -1
+            ps_idx = 0 if "." in cfg.get("promptsmiles") else -1
+
+            # TODO: why do we re-set the action but not the observation, next observation etc?
+            # TODO: Also, do "action" and "promptsmiles" have the same length? because otherwise we should also change
+            # TODO: Maybe it is easier to do data = smiles_to_tensordict(data.get("promptsmiles")[:, :, ps_idx], data.get("reward"))
+            # the position of the reward and the done/terminated/truncated flags
             data.set("action", data.get("promptsmiles")[:, :, ps_idx])
+
             # For transformers-based policies
             start_token = torch.full(
                 (data.batch_size[0], 1), vocabulary.start_token_index, dtype=torch.long

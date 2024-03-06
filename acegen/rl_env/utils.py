@@ -25,6 +25,7 @@ except ImportError as err:
 def generate_complete_smiles(
     environment: EnvBase,
     vocabulary: SMILESVocabulary,
+    scoring_function: Callable = None,
     policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]] = None,
     prompt: Union[str, list] = None,
     max_length: int = None,
@@ -44,9 +45,10 @@ def generate_complete_smiles(
     Args:
         environment (EnvBase): Environment to sample from.
         vocabulary (SMILESVocabulary): Vocabulary to use for encoding and decoding SMILES strings,
-        necessary for promptsmiles.
+            necessary for promptsmiles.
+        scoring_function (Callable, optional): Scoring function to be used to evaluate the generated SMILES.
         policy (Callable): Policy to be executed in the environment.
-        Must accept :class:`tensordict.tensordict.TensorDictBase` object as input.
+            Must accept :class:`tensordict.tensordict.TensorDictBase` object as input.
         If ``None`` is provided, the policy used will be a
             :class:`~torchrl.collectors.RandomPolicy` instance with the environment
             ``action_spec``.
@@ -82,6 +84,7 @@ def generate_complete_smiles(
         policy_device = env_device
 
     # ----- Insertion of PROMPTSMILES -----
+
     if promptsmiles:
         if not _has_promptsmiles:
             raise RuntimeError(
@@ -136,6 +139,7 @@ def generate_complete_smiles(
             )
 
         smiles = PS.sample()
+
         # Encode all smiles
         enc_smiles = []
         for promptiteration in smiles:
@@ -249,9 +253,18 @@ def generate_complete_smiles(
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
         return smiles_str
     else:
+        done = output_data.get("done").squeeze(-1)
+        smiles = output_data.get("action").cpu()
+        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
+        output_data["reward"][done] = torch.tensor(
+            scoring_function(smiles_str), device=output_data.device
+        ).unsqueeze(-1)
         return output_data
 
 
+# TODO: this method returns the wrong log_prob because the policy is an inference model, it reshapes the input as
+#  (-1, 1) and thus does not use the rhs
+# TODO: easiest option is to pass on the training policy besides the inference policy
 def _get_log_prob(
     smiles: list,
     policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]],
