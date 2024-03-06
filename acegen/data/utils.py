@@ -57,10 +57,11 @@ def smiles_to_tensordict(
         batch_size=[B, T - 1],
     )
 
-    smiles_tensordict.set("is_init", torch.zeros_like(smiles_tensordict.get("done")))
-    smiles_tensordict.set(
-        ("next", "is_init"), torch.zeros_like(smiles_tensordict.get("done"))
-    )
+    is_init = torch.zeros_like(smiles_tensordict.get("done"))
+    is_init[:, 0] = 1
+    smiles_tensordict.set("is_init", is_init)
+    next_is_init = torch.zeros_like(smiles_tensordict.get("done"))
+    smiles_tensordict.set(("next", "is_init"), next_is_init)
     smiles_tensordict = smiles_tensordict.to(device)
 
     return smiles_tensordict

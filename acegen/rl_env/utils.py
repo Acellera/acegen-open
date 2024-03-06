@@ -48,22 +48,22 @@ def generate_complete_smiles(
         policy (Callable): Policy to be executed in the environment.
         Must accept :class:`tensordict.tensordict.TensorDictBase` object as input.
         If ``None`` is provided, the policy used will be a
-        :class:`~torchrl.collectors.RandomPolicy` instance with the environment
-        ``action_spec``.
+            :class:`~torchrl.collectors.RandomPolicy` instance with the environment
+            ``action_spec``.
         prompt (Union[str, list], optional): SMILES string or list of SMILES strings to be used as prompts.
         max_length (int, optional): Maximum length of SMILES. Defaults to 100.
         end_of_episode_key (str, optional): Key in the environment ``TensorDict`` that
-        indicates the end of an episode. Defaults to "done".
+            indicates the end of an episode. Defaults to "done".
         exploration_type (ExplorationType, optional): Exploration type to use. Defaults to
-        :class:`~torchrl.envs.utils.ExplorationType.RANDOM`.
+            :class:`~torchrl.envs.utils.ExplorationType.RANDOM`.
         promptsmiles (str, optional): SMILES string of scaffold with attachment points or fragments seperated
-        by "." with one attachment point each.
+            by "." with one attachment point each.
         promptsmiles_optimize (bool, optional): Optimize the prompt for the model being used.
-        Defaults to True.
+            Defaults to True.
         promptsmiles_shuffle (bool, optional): Shuffle the selected attachmented point within the batch.
-        Defaults to True.
+            Defaults to True.
         return_smiles_only (bool, optional): If ``True``, only the SMILES strings are returned.
-        Only when not using a PrompSMILES argument. Defaults to False.
+            Only when not using a PrompSMILES argument. Defaults to False.
     """
     env_device = environment.device
     initial_observation = environment.reset()
