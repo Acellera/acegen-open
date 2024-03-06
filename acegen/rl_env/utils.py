@@ -281,6 +281,10 @@ def generate_complete_smiles(
             scoring_function(smiles_str), device=output_data.device
         ).unsqueeze(-1)
 
+        # For transformers-based policies
+        output_data.set("sequence", output_data.get("observation"))
+        output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
+
         # For promptsmiles, update the action key
         if promptsmiles:
 

@@ -293,10 +293,6 @@ def run_a2c(cfg, task):
                 }
             )
 
-        # For transformers-based policies
-        data.set("sequence", data.get("observation"))
-        data.set(("next", "sequence"), data.get(("next", "observation")))
-
         # Compute advantage
         with torch.no_grad():
             data = adv_module(data)
