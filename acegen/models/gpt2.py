@@ -5,6 +5,7 @@ from torchrl.envs import ExplorationType
 from torchrl.modules import ActorValueOperator, ProbabilisticActor
 
 try:
+    import transformers
     from transformers import GPT2Config, GPT2Model
 
     _has_transformers = True
@@ -21,6 +22,10 @@ class GPT2(nn.Module):
             raise RuntimeError(
                 "transformers library not found, please install with pip install transformers."
             ) from TRANSFORMERS_ERR
+        if transformers.__version != "4.24.0":
+            raise RuntimeError(
+                "transformers library version 4.24.0 is required, please install with pip install transformers==4.24.0."
+            )
 
         super(GPT2, self).__init__()
 
