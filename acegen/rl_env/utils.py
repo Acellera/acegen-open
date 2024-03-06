@@ -271,6 +271,8 @@ def generate_complete_smiles(
         return smiles_str
     else:
 
+        # TODO: review this part
+
         # Compute rewards
         done = output_data.get("done").squeeze(-1)
         smiles = output_data.get("action").cpu()
@@ -294,11 +296,12 @@ def generate_complete_smiles(
                 ps_idx = 0
             else:
                 ps_idx = -1
-            output_data.set("action", output_data.get("promptsmiles")[:, :, ps_idx])
 
             # # TODO: why do we re-set the action but not the observation, next observation etc?
             # # TODO: Also, do "action" and "promptsmiles" have the same length? because otherwise we should also change
             # # TODO: Maybe it is easier to do data = smiles_to_tensordict(data.get("promptsmiles")[:, :, ps_idx],
+            output_data.set("action", output_data.get("promptsmiles")[:, :, ps_idx])
+
             #  data.get("reward"))
             # # the position of the reward and the done/terminated/truncated flags
             # data.set("action", data.get("promptsmiles")[:, :, ps_idx])
