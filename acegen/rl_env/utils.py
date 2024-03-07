@@ -39,6 +39,7 @@ def generate_complete_smiles(
     promptsmiles: str = None,
     promptsmiles_optimize: bool = True,
     promptsmiles_shuffle: bool = True,
+    promptsmiles_multi: bool = False,
     return_smiles_only: bool = False,
     **kwargs,
 ):
@@ -87,7 +88,7 @@ def generate_complete_smiles(
                 )
         policy_device = policy_sample.device
     else:
-        policy_evaluate = RandomPolicy(environment.action_spec)
+        policy_sample = RandomPolicy(environment.action_spec)
         policy_device = env_device
 
     # ----- Insertion of PROMPTSMILES -----
@@ -154,7 +155,6 @@ def generate_complete_smiles(
                 shuffle=promptsmiles_shuffle,
                 return_all=True,
             )
-
         smiles = PS.sample()
 
         # Encode all smiles
@@ -172,71 +172,58 @@ def generate_complete_smiles(
                 )
             )
 
-        # Create output_data format from final completed SMILES
-        output_data = smiles_to_tensordict(
-            enc_smiles[-1], mask_value=0, device=env_device
-        )
+        # Compute reward
+        reward = None
+        if scoring_function:
+            reward = torch.tensor(
+                scoring_function(smiles[-1]), device=env_device
+            ).unsqueeze(-1)
 
-        # Compute rewards
-        smiles = output_data.get("action").cpu()
-        next_output_data = output_data.get("next")
-        done = next_output_data.get("done").squeeze(-1)
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
-        next_output_data["reward"][done] = torch.tensor(
-            scoring_function(smiles_str), device=output_data.device
-        ).unsqueeze(-1)
+        if promptsmiles_multi:
+            # Stack all promptsmiles iterations
+            promptiterations = []
+            for enc_smi in enc_smiles:
+                _output_data = (
+                    smiles_to_tensordict(
+                        enc_smi, reward=reward, mask_value=0, device=env_device
+                    )
+                )
+                # Add final complete smiles for logging
+                _output_data.set(
+                    "promptsmiles", enc_smiles[-1][:, :-1].to(env_device),
+                )
+                promptiterations.append(_output_data)
+            output_data = torch.cat(promptiterations, dim=0).contiguous()
+        else:
+            # Re-compute tensordict
+            if isinstance(promptsmiles, list): 
+                # Fragment linking, 0 is first and only position where tokens are sampled
+                ps_idx = 0
+            else: 
+                # Scaffold decoration, final completed smiles (all attachment points)
+                ps_idx = -1
+            
+            # Create tensordicts
+            output_data = smiles_to_tensordict(
+            enc_smiles[ps_idx], reward=reward, mask_value=0, device=env_device
+            )
+            
+            # Add final completed promptsmiles for logging
+            output_data.set(
+                "promptsmiles",
+                enc_smiles[-1][:, :-1].to(env_device),
+            )
 
         # For transformers-based policies
         output_data.set("sequence", output_data.get("observation"))
         output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
 
-        # TODO: review from here on
-
-        # Also append all intermediate steps, skip the start token to be the same as action
-        output_data.set(
-            "promptsmiles",
-            torch.stack([e[:, 1:] for e in enc_smiles], dim=-1).to(env_device),
-        )
-
-        # if cfg.get("promptsmiles_multi"):
-        #     print(
-        #         NotImplementedError(
-        #             "promptsmiles with multi updates is not implemented yet, running with single update."
-        #         )
-        #     )
-
-        # Depending on fragment or scaffold
-        if "." in promptsmiles:
-            ps_idx = 0
-        else:
-            ps_idx = -1
-
-        # TODO: why do we re-set the action but not the observation, next observation etc?
-        # TODO: Also, do "action" and "promptsmiles" have the same length? because otherwise we should also change
-        # the position of the reward and the done/terminated/truncated flags
-        # TODO: Maybe it is easier to do data = smiles_to_tensordict(data.get("promptsmiles")[:, :, ps_idx],
-        output_data.set("action", output_data.get("promptsmiles")[:, :, ps_idx])
-
-        # data.set("action", data.get("promptsmiles")[:, :, ps_idx])
-        #
-        # # For transformers-based policies
-        # start_token = torch.full(
-        #     (data.batch_size[0], 1), vocabulary.start_token_index, dtype=torch.long
-        # ).to(data.device)
-        # data.set(
-        #     "sequence",
-        #     torch.cat(
-        #         [start_token, data.get("promptsmiles")[:, :-1, ps_idx]], dim=1
-        #     ),
-        # )
-        # data.set(("next", "sequence"), data.get("promptsmiles")[:, :, ps_idx])
-
         # Recompute policy log_prob
-        if (
-            "sample_log_prob" not in output_data.keys()
-        ):  # Not ideal, because we do an extra forward pass, but it works
-            with torch.no_grad():
-                policy_evaluate(output_data)
+        #if (
+        #    "sample_log_prob" not in output_data.keys()
+        #):  # Not ideal, because we do an extra forward pass, but it works
+        #    with torch.no_grad():
+        #        _ = policy_evaluate(output_data)
 
         return output_data
 
@@ -328,13 +315,14 @@ def generate_complete_smiles(
     else:
 
         # Compute rewards
-        smiles = output_data.get("action").cpu()
-        next_output_data = output_data.get("next")
-        done = next_output_data.get("done").squeeze(-1)
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
-        next_output_data["reward"][done] = torch.tensor(
-            scoring_function(smiles_str), device=output_data.device
-        ).unsqueeze(-1)
+        if scoring_function:
+            smiles = output_data.get("action").cpu()
+            next_output_data = output_data.get("next")
+            done = next_output_data.get("done").squeeze(-1)
+            smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
+            next_output_data["reward"][done] = torch.tensor(
+                scoring_function(smiles_str), device=output_data.device
+            ).unsqueeze(-1)
 
         # For transformers-based policies
         output_data.set("sequence", output_data.get("observation"))
@@ -348,6 +336,7 @@ def _get_log_prob(
     policy: Union[TensorDictModule, Callable[[TensorDictBase], TensorDictBase]],
     vocabulary: Vocabulary,
     max_length: int,
+    sum_log_prob: bool = True,
 ):
     # Convert SMILES to TensorDict
     tokens = [torch.tensor(vocabulary.encode(smi)) for smi in smiles]
@@ -365,5 +354,6 @@ def _get_log_prob(
 
     policy_in = data.select(*policy.in_keys, strict=False)
     log_prob = policy.get_dist(policy_in).log_prob(actions)
-    log_prob = log_prob.sum(-1)
+    if sum_log_prob:
+        log_prob = log_prob.sum(-1)
     return log_prob.cpu()

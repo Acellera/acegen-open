@@ -220,6 +220,7 @@ def run_reinvent(cfg, task):
             promptsmiles=cfg.get("promptsmiles"),
             promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
             promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
+            promptsmiles_multi=cfg.get("promptsmiles_multi", False),
         )
         data = remove_duplicates(data, key="action")
 
@@ -242,7 +243,7 @@ def run_reinvent(cfg, task):
                     "train/episode_length": episode_length.item(),
                 }
             )
-
+        
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
 
         # Compute experience replay loss
