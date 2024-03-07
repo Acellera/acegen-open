@@ -35,16 +35,6 @@ To install TorchRL, run
     cd rl
     python setup.py install
 
-### Install MolScore
-
-To install MolScore, run
-
-    pip3 install rdkit func_timeout dask distributed pystow zenodo_client matplotlib scipy pandas joblib seaborn molbloom Levenshtein
-    git clone https://github.com/MorganCThomas/MolScore.git
-    cd molscore
-    git checkout develop
-    python setup.py install
-
 ### Install AceGen
 
 To install AceGen, run
@@ -83,6 +73,21 @@ We provide a variety of example priors that can be selected in the configuration
 - A GPT-2 model
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
   - number of parameters: 5,030,400
+
+Models are defined in `/acegen/__init__.py` and as a mapping to tuples with the following format:
+
+    model_mapping = {
+        "example_model": (
+            create_actor_method: Callable # A method to create the actor model
+            create_critic_method: Callable # A method to create the critic model (Optional)
+            create_actor_critic_method: Callable # A method to create the actor-critic model (Optional)
+            vocabulary_file_path: Path # The path to the vocabulary file
+            weights_file_path: Path # The path to the weights file
+            tokenizer: Tokenizer # The tokenizer to use for the model (Optional)
+        )
+    }
+
+New models can be added by creating a new tuple adding it to the model_mapping dictionary. Then the model can be selected in the configuration file by setting the `example_model` parameter to the name of the model.
 
 # Changing the scoring function
 
