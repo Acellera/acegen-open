@@ -9,7 +9,7 @@
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
-agent_name="ppod"
+agent_name="ppod_denovo"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
 python $PYTHONPATH/scripts/ppo/ppo.py \

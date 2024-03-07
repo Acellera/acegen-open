@@ -1,22 +1,23 @@
 #!/bin/bash
 
-#SBATCH --job-name=ahc
+#SBATCH --job-name=ppo
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/ahc%j.txt
-#SBATCH --error=slurm_errors/ahc%j.txt
+#SBATCH --output=slurm_logs/ppo%j.txt
+#SBATCH --error=slurm_errors/ppo%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
-agent_name="ahc"
+agent_name="ppo_denovo"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/ahc/ahc.py \
+python $PYTHONPATH/scripts/ppo/ppo.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
   molscore=MolOpt \
+  experience_replay=False \
   molscore_include=[Albuterol_similarity] \
   seed=$N_RUN \
   log_dir="$agent_name"_seed"$N_RUN"

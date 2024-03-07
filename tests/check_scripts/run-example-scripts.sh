@@ -44,13 +44,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 scripts=(
-    run_a2c_de_novo.sh
-    run_ppo_de_novo.sh
-    run_ppo_de_novod.sh
-    run_reinvent_de_novo.sh
-    run_ahc_de_novo.sh
     run_pretrain_single_node.sh
     run_pretrain_distributed.sh
+
+    run_a2c_denovo.sh
+    run_ppo_denovo.sh
+    run_ppo_denovo.sh
+    run_reinvent_denovo.sh
+    run_ahc_denovo.sh
+
+    run_reinvent_fragment.sh
+    run_reinvent_scaffold.sh
 )
 
 # Remove the previous logs and errors

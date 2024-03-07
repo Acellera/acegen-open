@@ -9,17 +9,16 @@
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
-agent_name="reinvent"
+agent_name="reinvent_scaffold"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/reinvent/reinvent.py \
+python $PYTHONPATH/scripts/reinvent/reinvent.py --config-path config_scaffold.yaml \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
-  molscore=MolOpt \
-  molscore_include=[Albuterol_similarity] \
   seed=$N_RUN \
   log_dir="$agent_name"_seed"$N_RUN"
+
 
 # Capture the exit status of the Python command
 exit_status=$?
