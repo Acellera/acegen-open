@@ -1,37 +1,40 @@
 # Logging configuration
 experiment_name: acegen
-agent_name: ahc
-log_dir: logs_ahc
-logger_backend: null # csv, wandb, tensorboard, or null
+agent_name: a2c
+log_dir: logs_a2c
+logger_backend: null  # csv, wandb, tensorboard, or null
 seed: 101
 
 # Environment configuration
-num_envs: 128
+num_envs: 16
 molscore: MolOpt
-molscore_include: ["Albuterol_similarity"]
+molscore_include: ["Celecoxxib_rediscovery"] 
 
 # Promptsmiles configuration
-promptsmiles: "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O" # Scaffold N1(*)CCN(CC1)CCCCN(*)
+promptsmiles: c1(C)ccc(*)cc1.NS(=O)(=O)(*)
 promptsmiles_optimize: True
 promptsmiles_shuffle: True
-promptsmiles_multi: True
+promptsmiles_multi: False
 
 # Collector configuration
 total_smiles: 10_000
 
-# Architecture
+# Architecture configuration
+shared_nets: False
 model: gru # gru, lstm, or gpt2
 # The default prior varies for each model. Refer to the README file in the root directory for more information.
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
 
-# AHC configuration
+# Optimizer
 lr: 0.0001
-eps: 1.0e-08
-topk: 0.5
+eps: 1.0e-06
 weight_decay: 0.0
-sigma: 60
 
-# Replay configuration
-replay_buffer_size: 100
-experience_replay: True
-replay_batch_size: 10
+# A2C configuration
+gamma: 0.999
+lmbda: 0.99
+critic_coef: 0.5
+entropy_coef: 0.05
+kl_coef: 0.1
+mini_batch_size: 16
+max_grad_norm: 0.5

@@ -72,6 +72,8 @@ def generate_complete_smiles(
             Defaults to True.
         promptsmiles_shuffle (bool, optional): Shuffle the selected attachmented point within the batch.
             Defaults to True.
+        promptsmiles_multi (bool, optional): Return all promptsmiles iterations. Resulting in multiple updates
+            per SMILES. Defaults to False.
         return_smiles_only (bool, optional): If ``True``, only the SMILES strings are returned.
             Only when not using a PrompSMILES argument. Defaults to False.
     """
@@ -183,31 +185,30 @@ def generate_complete_smiles(
             # Stack all promptsmiles iterations
             promptiterations = []
             for enc_smi in enc_smiles:
-                _output_data = (
-                    smiles_to_tensordict(
-                        enc_smi, reward=reward, mask_value=0, device=env_device
-                    )
+                _output_data = smiles_to_tensordict(
+                    enc_smi, reward=reward, mask_value=0, device=env_device
                 )
                 # Add final complete smiles for logging
                 _output_data.set(
-                    "promptsmiles", enc_smiles[-1][:, :-1].to(env_device),
+                    "promptsmiles",
+                    enc_smiles[-1][:, :-1].to(env_device),
                 )
                 promptiterations.append(_output_data)
             output_data = torch.cat(promptiterations, dim=0).contiguous()
         else:
             # Re-compute tensordict
-            if isinstance(promptsmiles, list): 
+            if isinstance(promptsmiles, list):
                 # Fragment linking, 0 is first and only position where tokens are sampled
                 ps_idx = 0
-            else: 
+            else:
                 # Scaffold decoration, final completed smiles (all attachment points)
                 ps_idx = -1
-            
+
             # Create tensordicts
             output_data = smiles_to_tensordict(
-            enc_smiles[ps_idx], reward=reward, mask_value=0, device=env_device
+                enc_smiles[ps_idx], reward=reward, mask_value=0, device=env_device
             )
-            
+
             # Add final completed promptsmiles for logging
             output_data.set(
                 "promptsmiles",
@@ -219,11 +220,16 @@ def generate_complete_smiles(
         output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
 
         # Recompute policy log_prob
-        #if (
-        #    "sample_log_prob" not in output_data.keys()
-        #):  # Not ideal, because we do an extra forward pass, but it works
-        #    with torch.no_grad():
-        #        _ = policy_evaluate(output_data)
+        if (
+            "sample_log_prob" not in output_data.keys()
+        ):  # Not ideal, because we do an extra forward pass, but it works
+            with torch.no_grad():
+                output_data.set(
+                    "sample_log_prob",
+                    policy_evaluate.get_dist(output_data.clone()).log_prob(
+                        output_data["action"]
+                    ),
+                )
 
         return output_data
 

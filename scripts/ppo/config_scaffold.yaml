@@ -1,0 +1,41 @@
+# Logging configuration
+experiment_name: acegen
+agent_name: ppo
+log_dir: logs_ppo
+logger_backend: null # csv, wandb, tensorboard, or null
+seed: 101
+
+# Environment configuration
+num_envs: 128
+molscore: LibINVENT_Exp1
+molscore_include: ["DRD2_SubFilt_DF"] 
+total_smiles: 10_000
+
+# Promptsmiles configuration
+promptsmiles: N1(*)CCN(CC1)CCCCN(*)
+promptsmiles_optimize: True
+promptsmiles_shuffle: True
+promptsmiles_multi: False
+
+# Architecture configuration
+shared_nets: False
+model: gru # gru, lstm, or gpt2
+# The default prior varies for each model. Refer to the README file in the root directory for more information.
+# The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
+
+# PPO configuration
+lr: 0.0005
+eps: 1.0e-06
+weight_decay: 1.0e-06
+gamma: 0.999
+lmbda: 0.99
+critic_coef: 0.25
+entropy_coef: 0.01
+kl_coef: 0.001
+mini_batch_size: 16
+ppo_epochs: 4
+max_grad_norm: 0.25
+ppo_clip: 0.1
+experience_replay: True # If True, the algorithm is PPO+D
+replay_batch_size: 16
+replay_buffer_size: 100

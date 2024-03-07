@@ -46,7 +46,7 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path=".", config_name="config_denovo", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Set seeds
@@ -243,7 +243,7 @@ def run_reinvent(cfg, task):
                     "train/episode_length": episode_length.item(),
                 }
             )
-        
+
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
 
         # Compute experience replay loss
