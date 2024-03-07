@@ -44,11 +44,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 scripts=(
-    run_a2c.sh
-    run_ppo.sh
-    run_ppod.sh
-    run_reinvent.sh
-    run_ahc.sh
+    run_a2c_de_novo.sh
+    run_ppo_de_novo.sh
+    run_ppo_de_novod.sh
+    run_reinvent_de_novo.sh
+    run_ahc_de_novo.sh
     run_pretrain_single_node.sh
     run_pretrain_distributed.sh
 )
