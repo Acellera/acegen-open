@@ -64,8 +64,8 @@ def main(cfg: "DictConfig"):
 
     if not _has_molscore:
         raise RuntimeError(
-            "MolScore library not found, unable to create a scoring function. "
-            "MolScore can be installed from `https://github.com/MorganCThomas/MolScore`."
+            "MolScore library not found. Unable to create a scoring function. "
+            "To install MolScore, use: `pip install MolScore`"
         ) from MOLSCORE_ERR
 
     # Define training task and run
