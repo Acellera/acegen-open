@@ -157,6 +157,7 @@ def generate_complete_smiles(
                 shuffle=promptsmiles_shuffle,
                 return_all=True,
             )
+
         smiles = PS.sample()
 
         # Encode all smiles
@@ -166,8 +167,9 @@ def generate_complete_smiles(
             enc_smiles.append(
                 torch.vstack(
                     [
+                        # Pad with -1 in case the end token is already 0
                         torch.nn.functional.pad(
-                            tok, (-1, max_length + 1 - tok.size()[0])
+                            tok, (0, max_length + 1 - tok.size()[0]), value=-1
                         )
                         for tok in tokens
                     ]
@@ -210,7 +212,11 @@ def generate_complete_smiles(
 
             # Create tensordicts
             output_data = smiles_to_tensordict(
-                enc_smiles[ps_idx], reward=reward, mask_value=0, device=env_device
+                enc_smiles[ps_idx],
+                reward=reward,
+                mask_value=-1,
+                replace_mask_value=0,
+                device=env_device,
             )
 
             # Add final completed promptsmiles for logging
@@ -250,7 +256,8 @@ def generate_complete_smiles(
             ]
             enc_prompts = torch.vstack(
                 [
-                    torch.nn.functional.pad(tok, (-1, max_length + 1 - tok.size()[0]))
+                    # Pad to 0 since prompts do not have end tokens
+                    torch.nn.functional.pad(tok, (0, max_length + 1 - tok.size()[0]))
                     for tok in tokens
                 ]
             ).to(policy_device)
@@ -352,7 +359,8 @@ def _get_log_prob(
     tokens = [torch.tensor(vocabulary.encode(smi)) for smi in smiles]
     enc_smiles = torch.vstack(
         [
-            torch.nn.functional.pad(tok, (0, max_length - tok.size()[0]))
+            # Pad with -1 in case the end token is already 0
+            torch.nn.functional.pad(tok, (0, max_length - tok.size()[0]), value=-1)
             for tok in tokens
         ]
     )
