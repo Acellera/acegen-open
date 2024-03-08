@@ -22,13 +22,7 @@ from torch.distributions.kl import kl_divergence
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-from torchrl.envs import (
-    CatFrames,
-    InitTracker,
-    TensorDictPrimer,
-    TransformedEnv,
-    UnsqueezeTransform,
-)
+from torchrl.envs import CatFrames, InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.objectives import A2CLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger

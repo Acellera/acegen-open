@@ -26,13 +26,7 @@ from torchrl.data import (
     TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import (
-    CatFrames,
-    InitTracker,
-    TensorDictPrimer,
-    TransformedEnv,
-    UnsqueezeTransform,
-)
+from torchrl.envs import CatFrames, InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.record.loggers import get_logger
 
 try:

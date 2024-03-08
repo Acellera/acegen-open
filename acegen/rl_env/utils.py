@@ -167,7 +167,7 @@ def generate_complete_smiles(
                 torch.vstack(
                     [
                         torch.nn.functional.pad(
-                            tok, (0, max_length + 1 - tok.size()[0])
+                            tok, (-1, max_length + 1 - tok.size()[0])
                         )
                         for tok in tokens
                     ]
@@ -186,7 +186,11 @@ def generate_complete_smiles(
             promptiterations = []
             for enc_smi in enc_smiles:
                 _output_data = smiles_to_tensordict(
-                    enc_smi, reward=reward, mask_value=0, device=env_device
+                    enc_smi,
+                    reward=reward,
+                    mask_value=-1,
+                    replace_mask_value=0,
+                    device=env_device,
                 )
                 # Add final complete smiles for logging
                 _output_data.set(
@@ -246,7 +250,7 @@ def generate_complete_smiles(
             ]
             enc_prompts = torch.vstack(
                 [
-                    torch.nn.functional.pad(tok, (0, max_length + 1 - tok.size()[0]))
+                    torch.nn.functional.pad(tok, (-1, max_length + 1 - tok.size()[0]))
                     for tok in tokens
                 ]
             ).to(policy_device)
@@ -352,14 +356,15 @@ def _get_log_prob(
             for tok in tokens
         ]
     )
-    data = smiles_to_tensordict(enc_smiles, mask_value=0, device=policy.device)
+    data = smiles_to_tensordict(
+        enc_smiles, mask_value=-1, replace_mask_value=0, device=policy.device
+    )
     actions = data.get("action").clone()
 
     # For transformers-based policies
     data.set("sequence", data.get("observation"))
 
-    policy_in = data.select(*policy.in_keys, strict=False)
-    log_prob = policy.get_dist(policy_in).log_prob(actions)
+    log_prob = policy.get_dist(data).log_prob(actions)
     if sum_log_prob:
         log_prob = log_prob.sum(-1)
     return log_prob.cpu()

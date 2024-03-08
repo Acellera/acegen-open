@@ -32,7 +32,6 @@ from torchrl.envs import (
     InitTracker,
     TensorDictPrimer,
     TransformedEnv,
-    UnsqueezeTransform,
 )
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
