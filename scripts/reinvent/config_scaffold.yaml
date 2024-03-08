@@ -8,16 +8,14 @@ seed: 101
 # Environment configuration
 num_envs: 128
 molscore: LibINVENT_Exp1
-molscore_include: ["DRD2_SelRF_SubFilt_DF"] 
+molscore_include: ["DRD2_SelRF_SubFilt_DF"]
+total_smiles: 10_000
 
 # Promptsmiles configuration
 promptsmiles: N1(*)CCN(CC1)CCCCN(*)
 promptsmiles_optimize: True
 promptsmiles_shuffle: True
 promptsmiles_multi: True
-
-# Collector configuration
-total_smiles: 10_000
 
 # Architecture
 model: gru # gru, lstm, or gpt2

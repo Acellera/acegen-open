@@ -8,16 +8,14 @@ seed: 101
 # Environment configuration
 num_envs: 128
 molscore: MolOpt
-molscore_include: ["Celecoxxib_rediscovery"] 
+molscore_include: ["Celecoxxib_rediscovery"]
+total_smiles: 10_000
 
 # Promptsmiles configuration
 promptsmiles: c1(C)ccc(*)cc1.NS(=O)(=O)(*)
 promptsmiles_optimize: True
 promptsmiles_shuffle: True
 promptsmiles_multi: False
-
-# Collector configuration
-total_smiles: 10_000
 
 # Architecture
 model: gru # gru, lstm, or gpt2

@@ -9,9 +9,10 @@ seed: 101
 num_envs: 128
 molscore: MolOpt
 molscore_include: ["Albuterol_similarity"]
-
-# Collector configuration
 total_smiles: 10_000
+
+# Fix the beginning of the generated molecules
+prompt: null  # e.g. c1ccccc
 
 # Architecture
 model: gru # gru, lstm, or gpt2
