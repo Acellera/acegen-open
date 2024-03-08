@@ -1,21 +1,22 @@
 #!/bin/bash
 
-#SBATCH --job-name=reinvent_scaffold
+#SBATCH --job-name=ppod_fragment
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/reinvent_scaffold%j.txt
-#SBATCH --error=slurm_errors/reinvent_scaffold%j.txt
+#SBATCH --output=slurm_logs/ppod_fragment%j.txt
+#SBATCH --error=slurm_errors/ppod_fragment%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
-agent_name="reinvent_scaffold"
+agent_name="ppod_fragment"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/reinvent/reinvent.py --config-name config_scaffold \
+python $PYTHONPATH/scripts/ppo/ppo.py --config-name config_fragment \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
+  experience_replay=True \
   seed=$N_RUN \
   log_dir="$agent_name"_seed"$N_RUN"
 
