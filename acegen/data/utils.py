@@ -26,6 +26,7 @@ def smiles_to_tensordict(
 
     if replace_mask_value is not None:
         smiles[~mask] = replace_mask_value
+
     done = torch.zeros(B, T, 1, dtype=torch.bool, device=device)
     truncated = done.clone()
     lengths = mask.cumsum(dim=1).argmax(dim=1)

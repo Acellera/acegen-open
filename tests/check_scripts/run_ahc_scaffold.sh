@@ -1,18 +1,18 @@
 #!/bin/bash
 
-#SBATCH --job-name=reinvent_scaffold
+#SBATCH --job-name=ahc_scaffold
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/reinvent_scaffold%j.txt
-#SBATCH --error=slurm_errors/reinvent_scaffold%j.txt
+#SBATCH --output=slurm_logs/ahc_scaffold%j.txt
+#SBATCH --error=slurm_errors/ahc_scaffold%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
-agent_name="reinvent_scaffold"
+agent_name="ahc_scaffold"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/reinvent/reinvent.py --config-name config_scaffold \
+python $PYTHONPATH/scripts/ahc/ahc.py --config-name config_scaffold \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
