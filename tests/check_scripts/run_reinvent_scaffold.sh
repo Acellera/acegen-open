@@ -12,7 +12,7 @@ project_name="acegen-scripts-check-$current_commit"
 agent_name="reinvent_scaffold"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/reinvent/reinvent.py --config-path config_scaffold.yaml \
+python $PYTHONPATH/scripts/reinvent/reinvent.py --config-name config_scaffold \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \

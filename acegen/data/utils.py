@@ -26,14 +26,13 @@ def smiles_to_tensordict(
 
     if replace_mask_value is not None:
         smiles[~mask] = replace_mask_value
-    rewards = torch.zeros(B, T, 1)
-    if reward is not None:
-        rewards[:, -1] = reward.reshape(-1, 1)
-    done = torch.zeros(B, T, 1, dtype=torch.bool)
+    done = torch.zeros(B, T, 1, dtype=torch.bool, device=device)
     truncated = done.clone()
-
     lengths = mask.cumsum(dim=1).argmax(dim=1)
     done[torch.arange(B), lengths] = True
+    rewards = torch.zeros(B, T, 1, device=device)
+    if reward is not None:
+        rewards[torch.arange(B), lengths] = reward.reshape(-1, 1).to(device)
 
     smiles_tensordict = TensorDict(
         {
@@ -52,9 +51,11 @@ def smiles_to_tensordict(
                     "truncated": truncated[:, 1:],
                 },
                 batch_size=[B, T - 1],
+                device=device,
             ),
         },
         batch_size=[B, T - 1],
+        device=device,
     )
 
     is_init = torch.zeros_like(smiles_tensordict.get("done"))
@@ -62,6 +63,5 @@ def smiles_to_tensordict(
     smiles_tensordict.set("is_init", is_init)
     next_is_init = torch.zeros_like(smiles_tensordict.get("done"))
     smiles_tensordict.set(("next", "is_init"), next_is_init)
-    smiles_tensordict = smiles_tensordict.to(device)
 
     return smiles_tensordict
