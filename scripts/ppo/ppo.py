@@ -286,7 +286,6 @@ def run_ppo(cfg, task):
             vocabulary=vocabulary,
             scoring_function=task,
             environment=env,
-            prompt="c1ccccc",
             promptsmiles=cfg.get("promptsmiles"),
             promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
             promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
