@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH --job-name=reinvent
+#SBATCH --job-name=reinvent_fragment
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/reinvent%j.txt
-#SBATCH --error=slurm_errors/reinvent%j.txt
+#SBATCH --output=slurm_logs/reinvent_fragment%j.txt
+#SBATCH --error=slurm_errors/reinvent_fragment%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"

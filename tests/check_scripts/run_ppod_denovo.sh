@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH --job-name=ppod
+#SBATCH --job-name=ppod_denovo
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/ppod%j.txt
-#SBATCH --error=slurm_errors/ppod%j.txt
+#SBATCH --output=slurm_logs/ppod_denovo%j.txt
+#SBATCH --error=slurm_errors/ppod_denovo%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
