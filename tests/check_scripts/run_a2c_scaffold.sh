@@ -16,7 +16,6 @@ python $PYTHONPATH/scripts/a2c/a2c.py --config-name config_scaffold \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
-  experience_replay=False \
   seed=$N_RUN \
   log_dir="$agent_name"_seed"$N_RUN"
 

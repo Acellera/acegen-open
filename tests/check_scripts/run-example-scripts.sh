@@ -63,7 +63,7 @@ scripts=(
     run_ahc_fragment.sh
     run_a2c_fragment.sh
     run_ppo_fragment.sh
-    run_pod_fragment.sh
+    run_ppod_fragment.sh
 )
 
 # Remove the previous logs and errors
