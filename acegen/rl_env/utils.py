@@ -1,3 +1,4 @@
+import warnings
 from functools import partial
 from typing import Callable, Union
 
@@ -33,7 +34,6 @@ def generate_complete_smiles(
         TensorDictModule, Callable[[TensorDictBase], TensorDictBase]
     ] = None,
     prompt: Union[str, list] = None,
-    max_length: int = None,
     end_of_episode_key: str = "done",
     exploration_type: ExplorationType = ExplorationType.RANDOM,
     promptsmiles: str = None,
@@ -61,7 +61,6 @@ def generate_complete_smiles(
             :class:`~torchrl.collectors.RandomPolicy` instance with the environment
             ``action_spec``.
         prompt (Union[str, list], optional): SMILES string or list of SMILES strings to be used as prompts.
-        max_length (int, optional): Maximum length of SMILES. Defaults to 100.
         end_of_episode_key (str, optional): Key in the environment ``TensorDict`` that
             indicates the end of an episode. Defaults to "done".
         exploration_type (ExplorationType, optional): Exploration type to use. Defaults to
@@ -80,7 +79,7 @@ def generate_complete_smiles(
     env_device = environment.device
     initial_observation = environment.reset()
     batch_size = initial_observation.batch_size
-    max_length = max_length or environment.max_length
+    max_length = environment.max_length
     if policy_sample:
         # Check that the initial observation contains the keys required by the policy
         for key in policy_sample.in_keys:
@@ -162,8 +161,20 @@ def generate_complete_smiles(
 
         # Encode all smiles
         enc_smiles = []
-        for promptiteration in smiles:
-            tokens = [torch.tensor(vocabulary.encode(smi)) for smi in promptiteration]
+        failed_encodings = set()
+        for promptiteration in smiles[::-1]:
+            tokens = []
+            for i, smi in enumerate(promptiteration):
+                try:
+                    tokens.append(torch.tensor(vocabulary.encode(smi)))
+                # PromptSMILES may generate tokens outside of the working vocabulary
+                except KeyError as e:
+                    warnings.warn(
+                        f"Failed to encode {smi} with error {e}: ignoring invalid prompt"
+                    )
+                    failed_encodings.append(i)
+                    tokens.append(torch.tensor(vocabulary.encode("")))s
+                    
             enc_smiles.append(
                 torch.vstack(
                     [
@@ -191,7 +202,7 @@ def generate_complete_smiles(
                     enc_smi,
                     reward=reward,
                     mask_value=-1,
-                    replace_mask_value=0,
+                    replace_mask_value=vocabulary.end_token_index,
                     device=env_device,
                 )
                 # Add final complete smiles for logging
@@ -199,6 +210,9 @@ def generate_complete_smiles(
                     "promptsmiles",
                     enc_smiles[-1][:, :-1].to(env_device),
                 )
+                # Fix failed encodings
+                if failed_encodings:
+                    _output_data.masked_fill_(torch.tensor(list(failed_encodings)), 0)
                 promptiterations.append(_output_data)
             output_data = torch.cat(promptiterations, dim=0).contiguous()
         else:
@@ -215,9 +229,13 @@ def generate_complete_smiles(
                 enc_smiles[ps_idx],
                 reward=reward,
                 mask_value=-1,
-                replace_mask_value=0,
+                replace_mask_value=vocabulary.end_token_index,
                 device=env_device,
             )
+
+            # Fix failed encodings
+            if failed_encodings:
+                output_data.masked_fill_(torch.tensor(list(failed_encodings)), 0)
 
             # Add final completed promptsmiles for logging
             output_data.set(
@@ -247,17 +265,41 @@ def generate_complete_smiles(
 
     else:
 
+        failed_encodings = []
         if prompt:
             if isinstance(prompt, str):
                 prompt = [prompt] * batch_size[0]
-            tokens = [
-                torch.tensor(vocabulary.encode(smi, with_start=False, with_end=False))
-                for smi in prompt
-            ]
+            # Encode the prompt(s)
+            tokens = []
+            for i, smi in enumerate(prompt):
+                try:
+                    ts = vocabulary.encode(smi, with_start=False, with_end=False)
+                    if len(ts) > max_length:
+                        raise ValueError(
+                            f"Prompt {smi} is longer than max_length {max_length}."
+                        )
+                    tokens.append(torch.tensor(ts))
+                # Prompt may contain tokens outside of the working vocabulary
+                except KeyError:
+                    failed_encodings.append(i)
+                    tokens.append(
+                        torch.tensor(
+                            vocabulary.encode("", with_start=False, with_end=False)
+                        )
+                    )
+            # If they all fail, raise an error
+            if len(failed_encodings) == batch_size[0]:
+                raise RuntimeError(
+                    "All prompts failed to encode, ensure SMILES fits the vocabulary."
+                )
             enc_prompts = torch.vstack(
                 [
-                    # Pad to 0 since prompts do not have end tokens
-                    torch.nn.functional.pad(tok, (0, max_length + 1 - tok.size()[0]))
+                    # Pad since prompts do not have end tokens
+                    torch.nn.functional.pad(
+                        tok,
+                        (0, max_length + 1 - tok.size()[0]),
+                        value=vocabulary.end_token_index,
+                    )
                     for tok in tokens
                 ]
             ).to(policy_device)
@@ -267,6 +309,8 @@ def generate_complete_smiles(
         finished = (
             torch.zeros(batch_size, dtype=torch.bool).unsqueeze(-1).to(policy_device)
         )
+        if failed_encodings:
+            finished[failed_encodings] = True
 
         tensordicts = []
         with set_exploration_type(exploration_type):
@@ -277,7 +321,7 @@ def generate_complete_smiles(
                     tensordict_.set("mask", torch.ones_like(finished))
                     tensordict_.set(("next", "mask"), torch.ones_like(finished))
                     if prompt:
-                        enforce_mask = enc_prompts[:, _] != 0
+                        enforce_mask = enc_prompts[:, _] != vocabulary.end_token_index
 
                     # Execute policy
                     tensordict_ = tensordict_.to(policy_device)
@@ -328,9 +372,12 @@ def generate_complete_smiles(
     if return_smiles_only:
         smiles = output_data.get("action").cpu()
         smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
+        # Replace failed encodings with original prompt for PromptSMILES
+        for i in failed_encodings:
+            smiles_str[i] = prompt[i]
         return smiles_str
-    else:
 
+    else:
         # Compute rewards
         if scoring_function:
             smiles = output_data.get("action").cpu()
