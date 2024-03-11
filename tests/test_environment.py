@@ -107,9 +107,7 @@ def test_sample_smiles(
         one_hot_action_encoding=one_hot_action_encoding,
         one_hot_obs_encoding=one_hot_obs_encoding,
     )
-    smiles = generate_complete_smiles(
-        env, vocabulary=SMILESVocabulary(), policy=None
-    )
+    smiles = generate_complete_smiles(env, vocabulary=SMILESVocabulary(), policy=None)
     terminated = smiles.get(("next", "terminated")).squeeze(
         dim=-1
     )  # if max_length is reached is False
@@ -136,9 +134,13 @@ def test_sample_smiles(
 @pytest.mark.parametrize("end_token", [1])
 @pytest.mark.parametrize("env_device", get_default_devices())
 @pytest.mark.parametrize("policy_device", get_default_devices())
-@pytest.mark.parametrize("prompt, prompt_error", [("c1ccccc", False), ("c%11ccccc", True)])
+@pytest.mark.parametrize(
+    "prompt, prompt_error", [("c1ccccc", False), ("c%11ccccc", True)]
+)
 @pytest.mark.parametrize("batch_size", [2, 4])
-@pytest.mark.parametrize("one_hot_action_encoding", [False]) # Fails with one-hot action encoding
+@pytest.mark.parametrize(
+    "one_hot_action_encoding", [False]
+)  # Fails with one-hot action encoding
 @pytest.mark.parametrize("one_hot_obs_encoding", [False, True])
 def test_sample_smiles_with_prompt(
     start_token,
@@ -232,7 +234,7 @@ def test_sample_promptsmiles(
     promptsmiles,
     promptsmiles_optimize,
     promptsmiles_shuffle,
-    promptsmiles_multi
+    promptsmiles_multi,
 ):
     torch.manual_seed(0)
     device = torch.device("cuda" if torch.cuda.device_count() > 0 else "cpu")

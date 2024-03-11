@@ -11,13 +11,13 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen import model_mapping
-from acegen.models import adapt_state_dict
+from acegen.models import adapt_state_dict, models
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
+from acegen.scoring_functions import custom_scoring_functions, Task
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
-from tensordict.utils import isin, remove_duplicates
+from tensordict.utils import isin
 from torch.distributions.kl import kl_divergence
 from torchrl.data import (
     LazyTensorStorage,
@@ -67,36 +67,43 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    if not _has_molscore:
-        raise RuntimeError(
-            "MolScore library not found. Unable to create a scoring function. "
-            "To install MolScore, use: `pip install MolScore`"
-        ) from MOLSCORE_ERR
-
     # Define training task and run
-    if cfg.molscore in MolScoreBenchmark.presets:
-        MSB = MolScoreBenchmark(
-            model_name=cfg.agent_name,
-            model_parameters=dict(cfg),
-            benchmark=cfg.molscore,
-            budget=cfg.total_smiles,
-            output_dir=os.path.abspath(save_dir),
-            include=cfg.molscore_include,
-        )
-        for task in MSB:
+    if cfg.get("molscore", None):
+
+        if not _has_molscore:
+            raise RuntimeError(
+                "MolScore library not found. Unable to create a scoring function. "
+                "To install MolScore, use: `pip install MolScore`"
+            ) from MOLSCORE_ERR
+
+        if cfg.molscore in MolScoreBenchmark.presets:
+            MSB = MolScoreBenchmark(
+                model_name=cfg.agent_name,
+                model_parameters=dict(cfg),
+                benchmark=cfg.molscore,
+                budget=cfg.total_smiles,
+                output_dir=os.path.abspath(save_dir),
+                include=cfg.molscore_include,
+            )
+            for task in MSB:
+                run_ppo(cfg, task)
+        else:
+            # Save molscore output. Also redirect output to save_dir
+            cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+            data = json.load(open(cfg.molscore, "r"))
+            json.dump(data, open(cfg.molscore, "w"), indent=4)
+            task = MolScore(
+                model_name=cfg.agent_name,
+                task_config=cfg.molscore,
+                budget=cfg.total_smiles,
+                output_dir=os.path.abspath(save_dir),
+            )
             run_ppo(cfg, task)
-    else:
-        # Save molscore output. Also redirect output to save_dir
-        cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-        data = json.load(open(cfg.molscore, "r"))
-        json.dump(data, open(cfg.molscore, "w"), indent=4)
-        task = MolScore(
-            model_name=cfg.agent_name,
-            task_config=cfg.molscore,
-            budget=cfg.total_smiles,
-            output_dir=os.path.abspath(save_dir),
-        )
+    elif cfg.get("custom_task", None):
+        task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
         run_ppo(cfg, task)
+    else:
+        raise ValueError("No scoring function specified.")
 
 
 def run_ppo(cfg, task):
@@ -107,7 +114,7 @@ def run_ppo(cfg, task):
     )
 
     # Get model and vocabulary checkpoints
-    if cfg.model in model_mapping:
+    if cfg.model in models:
         (
             create_actor,
             create_critic,
@@ -115,7 +122,7 @@ def run_ppo(cfg, task):
             voc_path,
             ckpt_path,
             tokenizer,
-        ) = model_mapping[cfg.model]
+        ) = models[cfg.model]
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
@@ -291,8 +298,8 @@ def run_ppo(cfg, task):
             promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
             promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
             promptsmiles_multi=cfg.get("promptsmiles_multi", False),
+            remove_duplicates=True,
         )
-        data = remove_duplicates(data, key="action")
 
         # Update progress bar
         data_next = data.get("next")
