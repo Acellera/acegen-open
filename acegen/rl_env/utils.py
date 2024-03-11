@@ -6,6 +6,7 @@ import torch
 from tensordict.nn import TensorDictModule
 from tensordict.nn.probabilistic import set_interaction_type as set_exploration_type
 from tensordict.tensordict import TensorDictBase
+from tensordict.utils import remove_duplicates as rdups
 from torchrl.collectors import RandomPolicy
 from torchrl.envs import EnvBase
 from torchrl.envs.utils import ExplorationType, step_mdp
@@ -40,6 +41,7 @@ def generate_complete_smiles(
     promptsmiles_optimize: bool = True,
     promptsmiles_shuffle: bool = True,
     promptsmiles_multi: bool = False,
+    remove_duplicates: bool = False,
     return_smiles_only: bool = False,
     **kwargs,
 ):
@@ -73,6 +75,7 @@ def generate_complete_smiles(
             Defaults to True.
         promptsmiles_multi (bool, optional): Return all promptsmiles iterations. Resulting in multiple updates
             per SMILES. Defaults to False.
+        remove_duplicates (bool, optional): Remove duplicate SMILES strings from the output. Defaults to False.
         return_smiles_only (bool, optional): If ``True``, only the SMILES strings are returned.
             Only when not using a PrompSMILES argument. Defaults to False.
     """
@@ -173,8 +176,8 @@ def generate_complete_smiles(
                         f"Failed to encode {smi} with error {e}: ignoring invalid prompt"
                     )
                     failed_encodings.append(i)
-                    tokens.append(torch.tensor(vocabulary.encode("")))s
-                    
+                    tokens.append(torch.tensor(vocabulary.encode("")))
+
             enc_smiles.append(
                 torch.vstack(
                     [
@@ -259,6 +262,8 @@ def generate_complete_smiles(
                     ),
                 )
 
+        if remove_duplicates:
+            output_data = rdups(output_data, key="action")
         return output_data
 
     # ----------------------------------------
@@ -392,6 +397,8 @@ def generate_complete_smiles(
         output_data.set("sequence", output_data.get("observation"))
         output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
 
+        if remove_duplicates:
+            output_data = rdups(output_data, key="action")
         return output_data
 
 
