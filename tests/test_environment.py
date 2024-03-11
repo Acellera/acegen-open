@@ -1,7 +1,6 @@
 import pytest
 import torch
-from acegen import model_mapping
-from acegen.models import adapt_state_dict
+from acegen.models import adapt_state_dict, models
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
 from tests.utils import get_default_devices
@@ -154,7 +153,7 @@ def test_sample_smiles_with_prompt(
     one_hot_obs_encoding,
 ):
     torch.manual_seed(0)
-    create_actor, _, _, voc_path, ckpt_path, tokenizer = model_mapping["gru"]
+    create_actor, _, _, voc_path, ckpt_path, tokenizer = models["gru"]
     # Create vocabulary
     with open(voc_path, "r") as f:
         tokens = f.read().splitlines()
@@ -239,7 +238,7 @@ def test_sample_promptsmiles(
     torch.manual_seed(0)
     device = torch.device("cuda" if torch.cuda.device_count() > 0 else "cpu")
 
-    create_actor, _, _, voc_path, ckpt_path, tokenizer = model_mapping["gru"]
+    create_actor, _, _, voc_path, ckpt_path, tokenizer = models["gru"]
 
     # Create vocabulary
     with open(voc_path, "r") as f:
