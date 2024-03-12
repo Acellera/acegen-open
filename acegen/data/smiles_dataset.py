@@ -141,5 +141,4 @@ class SMILESDataset(Dataset):
             collated_arr[i, : seq.size(0)] = seq
         batch = smiles_to_tensordict(collated_arr, replace_mask_value=0)
         batch.set("sequence", batch.get("observation"))
-        batch.set("is_init", torch.zeros_like(batch.get("action")).unsqueeze(-1).bool())
         return batch

@@ -6,6 +6,7 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
+from acegen import model_mapping
 from acegen.data import load_dataset, SMILESDataset
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
@@ -62,19 +63,8 @@ def main(cfg: "DictConfig"):
     )
 
     logging.info("\nCreating model...")
-
-    if cfg.model == "lstm":
-        from acegen.models import create_lstm_actor
-
-        create_model = create_lstm_actor
-    elif cfg.model == "gru":
-        from acegen.models import create_gru_actor
-
-        create_model = create_gru_actor
-    elif cfg.model == "gpt2":
-        from acegen.models import create_gpt2_actor
-
-        create_model = create_gpt2_actor
+    if cfg.model in model_mapping:
+        create_model, _, _, _, _, _ = model_mapping[cfg.model]
     else:
         raise ValueError(f"Unknown model type {cfg.model}")
 

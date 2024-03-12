@@ -1,0 +1,34 @@
+# Logging configuration
+experiment_name: acegen
+agent_name: reinvent
+log_dir: logs_reinvent
+logger_backend: null # csv, wandb, tensorboard, or null
+seed: 101
+
+# Environment configuration
+num_envs: 128
+total_smiles: 10_000
+
+# Scoring function
+molscore: MolOpt
+molscore_include: ["Albuterol_similarity"]
+custom_task: null # Requires molscore to be set to null
+
+# Fix the beginning of the generated molecules
+prompt: null  # e.g. c1ccccc
+
+# Architecture
+model: gru # gru, lstm, or gpt2
+# The default prior varies for each model. Refer to the README file in the root directory for more information.
+# The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
+
+# Reinforce configuration
+lr: 0.0001
+eps: 1.0e-08
+weight_decay: 0.0
+sigma: 120
+
+# Replay configuration
+replay_buffer_size: 100
+experience_replay: True
+replay_batch_size: 10

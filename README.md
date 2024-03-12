@@ -35,15 +35,9 @@ To install TorchRL, run
     cd rl
     python setup.py install
 
-### Install MolScore
+### Install MolScore (Optional)
 
-To install MolScore, run
-
-    pip3 install rdkit func_timeout dask distributed pystow zenodo_client matplotlib scipy pandas joblib seaborn molbloom Levenshtein
-    git clone https://github.com/MorganCThomas/MolScore.git
-    cd molscore
-    git checkout develop
-    python setup.py install
+    pip install MolScore
 
 ### Install AceGen
 
@@ -53,15 +47,14 @@ To install AceGen, run
     cd acegen-open
     python setup.py install
 
-
 ## Running training scripts
 
 To run the training scripts, run
 
-    python scripts/a2c/a2c.py
-    python scripts/ppo/ppo.py
-    python scripts/reinvent/reinvent.py
-    python scripts/ahc/ahc.py
+    python scripts/a2c/a2c.py --config-name config_denovo
+    python scripts/ppo/ppo.py --config-name config_denovo
+    python scripts/reinvent/reinvent.py --config-name config_denovo
+    python scripts/ahc/ahc.py --config-name config_denovo
 
 To modify training parameters, edit the corresponding YAML file in each example's directory.
 
@@ -84,13 +77,66 @@ We provide a variety of example priors that can be selected in the configuration
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
   - number of parameters: 5,030,400
 
+Models are defined in `/acegen/__init__.py` and as a mapping to tuples with the following format:
+
+    model_mapping = {
+        "example_model": (
+            create_actor_method: Callable # A method to create the actor model
+            create_critic_method: Callable # A method to create the critic model (Optional)
+            create_actor_critic_method: Callable # A method to create the actor-critic model (Optional)
+            vocabulary_file_path: Path # The path to the vocabulary file
+            weights_file_path: Path # The path to the weights file
+            tokenizer: Tokenizer # The tokenizer to use for the model (Optional)
+        )
+    }
+
+New models can be added by creating a new tuple adding it to the model_mapping dictionary. Then the model can be selected in the configuration file by setting the `example_model` parameter to the name of the model.
+
 # Changing the scoring function
 
-To change the scoring function, adjust the `molscore` parameter in any configuration file. Set it to point to a valid 
+To change the scoring function, adjust the `molscore` parameter in any configuration files. Set it to point to a valid 
 MolScore configuration file (e.g.  ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json). 
 Alternatively, you can set the `molscore` parameter to the name of a valid MolScore benchmark 
 (such as MolOpt, GuacaMol, etc.) to automatically execute each task in the benchmark. For further details on MolScore, 
 please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) repository.
+
+Alternatively, training scripts can be edited to use any custom scoring function.
+The following example demonstrates how to use a custom scoring function:
+
+    from rdkit.Chem import AllChem, QED
+    from acegen.rl_env import SMILESEnv
+    from acegen.vocabulary import SMILESVocabulary
+    from torchrl.collectors import RandomPolicy
+    
+    # Create a vocabulary from a list of characters
+    chars = ["START", "END", "(", ")", "1", "=", "C", "N", "O"]
+    chars_dict = {char: index for index, char in enumerate(chars)}
+    vocab = SMILESVocabulary.create_from_dict(chars_dict, start_token="START", end_token="END")
+        
+    def evaluate_mol(smiles: str):
+        mol = AllChem.MolFromSmiles(smiles)
+        if mol:
+            return QED(mol)
+        else:
+            return 0.0
+    
+    # Define a function to evaluate a list of molecules
+    # Should accept a list of SMILES strings and return a list or array of floats
+    def evaluate_mols(smiles: list):
+        return [evaluate_mol(smi) for smi in smiles]
+    
+    # Generate molecules
+    env =  SMILESEnv(
+        start_token=vocab.start_token_index,
+        end_token=vocab.end_token_index,
+        length_vocabulary=len(vocab),
+        batch_size=1,
+    )
+    data = env.rollout(max_steps=100)
+
+    # Use the custom scoring function to compute the rewards
+    smiles_str = [vocab.decode(smi.numpy()) for smi in data["action"]]
+    reward = evaluate_mols(smiles_str)
 
 # Integration of custom models
 

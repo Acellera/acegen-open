@@ -11,35 +11,17 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.models import (
-    adapt_state_dict,
-    create_gpt2_actor,
-    create_gpt2_actor_critic,
-    create_gpt2_critic,
-    create_gru_actor,
-    create_gru_actor_critic,
-    create_gru_critic,
-    create_lstm_actor,
-    create_lstm_actor_critic,
-    create_lstm_critic,
-)
+from acegen.models import adapt_state_dict, models
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESTokenizer, SMILESTokenizer2, SMILESVocabulary
+from acegen.scoring_functions import custom_scoring_functions, Task
+from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
-from tensordict.utils import remove_duplicates
 from torch.distributions.kl import kl_divergence
 from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 
-from torchrl.envs import (
-    CatFrames,
-    InitTracker,
-    StepCounter,
-    TensorDictPrimer,
-    TransformedEnv,
-    UnsqueezeTransform,
-)
+from torchrl.envs import CatFrames, InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.objectives import A2CLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
@@ -55,35 +37,7 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-default_model_map = {
-    "gru": (
-        create_gru_actor,
-        create_gru_critic,
-        create_gru_actor_critic,
-        "chembl_filtered_vocabulary.txt",
-        "gru_chembl_filtered.ckpt",
-        SMILESTokenizer(),
-    ),
-    "lstm": (
-        create_lstm_actor,
-        create_lstm_critic,
-        create_lstm_actor_critic,
-        "chembl_vocabulary.txt",
-        "lstm_chembl.ckpt",
-        SMILESTokenizer(),
-    ),
-    "gpt2": (
-        create_gpt2_actor,
-        create_gpt2_critic,
-        create_gpt2_actor_critic,
-        "enamine_real_vocabulary.txt",
-        "gpt2_enamine_real.ckpt",
-        SMILESTokenizer2(),
-    ),
-}
-
-
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path=".", config_name="config_denovo", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Set seeds
@@ -101,34 +55,43 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    if not _has_molscore:
-        raise RuntimeError(
-            "MolScore library not found, unable to create a scoring function. "
-        ) from MOLSCORE_ERR
+    # Define training task and run
+    if cfg.get("molscore", None):
 
-    if cfg.molscore in MolScoreBenchmark.presets:
-        MSB = MolScoreBenchmark(
-            model_name=cfg.agent_name,
-            model_parameters=dict(cfg),
-            benchmark=cfg.molscore,
-            budget=cfg.total_smiles,
-            output_dir=os.path.abspath(save_dir),
-            include=cfg.molscore_include,
-        )
-        for task in MSB:
+        if not _has_molscore:
+            raise RuntimeError(
+                "MolScore library not found. Unable to create a scoring function. "
+                "To install MolScore, use: `pip install MolScore`"
+            ) from MOLSCORE_ERR
+
+        if cfg.molscore in MolScoreBenchmark.presets:
+            MSB = MolScoreBenchmark(
+                model_name=cfg.agent_name,
+                model_parameters=dict(cfg),
+                benchmark=cfg.molscore,
+                budget=cfg.total_smiles,
+                output_dir=os.path.abspath(save_dir),
+                include=cfg.molscore_include,
+            )
+            for task in MSB:
+                run_a2c(cfg, task)
+        else:
+            # Save molscore output. Also redirect output to save_dir
+            cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+            data = json.load(open(cfg.molscore, "r"))
+            json.dump(data, open(cfg.molscore, "w"), indent=4)
+            task = MolScore(
+                model_name=cfg.agent_name,
+                task_config=cfg.molscore,
+                budget=cfg.total_smiles,
+                output_dir=os.path.abspath(save_dir),
+            )
             run_a2c(cfg, task)
-    else:
-        # Save molscore output. Also redirect output to save_dir
-        cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-        data = json.load(open(cfg.molscore, "r"))
-        json.dump(data, open(cfg.molscore, "w"), indent=4)
-        task = MolScore(
-            model_name=cfg.agent_name,
-            task_config=cfg.molscore,
-            budget=cfg.total_smiles,
-            output_dir=os.path.abspath(save_dir),
-        )
+    elif cfg.get("custom_task", None):
+        task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
         run_a2c(cfg, task)
+    else:
+        raise ValueError("No scoring function specified.")
 
 
 def run_a2c(cfg, task):
@@ -139,25 +102,15 @@ def run_a2c(cfg, task):
     )
 
     # Get model and vocabulary checkpoints
-    if cfg.model in default_model_map:
+    if cfg.model in models:
         (
             create_actor,
             create_critic,
             create_shared,
-            vocab_file,
-            weights_file,
+            voc_path,
+            ckpt_path,
             tokenizer,
-        ) = default_model_map[cfg.model]
-        voc_path = (
-            Path(__file__).resolve().parent.parent.parent / "priors" / vocab_file
-            if cfg.prior == "default"
-            else Path(cfg.prior)
-        )
-        ckpt_path = (
-            Path(__file__).resolve().parent.parent.parent / "priors" / weights_file
-            if cfg.prior == "default"
-            else Path(cfg.prior)
-        )
+        ) = models[cfg.model]
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
@@ -168,7 +121,7 @@ def run_a2c(cfg, task):
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
     vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, start_token="GO", end_token="EOS"
+        tokens_dict, start_token="GO", end_token="EOS", tokenizer=tokenizer
     )
 
     # Create models
@@ -231,7 +184,6 @@ def run_a2c(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
@@ -308,26 +260,30 @@ def run_a2c(cfg, task):
     while not task.finished:
 
         # Generate data
-        data = generate_complete_smiles(policy=actor_inference, environment=env)
-        data = remove_duplicates(data, key="action")
+        data = generate_complete_smiles(
+            policy_sample=actor_inference,
+            policy_evaluate=actor_training,
+            vocabulary=vocabulary,
+            scoring_function=task,
+            environment=env,
+            prompt=cfg.get("prompt", None),
+            promptsmiles=cfg.get("promptsmiles", None),
+            promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
+            promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
+            promptsmiles_multi=cfg.get("promptsmiles_multi", False),
+            remove_duplicates=True,
+        )
 
         # Update progress bar
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
         pbar.update(done.sum().item())
 
-        # Compute rewards
-        smiles = data.select("action").cpu()
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
-        data_next["reward"][done] = torch.tensor(
-            task(smiles_str), device=device
-        ).unsqueeze(-1)
-
         # Register smiles lengths and real rewards and total generated smiles
         log_info = {}
         total_done += cfg.num_envs
         episode_rewards = data_next["reward"][done]
-        episode_length = data_next["step_count"][done]
+        episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
         if len(episode_rewards) > 0:
             log_info.update(
                 {
@@ -335,15 +291,9 @@ def run_a2c(cfg, task):
                     "train/reward": episode_rewards.mean().item(),
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
-                    "train/episode_length": episode_length.sum().item() / len(
-                        episode_length
-                    ),
+                    "train/episode_length": episode_length.item(),
                 }
             )
-
-        # For transformers-based policies
-        data.set("sequence", data.get("observation"))
-        data.set(("next", "sequence"), data.get(("next", "observation")))
 
         # Compute advantage
         with torch.no_grad():

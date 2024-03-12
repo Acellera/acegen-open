@@ -1,15 +1,37 @@
+import warnings
+
 import torch
 import torch.nn as nn
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
 from torchrl.modules import ActorValueOperator, ProbabilisticActor
-from transformers import GPT2Config, GPT2Model
+
+try:
+    import transformers
+    from transformers import GPT2Config, GPT2Model
+
+    _has_transformers = True
+except ImportError as err:
+    _has_transformers = False
+    TRANSFORMERS_ERR = err
 
 
 class GPT2(nn.Module):
     """GPT2 model for language modeling. This model is a simple wrapper around the HuggingFace GPT2Model."""
 
     def __init__(self, config):
+        if not _has_transformers:
+            raise RuntimeError(
+                "transformers library not found, please install with pip install transformers."
+            ) from TRANSFORMERS_ERR
+        if transformers.__version__ != "4.24.0":
+            warnings.warn(
+                f"Warning: The current version of transformers library ({transformers.__version__}) "
+                f"may not be compatible with the default weights for the GPT-2 model used in AceGen. "
+                f"If you intend to use the default weights provided in AceGen, please install transformers "
+                f"version 4.24.0 using: `pip install transformers==4.24.0`."
+            )
+
         super(GPT2, self).__init__()
 
         # Define model

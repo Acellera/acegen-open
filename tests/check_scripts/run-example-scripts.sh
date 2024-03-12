@@ -44,13 +44,26 @@ while [[ $# -gt 0 ]]; do
 done
 
 scripts=(
-    run_a2c.sh
-    run_ppo.sh
-    run_ppod.sh
-    run_reinvent.sh
-    run_ahc.sh
     run_pretrain_single_node.sh
     run_pretrain_distributed.sh
+
+    run_reinvent_denovo.sh
+    run_ahc_denovo.sh
+    run_a2c_denovo.sh
+    run_ppo_denovo.sh
+    run_ppod_denovo.sh
+
+    run_reinvent_scaffold.sh
+    run_ahc_scaffold.sh
+    run_a2c_scaffold.sh
+    run_ppo_scaffold.sh
+    run_ppod_scaffold.sh
+
+    run_reinvent_fragment.sh
+    run_ahc_fragment.sh
+    run_a2c_fragment.sh
+    run_ppo_fragment.sh
+    run_ppod_fragment.sh
 )
 
 # Remove the previous logs and errors
