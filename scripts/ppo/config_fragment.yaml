@@ -7,9 +7,12 @@ seed: 101
 
 # Environment configuration
 num_envs: 128
+total_smiles: 10_000
+
+# Scoring function
 molscore: MolOpt
 molscore_include: ["Celecoxxib_rediscovery"]
-total_smiles: 10_000
+custom_task: null # Requires molscore to be set to null
 
 # Promptsmiles configuration
 promptsmiles: c1(C)ccc(*)cc1.NS(=O)(=O)(*)

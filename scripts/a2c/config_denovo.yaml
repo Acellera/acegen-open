@@ -7,9 +7,12 @@ seed: 101
 
 # Environment configuration
 num_envs: 16
+total_smiles: 10_000
+
+# Scoring function
 molscore: MolOpt
 molscore_include: ["Albuterol_similarity"]
-total_smiles: 10_000
+custom_task: null # Requires molscore to be set to null
 
 # Fix the beginning of the generated molecules
 prompt: null  # e.g. c1ccccc

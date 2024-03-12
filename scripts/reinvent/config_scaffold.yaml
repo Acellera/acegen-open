@@ -7,9 +7,12 @@ seed: 101
 
 # Environment configuration
 num_envs: 128
+total_smiles: 10_000
+
+# Scoring function
 molscore: LibINVENT_Exp1
 molscore_include: ["DRD2_SelRF_SubFilt_DF"]
-total_smiles: 10_000
+custom_task: null # Requires molscore to be set to null
 
 # Promptsmiles configuration
 promptsmiles: N1(*)CCN(CC1)CCCCN(*)
