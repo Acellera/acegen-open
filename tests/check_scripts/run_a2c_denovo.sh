@@ -1,18 +1,18 @@
 #!/bin/bash
 
-#SBATCH --job-name=reinvent
+#SBATCH --job-name=a2c_denovo
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/reinvent%j.txt
-#SBATCH --error=slurm_errors/reinvent%j.txt
+#SBATCH --output=slurm_logs/a2c_denovo%j.txt
+#SBATCH --error=slurm_errors/a2c_denovo%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
-agent_name="reinvent"
+agent_name="a2c_denovo"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/reinvent/reinvent.py \
+python $PYTHONPATH/scripts/a2c/a2c.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \

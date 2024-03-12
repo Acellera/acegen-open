@@ -1,4 +1,5 @@
 # Logging configuration
+# Logging configuration
 experiment_name: acegen
 agent_name: ahc
 log_dir: logs_ahc
@@ -7,11 +8,15 @@ seed: 101
 
 # Environment configuration
 num_envs: 128
+total_smiles: 10_000
+
+# Scoring function
 molscore: MolOpt
 molscore_include: ["Albuterol_similarity"]
+custom_task: null # Requires molscore to be set to null
 
-# Collector configuration
-total_smiles: 10_000
+# Fix the beginning of the generated molecules
+prompt: null  # e.g. c1ccccc
 
 # Architecture
 model: gru # gru, lstm, or gpt2

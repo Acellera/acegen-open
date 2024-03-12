@@ -48,3 +48,6 @@ def test_smiles_to_tensordict():
 
     # Check if the batch_size attribute is correctly set
     assert result.batch_size == torch.Size([B, T - 1])
+
+    # Check rewards are in the right position
+    assert (result["next"]["reward"][next_tensordict["done"]].cpu() == reward).all()

@@ -35,6 +35,10 @@ To install TorchRL, run
     cd rl
     python setup.py install
 
+### Install MolScore (Optional)
+
+    pip install MolScore
+
 ### Install AceGen
 
 To install AceGen, run
@@ -43,15 +47,14 @@ To install AceGen, run
     cd acegen-open
     python setup.py install
 
-
 ## Running training scripts
 
 To run the training scripts, run
 
-    python scripts/a2c/a2c.py
-    python scripts/ppo/ppo.py
-    python scripts/reinvent/reinvent.py
-    python scripts/ahc/ahc.py
+    python scripts/a2c/a2c.py --config-name config_denovo
+    python scripts/ppo/ppo.py --config-name config_denovo
+    python scripts/reinvent/reinvent.py --config-name config_denovo
+    python scripts/ahc/ahc.py --config-name config_denovo
 
 To modify training parameters, edit the corresponding YAML file in each example's directory.
 
@@ -132,7 +135,6 @@ The following example demonstrates how to use a custom scoring function:
     data = env.rollout(max_steps=100)
 
     # Use the custom scoring function to compute the rewards
-    # These lines can be found in the training scripts, so if the scoring function is changed, it should be updated accordingly
     smiles_str = [vocab.decode(smi.numpy()) for smi in data["action"]]
     reward = evaluate_mols(smiles_str)
 

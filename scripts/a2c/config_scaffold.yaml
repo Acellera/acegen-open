@@ -1,0 +1,41 @@
+# Logging configuration
+experiment_name: acegen
+agent_name: a2c
+log_dir: logs_a2c
+logger_backend: null  # csv, wandb, tensorboard, or null
+seed: 101
+
+# Environment configuration
+num_envs: 16
+total_smiles: 10_000
+
+# Scoring function
+molscore: LibINVENT_Exp1
+molscore_include: ["DRD2_SelRF_SubFilt_DF"]
+custom_task: null # Requires molscore to be set to null
+
+# Promptsmiles configuration
+promptsmiles: N1(*)CCN(CC1)CCCCN(*)
+promptsmiles_optimize: True
+promptsmiles_shuffle: True
+promptsmiles_multi: False
+
+# Architecture configuration
+shared_nets: False
+model: gru # gru, lstm, or gpt2
+# The default prior varies for each model. Refer to the README file in the root directory for more information.
+# The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
+
+# Optimizer
+lr: 0.0001
+eps: 1.0e-06
+weight_decay: 0.0
+
+# A2C configuration
+gamma: 0.999
+lmbda: 0.99
+critic_coef: 0.5
+entropy_coef: 0.05
+kl_coef: 0.1
+mini_batch_size: 16
+max_grad_norm: 0.5

@@ -12,12 +12,12 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen import model_mapping
-from acegen.models import adapt_state_dict
+from acegen.models import adapt_state_dict, models
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
+from acegen.scoring_functions import custom_scoring_functions, Task
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
-from tensordict.utils import isin, remove_duplicates
+from tensordict.utils import isin
 
 from torchrl.data import (
     LazyTensorStorage,
@@ -26,14 +26,7 @@ from torchrl.data import (
     TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import (
-    CatFrames,
-    InitTracker,
-    StepCounter,
-    TensorDictPrimer,
-    TransformedEnv,
-    UnsqueezeTransform,
-)
+from torchrl.envs import CatFrames, InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.record.loggers import get_logger
 
 try:
@@ -47,7 +40,7 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path=".", config_name="config_denovo", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Set seeds
@@ -65,36 +58,43 @@ def main(cfg: "DictConfig"):
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-    if not _has_molscore:
-        raise RuntimeError(
-            "MolScore library not found, unable to create a scoring function. "
-            "MolScore can be installed from `https://github.com/MorganCThomas/MolScore`."
-        ) from MOLSCORE_ERR
-
     # Define training task and run
-    if cfg.molscore in MolScoreBenchmark.presets:
-        MSB = MolScoreBenchmark(
-            model_name=cfg.agent_name,
-            model_parameters=dict(cfg),
-            benchmark=cfg.molscore,
-            budget=cfg.total_smiles,
-            output_dir=os.path.abspath(save_dir),
-            include=cfg.molscore_include,
-        )
-        for task in MSB:
+    if cfg.get("molscore", None):
+
+        if not _has_molscore:
+            raise RuntimeError(
+                "MolScore library not found. Unable to create a scoring function. "
+                "To install MolScore, use: `pip install MolScore`"
+            ) from MOLSCORE_ERR
+
+        if cfg.molscore in MolScoreBenchmark.presets:
+            MSB = MolScoreBenchmark(
+                model_name=cfg.agent_name,
+                model_parameters=dict(cfg),
+                benchmark=cfg.molscore,
+                budget=cfg.total_smiles,
+                output_dir=os.path.abspath(save_dir),
+                include=cfg.molscore_include,
+            )
+            for task in MSB:
+                run_reinvent(cfg, task)
+        else:
+            # Save molscore output. Also redirect output to save_dir
+            cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+            data = json.load(open(cfg.molscore, "r"))
+            json.dump(data, open(cfg.molscore, "w"), indent=4)
+            task = MolScore(
+                model_name=cfg.agent_name,
+                task_config=cfg.molscore,
+                budget=cfg.total_smiles,
+                output_dir=os.path.abspath(save_dir),
+            )
             run_reinvent(cfg, task)
-    else:
-        # Save molscore output. Also redirect output to save_dir
-        cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-        data = json.load(open(cfg.molscore, "r"))
-        json.dump(data, open(cfg.molscore, "w"), indent=4)
-        task = MolScore(
-            model_name=cfg.agent_name,
-            task_config=cfg.molscore,
-            budget=cfg.total_smiles,
-            output_dir=os.path.abspath(save_dir),
-        )
+    elif cfg.get("custom_task", None):
+        task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
         run_reinvent(cfg, task)
+    else:
+        raise ValueError("No scoring function specified.")
 
 
 def run_reinvent(cfg, task):
@@ -105,8 +105,8 @@ def run_reinvent(cfg, task):
     )
 
     # Get model and vocabulary checkpoints
-    if cfg.model in model_mapping:
-        create_actor, _, _, voc_path, ckpt_path, tokenizer = model_mapping[cfg.model]
+    if cfg.model in models:
+        create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model]
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
@@ -117,7 +117,7 @@ def run_reinvent(cfg, task):
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
     vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, start_token="GO", end_token="EOS"
+        tokens_dict, start_token="GO", end_token="EOS", tokenizer=tokenizer
     )
 
     # Create models
@@ -156,7 +156,6 @@ def run_reinvent(cfg, task):
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
-        env.append_transform(StepCounter())
         env.append_transform(InitTracker())
         for rhs_primer in rhs_primers:
             env.append_transform(rhs_primer)
@@ -191,10 +190,16 @@ def run_reinvent(cfg, task):
 
     logger = None
     if cfg.logger_backend:
+        experiment_name = f"{cfg.agent_name}"
+        try:
+            experiment_name += f"_{task.configs.get('task')}"
+        except AttributeError:
+            experiment_name += "_custom_task"
+
         logger = get_logger(
             cfg.logger_backend,
             logger_name="reinvent",
-            experiment_name=f"{cfg.agent_name}_{task.configs.get('task')}",
+            experiment_name=experiment_name,
             wandb_kwargs={
                 "config": dict(cfg),
                 "project": cfg.experiment_name,
@@ -212,25 +217,30 @@ def run_reinvent(cfg, task):
 
     while not task.finished:
 
-        data = generate_complete_smiles(policy=actor_inference, environment=env)
-        data = remove_duplicates(data, key="action")
+        # Generate data
+        data = generate_complete_smiles(
+            policy_sample=actor_inference,
+            policy_evaluate=actor_training,
+            vocabulary=vocabulary,
+            scoring_function=task,
+            environment=env,
+            prompt=cfg.get("prompt", None),
+            promptsmiles=cfg.get("promptsmiles", None),
+            promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
+            promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
+            promptsmiles_multi=cfg.get("promptsmiles_multi", False),
+            remove_duplicates=True,
+        )
 
         log_info = {}
         total_done += cfg.num_envs
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        smiles = data.select("action").cpu()
         pbar.update(done.sum().item())
-
-        # Compute rewards
-        smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles["action"]]
-        data_next["reward"][done] = torch.tensor(
-            task(smiles_str), device=device
-        ).unsqueeze(-1)
 
         # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]
-        episode_length = data_next["step_count"][done]
+        episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
         if len(episode_rewards) > 0:
             log_info.update(
                 {
@@ -238,21 +248,9 @@ def run_reinvent(cfg, task):
                     "train/reward": episode_rewards.mean().item(),
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
-                    "train/episode_length": episode_length.sum().item() / len(
-                        episode_length
-                    ),
+                    "train/episode_length": episode_length.item(),
                 }
             )
-
-        # Select only the necessary tensors
-        data = data.select(
-            "action",
-            "mask",
-            "is_init",
-            "observation",
-            ("next", "reward"),
-            inplace=True,
-        )
 
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
 
@@ -310,10 +308,6 @@ def run_reinvent(cfg, task):
 
 def get_log_prob(data, model):
     actions = data.get("action").clone()
-
-    # For transformers-based policies
-    data.set("sequence", data.get("observation"))
-
     model_in = data.select(*model.in_keys, strict=False)
     log_prob = model.get_dist(model_in).log_prob(actions)
     return log_prob

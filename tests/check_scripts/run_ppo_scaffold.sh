@@ -1,24 +1,22 @@
 #!/bin/bash
 
-#SBATCH --job-name=ppod
+#SBATCH --job-name=ppo_scaffold
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/ppod%j.txt
-#SBATCH --error=slurm_errors/ppod%j.txt
+#SBATCH --output=slurm_logs/ppo_scaffold%j.txt
+#SBATCH --error=slurm_errors/ppo_scaffold%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
-agent_name="ppod"
+agent_name="ppo_scaffold"
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/ppo/ppo.py \
+python $PYTHONPATH/scripts/ppo/ppo.py --config-name config_scaffold \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
-  molscore=MolOpt \
-  experience_replay=True \
-  molscore_include=[Albuterol_similarity] \
+  experience_replay=False \
   seed=$N_RUN \
   log_dir="$agent_name"_seed"$N_RUN"
 

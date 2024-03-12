@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 import torch.nn as nn
 from tensordict.nn import TensorDictModule, TensorDictSequential
@@ -5,6 +7,7 @@ from torchrl.envs import ExplorationType
 from torchrl.modules import ActorValueOperator, ProbabilisticActor
 
 try:
+    import transformers
     from transformers import GPT2Config, GPT2Model
 
     _has_transformers = True
@@ -21,6 +24,13 @@ class GPT2(nn.Module):
             raise RuntimeError(
                 "transformers library not found, please install with pip install transformers."
             ) from TRANSFORMERS_ERR
+        if transformers.__version__ != "4.24.0":
+            warnings.warn(
+                f"Warning: The current version of transformers library ({transformers.__version__}) "
+                f"may not be compatible with the default weights for the GPT-2 model used in AceGen. "
+                f"If you intend to use the default weights provided in AceGen, please install transformers "
+                f"version 4.24.0 using: `pip install transformers==4.24.0`."
+            )
 
         super(GPT2, self).__init__()
 
