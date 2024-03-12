@@ -73,7 +73,7 @@ We provide a variety of example priors that can be selected in the configuration
   - number of parameters: 5,807,909
  
 
-- A GPT-2 model
+- A GPT-2 model (requires installation of HuggingFace's `transformers` library)
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
   - number of parameters: 5,030,400
 
