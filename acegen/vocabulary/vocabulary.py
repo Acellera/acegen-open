@@ -130,7 +130,7 @@ class SMILESVocabulary(Vocabulary):
                 self.additional_chars.add(char)
         char_list = list(self.additional_chars)
         char_list.sort()
-        self.chars = char_list + self.special_tokens
+        self.chars = self.special_tokens + char_list 
         self.vocab_size = len(self.chars)
         self.vocab = dict(zip(self.chars, range(len(self.chars))))
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}
