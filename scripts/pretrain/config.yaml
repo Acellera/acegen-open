@@ -8,10 +8,10 @@ model_log_dir: /tmp/pretrain
 
 # Dataset configuration
 train_dataset_path: /shared/morgan/mol_opt/data/zinc.txt
+tokenizer: SMILESTokenizer # SMILESTokenizer, SMILESTokenizer2, DeepSMILESTokenizer, SELFIESTokenizer, AISTokenizer, SAFETokenizer, SmiZipTokenizer
 
 # Model configuration
 model: gpt2 # gru, lstm, or gpt2
-tokenizer: SMILESTokenizer
 
 # Training configuration
 lr: 0.0001
