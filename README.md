@@ -2,12 +2,18 @@
 
 ## Overview
 
-In recent years, reinforcement learning (RL) has been increasingly used in drug design to propose molecules with specific properties under defined constraints. However, RL problems are inherently complex, featuring independent and interchangeable components with diverse method signatures and data requirements.
-
-AceGen applies TorchRL - a modern general decision-making library that provides well-integrated reusable components - to make a robust toolkit tailored for generative drug design.
+AceGen is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. AceGen harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
 
 ![Alt Text](./acegen/images/train_zaleplon.png)
-![Alt Text](./acegen/images/chem_zaleplon.png)
+
+
+## Features
+
+- **Generative Modes:** AceGen facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
+- **RL Algorithms:** AceGen offers task optimization with various reinforcement learning algorithms such as Proximal Policy Optimization (PPO), Advantage Actor-Critic (A2C), Reinvent, and Augmented Hill-Climb (AHC).
+- **Pre-trained Models:** The toolkit offers pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), and GPT-2.
+- **Scoring Functions :** AceGen relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
+- **Customization Support:** AceGen provides tutorials for integrating custom models and scoring functions, ensuring flexibility for advanced users.
 
 ## Installation
 
@@ -106,26 +112,11 @@ Alternatively, you can set the `molscore` parameter to the name of a valid MolSc
 please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) repository.
 
 Alternatively, users can define their own custom scoring functions and use them in the AceGen scripts by following the 
-instructions in this [tutorial](tutorials/add_custom_scoring_function.md).
+instructions in this [tutorial](tutorials/adding_custom_scoring_function.md).
 
 # Integration of custom models
 
 We encourage users to integrate their own models into AceGen.
-
-Models are defined in `/acegen/__init__.py` and as a mapping to tuples with the following format:
-
-    model_mapping = {
-        "example_model": (
-            create_actor_method: Callable # A method to create the actor model
-            create_critic_method: Callable # A method to create the critic model (Optional)
-            create_actor_critic_method: Callable # A method to create the actor-critic model (Optional)
-            vocabulary_file_path: Path # The path to the vocabulary file
-            weights_file_path: Path # The path to the weights file
-            tokenizer: Tokenizer # The tokenizer to use for the model (Optional)
-        )
-    }
-
-New models can be added by creating a new tuple adding it to the model_mapping dictionary. Then the model can be selected in the configuration file by setting the `example_model` parameter to the name of the model.
 
 `/acegen/models/gru.py` and `/acegen/models/lstm.py` offer methods to create RNNs of varying sizes, which can be use
 to load custom models. Similarly, `/acegen/models/gpt2.py` can serve as a template for integrating HuggingFace models. 
