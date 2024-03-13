@@ -9,40 +9,39 @@ If you are not, please refer to the [AceGen environment tutorial](understanding_
 
 ## Defining a custom model
 
+When integrating custom models into AceGen, it is important to keep in mind certain requirements. Let's delve into them:
+
 ### Requirement 1
 
-AceGen is built on top of TorchRL, and TorchRL uses Tensordict, a data carrier for managing nested dictionaries of tensors, 
-to move around the data between the different components of the reinforcement learning pipeline, such as the environment, 
-the model, and the data buffer.
+AceGen is built on top of TorchRL, and TorchRL uses Tensordict, a data carrier for managing nested dictionaries of tensors,
+to move around the data between the different components of the reinforcement learning pipeline, such as the environment,
+the model, and the data buffer.  Therefore, any custom model must be Tensordict-compatible. In simpler terms, it should accept a Tensordict as input 
+and return a Tensordict as output.
 
-What this means is that when we define a custom model, we need to make it Tensordict-compatible. In other words,
-it should accept a Tensordict as input and return a Tensordict as output.
-
-Nonetheless, defining a custom model is straightforward is we know PyTorch. We can define a custom model as a subclass 
-of `torch.nn.Module` and wrap it with the `tensordict.nn.TensordictModule` class, which makes sure that the model is 
-compatible with Tensordict. We will see how to do it in this tutorial.
+To achieve this compatibility, we'll define our custom model as a subclass of `torch.nn.Module` and wrap it with the
+`tensordict.nn.TensordictModule` class. This ensures seamless integration with Tensordict. We'll explore this process in 
+detail later in the tutorial. It is also important to know that similar to how `torch.nn.Sequential` is used to
+concatenate layers, `tensordict.nn.TensordictSequential` can be used to concatenate TensordictModules. 
 
 ### Requirement 2
 
-In reinforcement learning (RL), the model is generally used in 2 different phases, training and inference. 
+In reinforcement learning (RL), the model serves distinct purposes during training and inference phases. During 
+inference (data collection), the model's role is to generate actions (and sometimes  additional data like the action 
+log prob) based on the current state. However, during training, it must process sequences of data and predict outputs 
+for each sequence element. Consequently, it is fundamental that out model can identify and handle both phases.
 
-In each phase, what we want the model to do can be different.
+One tempting option would be to have a single model that infers the phase from the shape of the input and acts accordingly. 
+Recurrent models during inference will receive a single step of the sequence, without a time dimension (i.e. shape = (batch_size, )) 
+while during training they will have both a batch and a temporal dimension. i.e. shape = (batch_size, sequence_length).
+This can work for some models, but not for all. Transformer-based models always expect an input of shape (batch_size, sequence_length), 
+regardless of the phase. The difference between training and inference is that the agent will only return a single token 
+which will be determined by the sequence_mask field.
 
-For example, during inference (the data collection phase), we just want the model to generate an action (and sometimes 
-additional data like the action log prob) given the current state. However, during training we want the model to process a sequence of data, and to predict outputs for each element of the
-sequence. 
+To address this, it's advisable to define separate models for training and inference, both sharing the same weights. 
+This approach ensures consistent behavior across phases, regardless of input shape variations.
 
-One option would be to infer the phase from the shape of the input. This can work for some models, but not for all.
-For examples, recurrent models during inference will receive a single step of the sequence, without time dimension
-(i.e. shape = (batch_size, )) and d during training they will have both a batch and a temporal dimension. i.e. shape = (batch_size,
-sequence_length).
-
-However, transformers always expect an input shape of (batch_size, sequence_length), regardless of the phase. The difference
-between training and inference is that the agent will only return a single token which will be determined by the sequence_mask
-field.
-
-To handle this nicely, we will see that it is much easier and reliable to define 2 different models, one for training and one for inference,
-both pointing to the same weights. This way, we can make sure that the model always behaves as expected, regardless of the phase.
+In the following sections, we'll walk through the process of implementing a custom model using the 
+transformers library from HuggingFace that meet these requirements.
 
 ---
 
@@ -157,26 +156,31 @@ Models are defined in `/acegen/__init__.py` and as a mapping to tuples with the 
             create_critic_method: Callable # A method to create the critic model (Optional)
             create_actor_critic_method: Callable # A method to create the actor-critic model (Optional)
             vocabulary_file_path: Path # The path to the vocabulary file
-            weights_file_path: Path # The path to the weights file
+            weights_file_path: Path # The path to the weights file (Optional)
             tokenizer: Tokenizer # The tokenizer to use for the model (Optional)
         )
     }
 
-In the case of our example, it would look like this:
+New models can be added by creating a new tuple adding it to the model_mapping dictionary. Then the model can be
+selected in any configuration file by setting the `model` parameter to the name of the model. In the case of our example, 
+adding the models would look like this:
 
     model_mapping = {
-        "gpt2": (
+        "gpt2_example": (
             create_gpt2_actor,
             None,
             None,
+            Path(__file__).resolve().parent.parent.parent  / "priors" / "chembl_vocabulary.txt",
             None,
-            None, 
-            None,
+            SmilesTokenizer(),
         )
     }
 
-New models can be added by creating a new tuple adding it to the model_mapping dictionary. Then the model can be 
-selected in the configuration file by setting the `example_model` parameter to the name of the model.
+Here we have assigned a vocabulary from out prior to our model, a simple tokenizer and no weights file.
+We could, however, add a weights file to the model if we wanted to. Or pretrain the model with AceGen's
+retraining scripts and then add the weights file to the model_mapping dictionary. Similarly, we could optimize 
+some scoring function with Reinvent or AHC (PPO and A2C would require defining a critic 
+model).
 
 ---
 
