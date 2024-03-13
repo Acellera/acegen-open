@@ -1,4 +1,4 @@
-# Tutorial: Integrating Custom Models in AceGen (WIP)
+# Tutorial: Integrating Custom Models in AceGen
 
 ---
 
@@ -47,8 +47,9 @@ transformers library from HuggingFace that meet these requirements.
 
 ## Creating a custom model
 
-The output of the model should simply be the next token to be generated.
-We can get a better understanding of its structure by running the following code:
+We will define a custom model using the transformers library from HuggingFace. We will use the GPT-2 model as an example.
+The model will be a `torch.nn.Module`, and will provide different outputs depending on the phase (training or inference),
+define by its `train_mode` attribute.
 
 ```python
 import torch
@@ -87,6 +88,11 @@ class GPT2(nn.Module):
 
         return out
 ```
+
+Now, we will wrap the model in a `tensordict.nn.TensordictModule` to make it Tensordict-compatible.
+Then, use `tensordict.nn.TensordictSequential` to concatenate the model with a final layer that will output the logits.
+Finally, we will wrap the model in a `ProbabilisticActor` to handle action sampling and log probability computation.
+We will do that for both training and inference versions of the model, obtaining two models that will share the same weights.
 
 ```python
 from tensordict.nn import TensorDictModule, TensorDictSequential
@@ -166,21 +172,25 @@ selected in any configuration file by setting the `model` parameter to the name 
 adding the models would look like this:
 
     model_mapping = {
-        "gpt2_example": (
+        "gpt2": (
             create_gpt2_actor,
             None,
             None,
-            Path(__file__).resolve().parent.parent.parent  / "priors" / "chembl_vocabulary.txt",
+            Path(__file__).resolve().parent.parent.parent / "priors" / "enamine_real_vocabulary.txt",
+            Path(__file__).resolve().parent.parent.parent / "priors" / "gpt2_enamine_real.ckpt",
             None,
-            SmilesTokenizer(),
         )
     }
 
-Here we have assigned a vocabulary from out prior to our model, a simple tokenizer and no weights file.
-We could, however, add a weights file to the model if we wanted to. Or pretrain the model with AceGen's
-retraining scripts and then add the weights file to the model_mapping dictionary. Similarly, we could optimize 
-some scoring function with Reinvent or AHC (PPO and A2C would require defining a critic 
-model).
+Here we have assigned vocabulary and weights files from out set of priors to the model. We could, however, use others.
+
+Now, we can already use the model in the Reinvent and AHC training scripts for de novo molecule generation.
+
+For decorative and linking tasks, we would need to define a tokenizer. We can use, for example, the SMILEStokenizer2()
+from AceGen that is compatible with enamine_real_vocabulary.txt.
+
+Finally, the PPO and A2C training scripts require a critic model. It would be similar to the actor model, but without the
+ProbabilisticActor wrapper. It is actually created [here](../acegen/models/gpt2.py).
 
 ---
 
