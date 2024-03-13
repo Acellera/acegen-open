@@ -43,7 +43,8 @@ class MolBloomDataset:
         else:
             logging.info(f"Generating bloom filter {bloom_path}")
             smiles_list = load_dataset(dataset_path)
-            self.bloom_filter = CustomFilter(100, len(smiles_list), "train")
+            M_bits = - (len(smiles_list)*np.log(0.01)) / (np.log(2)**2)
+            self.bloom_filter = CustomFilter(M_bits, len(smiles_list), "train")
             for smiles in tqdm(
                 smiles_list, total=len(smiles_list), desc="Generating filter"
             ):
