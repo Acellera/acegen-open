@@ -1,5 +1,7 @@
 # Tutorial: Integrating Custom Scoring Functions in AceGen
 
+---
+
 Defining custom scoring functions can be of interest to users who want to use a scoring function that is not included in the MolScore library, our default scoring library. In this tutorial, we will demonstrate how to define a custom scoring function and use it in the AceGen scripts.
 
 As an example, we will define a custom scoring function to evaluate the quality of the generated molecules. We will use the QED score as the custom scoring function. The QED score is a measure of drug-likeness of a molecule. It is a real number between 0 and 1, with 1 being the most drug-like. The QED score is calculated using the RDKit library.

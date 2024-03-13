@@ -1,11 +1,14 @@
 # AceGen: A TorchRL-based toolkit for reinforcement learning in generative chemistry
 
+---
+
 ## Overview
 
 AceGen is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. AceGen harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
 
 ![Alt Text](./acegen/images/train_zaleplon.png)
 
+---
 
 ## Features
 
@@ -14,6 +17,8 @@ AceGen is a comprehensive toolkit designed to leverage reinforcement learning (R
 - **Pre-trained Models:** The toolkit offers pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), and GPT-2.
 - **Scoring Functions :** AceGen relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
 - **Customization Support:** AceGen provides tutorials for integrating custom models and scoring functions, ensuring flexibility for advanced users.
+
+---
 
 ## Installation
 
@@ -59,6 +64,8 @@ To use the scaffold decoration and fragment linking, install promptsmiles by run
 
     pip3 install promptsmiles
 
+---
+
 ## Running training scripts
 
 To run the training scripts for denovo generation, run the following commands:
@@ -84,6 +91,8 @@ To run the training scripts for fragment linking, run the following commands (re
 
 To modify training parameters, edit the corresponding YAML file in each example's directory.
 
+---
+
 # Available models
 
 We provide a variety of example priors that can be selected in the configuration file. These include:
@@ -103,6 +112,8 @@ We provide a variety of example priors that can be selected in the configuration
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
   - number of parameters: 5,030,400
 
+---
+
 # Changing the scoring function
 
 To change the scoring function, adjust the `molscore` parameter in any configuration files. Set it to point to a valid 
@@ -114,12 +125,16 @@ please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) reposi
 Alternatively, users can define their own custom scoring functions and use them in the AceGen scripts by following the 
 instructions in this [tutorial](tutorials/adding_custom_scoring_function.md).
 
+---
+
 # Integration of custom models
 
 We encourage users to integrate their own models into AceGen.
 
 `/acegen/models/gru.py` and `/acegen/models/lstm.py` offer methods to create RNNs of varying sizes, which can be use
 to load custom models. Similarly, `/acegen/models/gpt2.py` can serve as a template for integrating HuggingFace models. 
+
+---
 
 # Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark
 

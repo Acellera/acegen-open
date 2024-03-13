@@ -1,5 +1,7 @@
 # Tutorial: Understanding the SMILES Environment
 
+---
+
 In this tutorial, we will demonstrate how to create an AceGen environment for smiles generation. We will also explain 
 how to interact with it using TensorDicts and how to understand its expected inputs and outputs.
 
@@ -11,6 +13,8 @@ different components  of the reinforcement learning pipeline, such as the enviro
 Consequently, AceGen environments are also designed to be Tensordict-compatible, meaning that they accept a 
 dictionary of tensors as input and return a dictionary of tensors as output.
 
+---
+
 ## What is the SMILES environment?
 
 The SMILES environment is a Tensordict-compatible environment for molecule generation with SMILES, and a key component 
@@ -20,6 +24,8 @@ environment component ``EnvBase``, providing a range of advantages that include 
 compatibility with Gym-based APIs,  efficient vectorized options (enabling the generation of multiple molecules in parallel), 
 and the retrieval of clearly specified information attributes regarding expected input and  output data. With this 
 environment, all TorchRL components become available for creating potential RL solutions.
+
+---
 
 ## How to create a SMILES environment?
 
@@ -77,6 +83,8 @@ env =  SMILESEnv(
     batch_size=4, # Number of molecules to generate in parallel
 )
 ```
+
+---
 
 ## How to interact with the SMILES environment?
 
@@ -216,6 +224,8 @@ print([vocab1.decode(seq) for seq in rollout["action"].numpy()])
 # Output
 ['1(ONN(1', '()C)())', '=OCN)NNO', 'ONC)N((']
 ```
+
+---
 
 ## What are the exact expected inputs and outputs of the SMILES environment?
 
