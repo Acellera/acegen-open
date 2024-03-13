@@ -6,10 +6,10 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-from acegen import model_mapping
 from acegen.data import load_dataset, SMILESDataset
+from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary
+from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from rdkit import Chem
 from tensordict.utils import remove_duplicates
 from tokenizer import Tokenizer
@@ -40,7 +40,7 @@ def main(cfg: "DictConfig"):
     logging.info("\nConstructing vocabulary...")
     vocabulary = SMILESVocabulary.create_from_smiles(
         load_dataset(cfg.train_dataset_path),
-        tokenizer=Tokenizer(),
+        tokenizer=tokenizer_options[cfg.tokenizer](),
     )
     save_path = Path(cfg.model_log_dir) / "vocabulary.ckpt"
     torch.save(vocabulary.state_dict(), save_path)
@@ -110,7 +110,7 @@ def main(cfg: "DictConfig"):
         logging.info("\nCreating logger...")
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="pretrain",
+            logger_name=Path.cwd(),
             experiment_name=cfg.agent_name,
             wandb_kwargs={
                 "config": dict(cfg),
@@ -152,15 +152,18 @@ def main(cfg: "DictConfig"):
 
             # Generate test smiles
             smiles = generate_complete_smiles(test_env, actor_inference, max_length=100)
-            num_valid_smiles = valid_smiles(
-                [vocabulary.decode(smi.cpu().numpy()) for smi in smiles.get("action")]
-            ).sum()
+            smiles_str = [
+                vocabulary.decode(smi.cpu().numpy()) for smi in smiles.get("action")
+            ]
+            num_valid_smiles = valid_smiles(smiles_str).sum()
             unique_smiles = remove_duplicates(smiles, key="action")
+            inside_smiles = [smi in dataset for smi in smiles_str].sum()
 
             # Log
             if logger:
                 logger.log_scalar("loss_actor", actor_losses.mean(), step=epoch)
                 logger.log_scalar("num_test_valid_smiles", num_valid_smiles, step=epoch)
+                logger.log_scalar("num_test_inside_smiles", inside_smiles, step=epoch)
                 logger.log_scalar(
                     "num_test_unique_smiles", len(unique_smiles), step=epoch
                 )
