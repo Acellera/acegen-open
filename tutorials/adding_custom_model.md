@@ -30,24 +30,67 @@ inference (data collection), the model's role is to generate actions (and someti
 log prob) based on the current state. However, during training, it must process sequences of data and predict outputs 
 for each sequence element. Consequently, it is fundamental that out model can identify and handle both phases.
 
-One tempting option would be to have a single model that infers the phase from the shape of the input and acts accordingly. 
-Recurrent models during inference will receive a single step of the sequence, without a time dimension (i.e. shape = (batch_size, )) 
-while during training they will have both a batch and a temporal dimension. i.e. shape = (batch_size, sequence_length).
-This can work for some models, but not for all. Transformer-based models always expect an input of shape (batch_size, sequence_length), 
-regardless of the phase. The difference between training and inference is that the agent will only return a single token 
-which will be determined by the sequence_mask field.
+Now, the challenge arises in ensuring that our model can effectively handle both these phases. 
+One approach might be to design a single model capable of discerning the phase from the shape 
+of the input and adapting its behavior accordingly.
+
+For instance:
+
+- Recurrent models, during inference, typically receive a single step of the sequence without a time dimension 
+  (shape = (batch_size, )). However, during training, they process sequences with both batch and temporal dimensions
+  (shape = (batch_size, sequence_length)).
+- While this method may suffice for some models, it doesn't apply universally. Transformer-based models, for instance, 
+  consistently expect inputs of shape (batch_size, sequence_length) regardless of the phase. The distinction only lies in the 
+  model's output: during training, it predicts outcomes for the entire sequence, whereas during inference, it returns 
+  predictions for individual tokens.
 
 To address this, it's advisable to define separate models for training and inference, both sharing the same weights. 
-This approach ensures consistent behavior across phases, regardless of input shape variations.
-
-In the following sections, we'll walk through the process of implementing a custom model using the 
+This approach ensures consistent behavior across phases, regardless of input shape variations. In the following sections, we'll walk through the process of implementing a custom model using the 
 transformers library from HuggingFace that meet these requirements.
+
+---
+
+## Simple Example with a TensorDictModule
+
+We will start by creating a simple example to illustrate how to make a model Tensordict-compatible.
+
+```python
+import torch
+from tensordict import TensorDict
+from tensordict.nn import TensorDictModule
+
+data = TensorDict({
+    "key_1": torch.ones(3, 4),
+    "key_2": torch.zeros(3, 4, dtype=torch.bool),
+}, batch_size=[3])
+
+# Define a simple module
+module = torch.nn.Linear(4, 5)
+
+# Make it Tensordict-compatible
+td_module = TensorDictModule(module, in_keys=["key_1"], out_keys=["key_3"])
+
+# Apply the module to the Tensordict data
+data = td_module(data)
+print(data)
+
+# Output
+TensorDict(
+    fields={
+        key_1: Tensor(shape=torch.Size([3, 4]), device=cpu, dtype=torch.float32, is_shared=False),
+        key_2: Tensor(shape=torch.Size([3, 4]), device=cpu, dtype=torch.bool, is_shared=False),
+        key_3: Tensor(shape=torch.Size([3, 5]), device=cpu, dtype=torch.float32, is_shared=False)},
+    batch_size=torch.Size([3]),
+    device=None,
+    is_shared=False,
+)
+```
 
 ---
 
 ## Creating a custom model
 
-We will define a custom model using the transformers library from HuggingFace. We will use the GPT-2 model as an example.
+Now we will define a custom model using the transformers library from HuggingFace. We will use the GPT-2 model as an example.
 The model will be a `torch.nn.Module`, and will provide different outputs depending on the phase (training or inference),
 defined by its `train_mode` attribute.
 
@@ -188,4 +231,3 @@ For decorative and linking tasks, we would need to define a tokenizer. We can us
 from AceGen that is compatible with enamine_real_vocabulary.txt.
 Finally, the PPO and A2C training scripts require a critic model. It would be similar to the actor model, but without the
 ProbabilisticActor wrapper. It is actually created [here](../acegen/models/gpt2.py).
-
