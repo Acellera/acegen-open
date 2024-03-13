@@ -154,7 +154,7 @@ def create_gpt2_actor(
 
 ## How to make the custom model available in the training scripts
 
-Models are defined in `/acegen/__init__.py` and as a mapping to tuples with the following format:
+Available models to the training scripts are defined in `/acegen/__init__.py` as a mapping to tuples with the following format:
 
     model_mapping = {
         "example_model": (
@@ -167,7 +167,7 @@ Models are defined in `/acegen/__init__.py` and as a mapping to tuples with the 
         )
     }
 
-New models can be added by creating a new tuple adding it to the model_mapping dictionary. Then the model can be
+New models can be added by creating a new tuple and appending it to the model_mapping dictionary. Then the model can be
 selected in any configuration file by setting the `model` parameter to the name of the model. In the case of our example, 
 adding the models would look like this:
 
@@ -182,13 +182,10 @@ adding the models would look like this:
         )
     }
 
-Here we have assigned vocabulary and weights files from out set of priors to the model. We could, however, use others.
-
+Here we have assigned vocabulary and weights files from out set of priors to the model. We could, however, use others.  
 Now, we can already use the model in the Reinvent and AHC training scripts for de novo molecule generation.
-
 For decorative and linking tasks, we would need to define a tokenizer. We can use, for example, the SMILEStokenizer2()
 from AceGen that is compatible with enamine_real_vocabulary.txt.
-
 Finally, the PPO and A2C training scripts require a critic model. It would be similar to the actor model, but without the
 ProbabilisticActor wrapper. It is actually created [here](../acegen/models/gpt2.py).
 
