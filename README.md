@@ -20,6 +20,10 @@ AceGen is a comprehensive toolkit designed to leverage reinforcement learning (R
 
 ---
 
+![Alt Text](./acegen/images/chem_zaleplon.png)
+
+---
+
 ## Installation
 
 ### Conda environment
