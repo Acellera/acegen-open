@@ -50,7 +50,7 @@ class MolBloomDataset:
                 self.bloom_filter.add(smiles)
             self.bloom_filter.save(bloom_path)
 
-    def __contains__(cls, v):
+    def __contains__(self, v):
         return v in self.bloom_filter
 
 

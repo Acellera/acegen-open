@@ -6,7 +6,7 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-from acegen.data import load_dataset, SMILESDataset
+from acegen.data import load_dataset, SMILESDataset, MolBloomDataset
 from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary, tokenizer_options
@@ -51,6 +51,9 @@ def main(cfg: "DictConfig"):
         dataset_path=cfg.train_dataset_path,
         vocabulary=vocabulary,
         randomize_smiles=cfg.randomize_smiles,
+    )
+    molbloom_dataset = MolBloomDataset(
+        dataset_path=cfg.train_dataset_path
     )
 
     dataloader = DataLoader(
@@ -151,22 +154,30 @@ def main(cfg: "DictConfig"):
                 actor_losses[step] = loss_actor.item()
 
             # Generate test smiles
-            smiles = generate_complete_smiles(test_env, actor_inference, max_length=100)
+            smiles = generate_complete_smiles(
+                environment=test_env,
+                vocabulary=vocabulary,
+                policy_sample=actor_inference,
+                policy_evaluate=actor_training,
+                max_length=100
+                )
+            smiles_log_prob = smiles["sample_log_prob"].sum(-1)
             smiles_str = [
                 vocabulary.decode(smi.cpu().numpy()) for smi in smiles.get("action")
             ]
             num_valid_smiles = valid_smiles(smiles_str).sum()
             unique_smiles = remove_duplicates(smiles, key="action")
-            inside_smiles = sum([smi in dataset for smi in smiles_str])
+            inside_smiles = sum([smi in molbloom_dataset for smi in smiles_str])
 
             # Log
             if logger:
                 logger.log_scalar("loss_actor", actor_losses.mean(), step=epoch)
+                logger.log_scalar("loss_sample", - smiles_log_prob.mean(), step=epoch)
                 logger.log_scalar("num_test_valid_smiles", num_valid_smiles, step=epoch)
-                logger.log_scalar("num_test_inside_smiles", inside_smiles, step=epoch)
                 logger.log_scalar(
                     "num_test_unique_smiles", len(unique_smiles), step=epoch
                 )
+                logger.log_scalar("num_test_inside_smiles", inside_smiles, step=epoch)
                 logger.log_scalar("lr", lr_scheduler.get_lr()[0], step=epoch)
 
             # Decay learning rate
