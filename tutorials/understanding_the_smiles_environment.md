@@ -313,9 +313,12 @@ CompositeSpec(
 ## Extending the AceGen environment for additional data fields
 
 We can even add more fields to the environment TensorDicts if we need to. For example, if we want to use recurrent models,
-we can add a `recurrent_state` field to the observation. This a more advanced topic, but it is important to know that we
-can add more fields to the observation if we need to.  Here is how you would do it, with a something called `Transforms`
-in TorchRL:
+we can add a `recurrent_state` field to the observation. We would do it with something called `Transforms` in TorchRL.
+`Transforms` allow to modify the data in the environment TensorDicts in a modular and composable way. There are many 
+built-in `Transforms` in TorchRL, and you can also create your own. However, for the purpose of this tutorial, we will
+use a built-in `Transform` called `TensorDictPrimer`. This transform adds and empty tensor with the specified 
+characteristics to the environment TensorDict after the environment reset. In our example we will add a `recurrent_state`
+filled with zeros. 
 
 ```python
 
@@ -351,4 +354,4 @@ TensorDict(
     is_shared=False)
 ```
 
-As we can see, the `recurrent_state` field has been added to the observation.
+As we can see, the `recurrent_state` field has been added to the observation. 
