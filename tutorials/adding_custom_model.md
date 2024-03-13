@@ -49,7 +49,7 @@ transformers library from HuggingFace that meet these requirements.
 
 We will define a custom model using the transformers library from HuggingFace. We will use the GPT-2 model as an example.
 The model will be a `torch.nn.Module`, and will provide different outputs depending on the phase (training or inference),
-define by its `train_mode` attribute.
+defined by its `train_mode` attribute.
 
 ```python
 import torch
