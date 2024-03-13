@@ -307,3 +307,48 @@ CompositeSpec(
     dtype=torch.float32,
     domain=continuous), device=None, shape=torch.Size([4]))
 ```
+
+---
+
+## Extending the AceGen environment for additional data fields
+
+e can even add more fields to the environment TensorDicts if we need to. For example, if we want to use recurrent models,
+we can add a `recurrent_state` field to the observation. This a more advanced topic, but it is important to know that we
+can add more fields to the observation if we need to.  Here is how you would do it, with a something called `Transforms`
+in TorchRL:
+
+```python
+
+from torchrl.envs.transforms import TensorDictPrimer
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+from torchrl.envs import TransformedEnv
+
+my_rnn_transform = TensorDictPrimer(
+    {
+        "recurrent_state": UnboundedContinuousTensorSpec(shape=(1, 10)),
+    }
+)
+
+env = TransformedEnv(env, my_rnn_transform)
+obs = env.reset()
+print(obs)
+```
+
+Now the output of the above code is:
+
+```python
+TensorDict(
+    fields={
+        done: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        observation: Tensor(shape=torch.Size([1]), device=cpu, dtype=torch.int32, is_shared=False),
+        recurrent_state: Tensor(shape=torch.Size([1, 10]), device=cpu, dtype=torch.float32, is_shared=False),
+        sequence: Tensor(shape=torch.Size([1, 100]), device=cpu, dtype=torch.int32, is_shared=False),
+        sequence_mask: Tensor(shape=torch.Size([1, 100]), device=cpu, dtype=torch.bool, is_shared=False),
+        terminated: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        truncated: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
+    batch_size=torch.Size([1]),
+    device=None,
+    is_shared=False)
+```
+
+As we can see, the `recurrent_state` field has been added to the observation.
