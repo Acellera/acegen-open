@@ -312,7 +312,7 @@ CompositeSpec(
 
 ## Extending the AceGen environment for additional data fields
 
-e can even add more fields to the environment TensorDicts if we need to. For example, if we want to use recurrent models,
+We can even add more fields to the environment TensorDicts if we need to. For example, if we want to use recurrent models,
 we can add a `recurrent_state` field to the observation. This a more advanced topic, but it is important to know that we
 can add more fields to the observation if we need to.  Here is how you would do it, with a something called `Transforms`
 in TorchRL:
