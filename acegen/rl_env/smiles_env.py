@@ -117,10 +117,6 @@ class SMILESEnv(EnvBase):
 
         self._set_specs()
 
-        import ipdb
-
-        ipdb.set_trace()
-
     def _reset(self, tensordict: TensorDictBase, **kwargs) -> TensorDictBase:
         if tensordict is not None:
             next_tensordict = tensordict
@@ -233,17 +229,23 @@ class SMILESEnv(EnvBase):
             }
         ).expand(self.num_envs)
 
-        self.done_spec = CompositeSpec(
-            {
-                "done": DiscreteTensorSpec(n=2, dtype=torch.bool, device=self.device),
-                "truncated": DiscreteTensorSpec(
-                    n=2, dtype=torch.bool, device=self.device
-                ),
-                "terminated": DiscreteTensorSpec(
-                    n=2, dtype=torch.bool, device=self.device
-                ),
-            }
-        ).expand(self.num_envs)
+        self.done_spec = (
+            CompositeSpec(
+                {
+                    "done": DiscreteTensorSpec(
+                        n=2, dtype=torch.bool, device=self.device
+                    ),
+                    "truncated": DiscreteTensorSpec(
+                        n=2, dtype=torch.bool, device=self.device
+                    ),
+                    "terminated": DiscreteTensorSpec(
+                        n=2, dtype=torch.bool, device=self.device
+                    ),
+                }
+            )
+            .expand(self.num_envs)
+            .unsqueeze(-1)
+        )
 
     def __repr__(self) -> str:
         return (

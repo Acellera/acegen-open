@@ -16,7 +16,7 @@ dictionary of tensors as input and return a dictionary of tensors as output.
 The SMILES environment is a Tensordict-compatible environment for molecule generation with SMILES, and a key component 
 of the AceGen library.  In particular, it is the component that manages the segment of the RL loop responsible for 
 providing observations in response to the agent's actions. This environment class inherits  from the TorchRL base 
-environment component \textit{EnvBase}, providing a range of advantages that include input and output data transformations, 
+environment component ``EnvBase``, providing a range of advantages that include input and output data transformations, 
 compatibility with Gym-based APIs,  efficient vectorized options (enabling the generation of multiple molecules in parallel), 
 and the retrieval of clearly specified information attributes regarding expected input and  output data. With this 
 environment, all TorchRL components become available for creating potential RL solutions.
@@ -74,7 +74,7 @@ env =  SMILESEnv(
     start_token=vocab1.start_token_index,
     end_token=vocab1.end_token_index,
     length_vocabulary=len(vocab1),
-    batch_size=1,
+    batch_size=4, # Number of molecules to generate in parallel
 )
 ```
 
@@ -89,12 +89,12 @@ print(initial_td)
 # Output
 TensorDict(
     fields={
-        done: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False),
-        observation: Tensor(shape=torch.Size([1]), device=cpu, dtype=torch.int32, is_shared=False),
-        sequence: Tensor(shape=torch.Size([1, 100]), device=cpu, dtype=torch.int32, is_shared=False),
-        sequence_mask: Tensor(shape=torch.Size([1, 100]), device=cpu, dtype=torch.bool, is_shared=False),
-        terminated: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False),
-        truncated: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
+        done: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        observation: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.int32, is_shared=False),
+        sequence: Tensor(shape=torch.Size([4, 100]), device=cpu, dtype=torch.int32, is_shared=False),
+        sequence_mask: Tensor(shape=torch.Size([4, 100]), device=cpu, dtype=torch.bool, is_shared=False),
+        terminated: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        truncated: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
     batch_size=torch.Size([1]),
     device=None,
     is_shared=False)
@@ -125,12 +125,12 @@ print(initial_td)
 TensorDict(
     fields={
         action: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.int32, is_shared=False),
-        done: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False),
+        done: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False),
         observation: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.int32, is_shared=False),
         sequence: Tensor(shape=torch.Size([4, 100]), device=cpu, dtype=torch.int32, is_shared=False),
         sequence_mask: Tensor(shape=torch.Size([4, 100]), device=cpu, dtype=torch.bool, is_shared=False),
-        terminated: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False),
-        truncated: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False)},
+        terminated: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        truncated: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
     batch_size=torch.Size([4]),
     device=None,
     is_shared=False)
@@ -147,24 +147,24 @@ next_td = initial_td.get("next")
 TensorDict(
     fields={
         action: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.int32, is_shared=False),
-        done: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False),
+        done: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False),
         next: TensorDict(
             fields={
-                done: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False),
+                done: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False),
                 observation: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.int64, is_shared=False),
                 reward: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.float32, is_shared=False),
                 sequence: Tensor(shape=torch.Size([4, 100]), device=cpu, dtype=torch.int32, is_shared=False),
                 sequence_mask: Tensor(shape=torch.Size([4, 100]), device=cpu, dtype=torch.bool, is_shared=False),
-                terminated: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False),
-                truncated: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False)},
+                terminated: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+                truncated: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
             batch_size=torch.Size([4]),
             device=None,
             is_shared=False),
         observation: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.int32, is_shared=False),
         sequence: Tensor(shape=torch.Size([4, 100]), device=cpu, dtype=torch.int32, is_shared=False),
         sequence_mask: Tensor(shape=torch.Size([4, 100]), device=cpu, dtype=torch.bool, is_shared=False),
-        terminated: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False),
-        truncated: Tensor(shape=torch.Size([4]), device=cpu, dtype=torch.bool, is_shared=False)},
+        terminated: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        truncated: Tensor(shape=torch.Size([4, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
     batch_size=torch.Size([4]),
     device=None,
     is_shared=False)
@@ -184,24 +184,24 @@ print(rollout)
 TensorDict(
     fields={
         action: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.int32, is_shared=False),
-        done: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.bool, is_shared=False),
+        done: Tensor(shape=torch.Size([4, 9, 1]), device=cpu, dtype=torch.bool, is_shared=False),
         next: TensorDict(
             fields={
-                done: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.bool, is_shared=False),
+                done: Tensor(shape=torch.Size([4, 9, 1]), device=cpu, dtype=torch.bool, is_shared=False),
                 observation: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.int64, is_shared=False),
                 reward: Tensor(shape=torch.Size([4, 9, 1]), device=cpu, dtype=torch.float32, is_shared=False),
                 sequence: Tensor(shape=torch.Size([4, 9, 100]), device=cpu, dtype=torch.int32, is_shared=False),
                 sequence_mask: Tensor(shape=torch.Size([4, 9, 100]), device=cpu, dtype=torch.bool, is_shared=False),
-                terminated: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.bool, is_shared=False),
-                truncated: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.bool, is_shared=False)},
+                terminated: Tensor(shape=torch.Size([4, 9, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+                truncated: Tensor(shape=torch.Size([4, 9, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
             batch_size=torch.Size([4, 9]),
             device=None,
             is_shared=False),
         observation: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.int64, is_shared=False),
         sequence: Tensor(shape=torch.Size([4, 9, 100]), device=cpu, dtype=torch.int32, is_shared=False),
         sequence_mask: Tensor(shape=torch.Size([4, 9, 100]), device=cpu, dtype=torch.bool, is_shared=False),
-        terminated: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.bool, is_shared=False),
-        truncated: Tensor(shape=torch.Size([4, 9]), device=cpu, dtype=torch.bool, is_shared=False)},
+        terminated: Tensor(shape=torch.Size([4, 9, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        truncated: Tensor(shape=torch.Size([4, 9, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
     batch_size=torch.Size([4, 9]),
     device=None,
     is_shared=False)
@@ -266,23 +266,23 @@ print(env.full_done_spec)
 # Output
 CompositeSpec(
     done: DiscreteTensorSpec(
-    shape=torch.Size([4]),
+    shape=torch.Size([4, 1]),
     space=DiscreteBox(n=2),
     device=cpu,
     dtype=torch.bool,
     domain=discrete),
 truncated: DiscreteTensorSpec(
-    shape=torch.Size([4]),
+    shape=torch.Size([4, 1]),
     space=DiscreteBox(n=2),
     device=cpu,
     dtype=torch.bool,
     domain=discrete),
 terminated: DiscreteTensorSpec(
-    shape=torch.Size([4]),
+    shape=torch.Size([4, 1]),
     space=DiscreteBox(n=2),
     device=cpu,
     dtype=torch.bool,
-    domain=discrete), device=None, shape=torch.Size([4]))
+    domain=discrete), device=None, shape=torch.Size([4, 1]))
 ```
 
 ```python
