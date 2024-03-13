@@ -3,8 +3,8 @@ experiment_name: GPT2_ZINC250k
 agent_name: GPT2_ZINC250k-c_5M
 logger_backend: wandb # csv, wandb, tensorboard, or null
 seed: 101
-dataset_log_dir: TSMILES/
-model_log_dir: TSMILES/
+dataset_log_dir: /tmp/pretrain/ # Absolute
+model_log_dir: /shared/morgan/acegen-open/scripts/pretrain/TSMILES # Absolute
 
 # Dataset configuration
 train_dataset_path: /shared/morgan/mol_opt/data/zinc.txt

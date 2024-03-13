@@ -34,7 +34,7 @@ def main(cfg: "DictConfig"):
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
 
-    device = f"cuda:0" if torch.cuda.device_count() > 1 else "cpu"
+    device = f"cuda:0" if torch.cuda.device_count() >= 1 else "cpu"
     os.makedirs(cfg.model_log_dir, exist_ok=True)
 
     logging.info("\nConstructing vocabulary...")
@@ -157,7 +157,7 @@ def main(cfg: "DictConfig"):
             ]
             num_valid_smiles = valid_smiles(smiles_str).sum()
             unique_smiles = remove_duplicates(smiles, key="action")
-            inside_smiles = [smi in dataset for smi in smiles_str].sum()
+            inside_smiles = sum([smi in dataset for smi in smiles_str])
 
             # Log
             if logger:
