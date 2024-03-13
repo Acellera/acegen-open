@@ -9,6 +9,8 @@ If you are not, please refer to the [AceGen environment tutorial](understanding_
 
 ## Defining a custom model
 
+### Requirement 1
+
 AceGen is built on top of TorchRL, and TorchRL uses Tensordict, a data carrier for managing nested dictionaries of tensors, 
 to move around the data between the different components of the reinforcement learning pipeline, such as the environment, 
 the model, and the data buffer.
@@ -19,6 +21,20 @@ it should accept a Tensordict as input and return a Tensordict as output.
 Nonetheless, defining a custom model is straightforward is we know PyTorch. We can define a custom model as a subclass 
 of `torch.nn.Module` and wrap it with the `tensordict.nn.TensordictModule` class, which makes sure that the model is 
 compatible with Tensordict. We will see how to do it in this tutorial.
+
+### Requirement 2
+
+In reinforcement learning (RL), the model is generally used in 2 different phases, training and inference. 
+
+In each phase, what we want the model to do can be different.
+
+For example, during inference (the data collection phase), we just want the model to generate an action (and sometimes 
+additional data like the action log prob) given the current state. Therefore, the received TensorDict 
+will not have a temporal dimension, only a batch dimension. i.e. shape = (batch_size, ).
+
+However, during training we want the model to process a sequence of data, and to predict outputs for each element of the
+sequence. Therefore, the received TensorDict will have both a batch and a temporal dimension. i.e. shape = (batch_size, 
+sequence_length).
 
 ## Creating a custom model
 
@@ -31,27 +47,32 @@ from torch import nn
 from transformers import GPT2Config, GPT2Model
 
 class GPT2(nn.Module):
-    """GPT2 model for language modeling. This model is a simple wrapper around the HuggingFace GPT2Model."""
 
-    def __init__(self, config):
+    def __init__(self, config=None):
         super(GPT2, self).__init__()
+        self.feature_extractor = GPT2Model(config) if config is not None else None        
+        self._train_mode = False
+        
+    @property
+    def train_mode(self):
+        return self._train_mode
+    
+    def set_train_mode(self, train_mode: bool = True):
+        if train_mode is self._train_mode:
+            return self
+        out = GPT2()
+        out.feature_extractor = self.feature_extractor
+        out._train_mode = train_mode
+        return out
 
-        # Define model
-        self.feature_extractor = GPT2Model(config)
-
-    def forward(self, sequence, sequence_mask=None):
-
-        is_inference = True
-        if sequence_mask is None:
-            sequence_mask = torch.ones_like(sequence, dtype=torch.long)
-            is_inference = False
+    def forward(self, sequence, sequence_mask):
 
         out = self.feature_extractor(
             input_ids=sequence,
             attention_mask=sequence_mask.long(),
         ).last_hidden_state
 
-        if is_inference:  # Data collection
+        if self.train_mode is False:  # Data collection, return only last token
             obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
 
@@ -106,16 +127,23 @@ def create_gpt2_actor(
         in_keys=["features"],
         out_keys=["logits"],
     )
-    policy = TensorDictSequential(lm, lm_head)
-    probabilistic_policy = ProbabilisticActor(
-        module=policy,
+    probabilistic_policy_training = ProbabilisticActor(
+        module=TensorDictSequential(lm.set_train_mode(True), lm_head),
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
-    return probabilistic_policy, probabilistic_policy
+    probabilistic_policy_inference = ProbabilisticActor(
+        module=TensorDictSequential(lm, lm_head),
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=torch.distributions.Categorical,
+        return_log_prob=return_log_prob,
+        default_interaction_type=ExplorationType.RANDOM,
+    )
+    return probabilistic_policy_training, probabilistic_policy_inference
 ```
 
 ## How to make the custom model available in the training scripts

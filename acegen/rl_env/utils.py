@@ -248,7 +248,9 @@ def generate_complete_smiles(
 
         # For transformers-based policies
         output_data.set("sequence", output_data.get("observation"))
+        output_data.set("sequence_mask", output_data.get("mask"))
         output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
+        output_data.set(("next", "sequence_mask"), output_data.get(("next", "mask")))
 
         # Recompute policy log_prob
         if (
@@ -395,7 +397,9 @@ def generate_complete_smiles(
 
         # For transformers-based policies
         output_data.set("sequence", output_data.get("observation"))
+        output_data.set("sequence_mask", output_data.get("mask"))
         output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
+        output_data.set(("next", "sequence_mask"), output_data.get(("next", "mask")))
 
         if remove_duplicates:
             output_data = rdups(output_data, key="action")
@@ -425,6 +429,7 @@ def _get_log_prob(
 
     # For transformers-based policies
     data.set("sequence", data.get("observation"))
+    data.set("sequence_mask", data.get("mask"))
 
     log_prob = policy.get_dist(data).log_prob(actions)
     if sum_log_prob:
