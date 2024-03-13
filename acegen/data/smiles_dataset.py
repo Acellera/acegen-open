@@ -10,6 +10,11 @@ from tqdm import tqdm
 
 from acegen.data.utils import smiles_to_tensordict
 
+try:
+    from molbloom import BloomFilter, CustomFilter
+    _has_molbloom = True
+except ImportError:
+    _has_molbloom = False
 
 def load_dataset(file_path):
     """Reads a list of SMILES from file_path."""
@@ -29,6 +34,7 @@ class SMILESDataset(Dataset):
         self.vocabulary = vocabulary
         self.dataset_path = dataset_path
         self.randomize_smiles = randomize_smiles
+        self.bloom_filter = None
         os.makedirs(cache_path, exist_ok=True)
 
         self.files = {
@@ -128,6 +134,28 @@ class SMILESDataset(Dataset):
                 pass
 
         return smiles
+
+    def __contains__(self, v):
+        if _has_molbloom:
+            if not self.bloom_filter:
+                bloom_path = self.dataset_path.rsplit(".", 1)[0] + ".bloom"
+                if Path(bloom_path).exists():
+                    logging.info(f"Loading pre-calculated bloom filter {bloom_path}")
+                    self.bloom_filter = BloomFilter(bloom_path)
+                else:
+                    logging.info(f"Generating bloom filter {bloom_path}")
+                    self.bloom_filter = CustomFilter(100, len(self), "train")
+                    smiles_list = load_dataset(self.dataset_path)
+                    for smiles in tqdm(
+                        smiles_list, total=len(smiles_list), desc="Generating filter"
+                    ):
+                        self.bloom_filter.add(smiles)
+                    self.bloom_filter.save(bloom_path)
+            return v in self.bloom_filter
+        else:
+            raise RuntimeError(
+                "Please install molbloom with pip install molbloom to estimate inside/outside training set"
+            )
 
     def __len__(self):
         return len(self.mmaps["smiles_index"]) - 1

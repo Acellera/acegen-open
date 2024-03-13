@@ -152,10 +152,10 @@ def main(cfg: "DictConfig"):
 
             # Generate test smiles
             smiles = generate_complete_smiles(test_env, actor_inference, max_length=100)
-            num_valid_smiles = valid_smiles(
-                [vocabulary.decode(smi.cpu().numpy()) for smi in smiles.get("action")]
-            ).sum()
+            smiles_str =  [vocabulary.decode(smi.cpu().numpy()) for smi in smiles.get("action")]
+            num_valid_smiles = valid_smiles(smiles_str).sum()
             unique_smiles = remove_duplicates(smiles, key="action")
+            num_inside_smiles = sum([smi in dataset for smi in smiles_str])
 
             # Log
             if logger:
@@ -164,6 +164,7 @@ def main(cfg: "DictConfig"):
                 logger.log_scalar(
                     "num_test_unique_smiles", len(unique_smiles), step=epoch
                 )
+                logger.log_scalar("num_test_inside_smiles", num_inside_smiles, step=epoch)
                 logger.log_scalar("lr", lr_scheduler.get_lr()[0], step=epoch)
 
             # Decay learning rate
