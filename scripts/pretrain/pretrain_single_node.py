@@ -6,7 +6,7 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-from acegen import model_mapping
+from acegen.models import models as model_mapping
 from acegen.data import load_dataset, SMILESDataset
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
