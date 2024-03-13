@@ -10,7 +10,7 @@ import torch
 from acegen.models import models as model_mapping
 from acegen.data import load_dataset, SMILESDataset
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary
+from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from rdkit import Chem
 from tensordict.utils import remove_duplicates
 from tokenizer import Tokenizer
@@ -86,7 +86,7 @@ def main(cfg: "DictConfig"):
     if master:
         vocabulary = SMILESVocabulary.create_from_smiles(
             load_dataset(cfg.train_dataset_path),
-            tokenizer=Tokenizer(),
+            tokenizer=tokenizer_options[cfg.tokenizer](),
         )
         save_path = Path(cfg.model_log_dir) / "vocabulary.ckpt"
         torch.save(vocabulary.state_dict(), save_path)

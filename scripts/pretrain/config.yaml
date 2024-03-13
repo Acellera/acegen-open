@@ -7,10 +7,11 @@ dataset_log_dir: /tmp/pretrain
 model_log_dir: /tmp/pretrain
 
 # Dataset configuration
-train_dataset_path: null
+train_dataset_path: /shared/morgan/mol_opt/data/zinc.txt
 
 # Model configuration
-model: gru # gru, lstm, or gpt2
+model: gpt2 # gru, lstm, or gpt2
+tokenizer: SMILESTokenizer
 
 # Training configuration
 lr: 0.0001
