@@ -29,12 +29,22 @@ In reinforcement learning (RL), the model is generally used in 2 different phase
 In each phase, what we want the model to do can be different.
 
 For example, during inference (the data collection phase), we just want the model to generate an action (and sometimes 
-additional data like the action log prob) given the current state. Therefore, the received TensorDict 
-will not have a temporal dimension, only a batch dimension. i.e. shape = (batch_size, ).
+additional data like the action log prob) given the current state. However, during training we want the model to process a sequence of data, and to predict outputs for each element of the
+sequence. 
 
-However, during training we want the model to process a sequence of data, and to predict outputs for each element of the
-sequence. Therefore, the received TensorDict will have both a batch and a temporal dimension. i.e. shape = (batch_size, 
+One option would be to infer the phase from the shape of the input. This can work for some models, but not for all.
+For examples, recurrent models during inference will receive a single step of the sequence, without time dimension
+(i.e. shape = (batch_size, )) and d during training they will have both a batch and a temporal dimension. i.e. shape = (batch_size,
 sequence_length).
+
+However, transformers always expect an input shape of (batch_size, sequence_length), regardless of the phase. The difference
+between training and inference is that the agent will only return a single token which will be determined by the sequence_mask
+field.
+
+To handle this nicely, we will see that it is much easier and reliable to define 2 different models, one for training and one for inference,
+both pointing to the same weights. This way, we can make sure that the model always behaves as expected, regardless of the phase.
+
+---
 
 ## Creating a custom model
 
@@ -72,7 +82,7 @@ class GPT2(nn.Module):
             attention_mask=sequence_mask.long(),
         ).last_hidden_state
 
-        if self.train_mode is False:  # Data collection, return only last token
+        if self.train_mode is False:  # If inference, return only last token set to True by the sequence_mask
             obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
 
@@ -80,55 +90,46 @@ class GPT2(nn.Module):
 ```
 
 ```python
-def define_gpt2_configuration(
-        vocabulary_size: int,
-        n_positions: int = 2048,
-        n_head: int = 16,
-        n_layer: int = 24,
-        n_embd: int = 128,
-        attn_pdrop: float = 0.1,
-        embd_pdrop: float = 0.1,
-        resid_pdrop: float = 0.1,
-):
-    """Define a GPT2 configuration.
+from tensordict.nn import TensorDictModule, TensorDictSequential
+from torchrl.envs import ExplorationType
+from torchrl.modules import ProbabilisticActor
 
-    This function is a simple wrapper around the HuggingFace GPT2Config, allowing to specify relevant parameters.
-    """
-    # Define model
-    config = GPT2Config()
 
-    # Adjust model parameters
-    config.vocab_size = vocabulary_size
-    config.n_positions = n_positions
-    config.n_head = n_head
-    config.n_layer = n_layer
-    config.n_embd = n_embd
-    config.attn_pdrop = attn_pdrop
-    config.embd_pdrop = embd_pdrop
-    config.resid_pdrop = resid_pdrop
-
-    return config
-```
-
-```python
 def create_gpt2_actor(
     vocabulary_size: int,
     return_log_prob=True,
 ):
-    """Create a GPT2 actor for language modeling."""
-    config = define_gpt2_configuration(vocabulary_size)
-    lm = TensorDictModule(
-        GPT2(config),
+    # Define transformer
+    config = GPT2Config()  # Original GPT2 configuration
+    lm = GPT2(config)    
+
+    # Wrap the transformer in a TensorDictModule to make TensorDict compatible
+    lm_training = TensorDictModule(
+        lm.set_train_mode(True),
         in_keys=["sequence", "sequence_mask"],
         out_keys=["features"],
     )
+    lm_inference = TensorDictModule(
+        lm,
+        in_keys=["sequence", "sequence_mask"],
+        out_keys=["features"],
+    )
+
+    # Define final layer and also make
     lm_head = TensorDictModule(
         nn.Linear(config.n_embd, vocabulary_size, bias=False),
         in_keys=["features"],
         out_keys=["logits"],
     )
+
+    # Concatenate lm and head, similar to torch.nn.Sequential
+    policy_training = TensorDictSequential(lm_training, lm_head)
+    policy_inference = TensorDictSequential(lm_inference, lm_head)
+
+    # To make the actor probabilistic, wrap the policy in a ProbabilisticActor
+    # This module will take care of sampling and computing log probabilities
     probabilistic_policy_training = ProbabilisticActor(
-        module=TensorDictSequential(lm.set_train_mode(True), lm_head),
+        module=policy_training,
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
@@ -136,7 +137,7 @@ def create_gpt2_actor(
         default_interaction_type=ExplorationType.RANDOM,
     )
     probabilistic_policy_inference = ProbabilisticActor(
-        module=TensorDictSequential(lm, lm_head),
+        module=policy_inference,
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
@@ -176,6 +177,8 @@ In the case of our example, it would look like this:
 
 New models can be added by creating a new tuple adding it to the model_mapping dictionary. Then the model can be 
 selected in the configuration file by setting the `example_model` parameter to the name of the model.
+
+---
 
 ## Extending the AceGen environment for additional data fields
 
