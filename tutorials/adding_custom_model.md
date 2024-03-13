@@ -40,9 +40,9 @@ For instance:
   (shape = (batch_size, )). However, during training, they process sequences with both batch and temporal dimensions
   (shape = (batch_size, sequence_length)).
 - While this method may suffice for some models, it doesn't apply universally. Transformer-based models, for instance, 
-  consistently expect inputs of shape (batch_size, sequence_length) regardless of the phase. The distinction only lies in the 
-  model's output: during training, it predicts outcomes for the entire sequence, whereas during inference, it returns 
-  predictions for individual tokens.
+  consistently expect inputs of shape (batch_size, sequence_length) regardless of the phase. Nonetheless, 
+  during training, it is expected to return outcomes for the entire sequence, whereas during inference, it is expected 
+  to return outputs only for the first masked token (tokens are generated autoregressively and future tokens are masked).
 
 To address this, it's advisable to define separate models for training and inference, both sharing the same weights. 
 This approach ensures consistent behavior across phases, regardless of input shape variations. In the following sections, we'll walk through the process of implementing a custom model using the 
@@ -93,6 +93,14 @@ TensorDict(
 Now we will define a custom model using the transformers library from HuggingFace. We will use the GPT-2 model as an example.
 The model will be a `torch.nn.Module`, and will provide different outputs depending on the phase (training or inference),
 defined by its `train_mode` attribute.
+
+From all the tensors in the environment TensorDicts, the model will only use the `sequence` and `sequence_mask` tensors, 
+so these will be the inputs of the forward method.  As explained in the [AceGen environment tutorial](understanding_the_smiles_environment.md)., the `sequence`
+tensor is a tensor of shape (batch_size, sequence_length) that contains all the tokens generated so fat for the current 
+SMILES. The `sequence_mask` tensor is a boolean tensor also  of shape (batch_size, sequence_length) that indicates as True 
+the tokens that are part of the SMILES and as False the current and future tokens. In other words, masks the future. 
+Therefore during inference the model will only return the prediction for the current token and during training it will
+return the prediction for all the tokens.
 
 ```python
 import torch
