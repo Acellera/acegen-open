@@ -68,6 +68,8 @@ To use the scaffold decoration and fragment linking, install promptsmiles by run
 
     pip3 install promptsmiles
 
+To learn how to configure constrained molecule generation with AcGen and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
+
 ---
 
 ## Running training scripts
