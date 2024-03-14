@@ -136,7 +136,10 @@ instructions in this [tutorial](tutorials/adding_custom_scoring_function.md).
 We encourage users to integrate their own models into AceGen.
 
 `/acegen/models/gru.py` and `/acegen/models/lstm.py` offer methods to create RNNs of varying sizes, which can be use
-to load custom models. Similarly, `/acegen/models/gpt2.py` can serve as a template for integrating HuggingFace models. 
+to load custom models. 
+
+Similarly, `/acegen/models/gpt2.py` can serve as a template for integrating HuggingFace models. A detailed guide 
+on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
 
 ---
 

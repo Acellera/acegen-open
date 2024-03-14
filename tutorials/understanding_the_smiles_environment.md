@@ -307,3 +307,51 @@ CompositeSpec(
     dtype=torch.float32,
     domain=continuous), device=None, shape=torch.Size([4]))
 ```
+
+---
+
+## Extending the AceGen environment for additional data fields
+
+We can even add more fields to the environment TensorDicts if we need to. For example, if we want to use recurrent models,
+we can add a `recurrent_state` field to the observation. We would do it with something called `Transforms` in TorchRL.
+`Transforms` allow to modify the data in the environment TensorDicts in a modular and composable way. There are many 
+built-in `Transforms` in TorchRL, and you can also create your own. However, for the purpose of this tutorial, we will
+use a built-in `Transform` called `TensorDictPrimer`. This transform adds and empty tensor with the specified 
+characteristics to the environment TensorDict after the environment reset. In our example we will add a `recurrent_state`
+filled with zeros. 
+
+```python
+
+from torchrl.envs.transforms import TensorDictPrimer
+from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
+from torchrl.envs import TransformedEnv
+
+my_rnn_transform = TensorDictPrimer(
+    {
+        "recurrent_state": UnboundedContinuousTensorSpec(shape=(1, 10)),
+    }
+)
+
+env = TransformedEnv(env, my_rnn_transform)
+obs = env.reset()
+print(obs)
+```
+
+Now the output of the above code is:
+
+```python
+TensorDict(
+    fields={
+        done: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        observation: Tensor(shape=torch.Size([1]), device=cpu, dtype=torch.int32, is_shared=False),
+        recurrent_state: Tensor(shape=torch.Size([1, 10]), device=cpu, dtype=torch.float32, is_shared=False),
+        sequence: Tensor(shape=torch.Size([1, 100]), device=cpu, dtype=torch.int32, is_shared=False),
+        sequence_mask: Tensor(shape=torch.Size([1, 100]), device=cpu, dtype=torch.bool, is_shared=False),
+        terminated: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False),
+        truncated: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
+    batch_size=torch.Size([1]),
+    device=None,
+    is_shared=False)
+```
+
+As we can see, the `recurrent_state` field has been added to the observation. 

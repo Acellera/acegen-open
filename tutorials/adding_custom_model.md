@@ -1,4 +1,4 @@
-# Tutorial: Integrating Custom Models in AceGen (WIP)
+# Tutorial: Integrating Custom Models in AceGen
 
 ---
 
@@ -9,21 +9,98 @@ If you are not, please refer to the [AceGen environment tutorial](understanding_
 
 ## Defining a custom model
 
-AceGen is built on top of TorchRL, and TorchRL uses Tensordict, a data carrier for managing nested dictionaries of tensors, 
-to move around the data between the different components of the reinforcement learning pipeline, such as the environment, 
-the model, and the data buffer.
+When integrating custom models into AceGen, it is important to keep in mind certain requirements. Let's delve into them:
 
-What this means is that when we define a custom model, we need to make it Tensordict-compatible. In other words,
-it should accept a Tensordict as input and return a Tensordict as output.
+### Requirement 1
 
-Nonetheless, defining a custom model is straightforward is we know PyTorch. We can define a custom model as a subclass 
-of `torch.nn.Module` and wrap it with the `tensordict.nn.TensordictModule` class, which makes sure that the model is 
-compatible with Tensordict. We will see how to do it in this tutorial.
+AceGen is built on top of TorchRL, and TorchRL uses Tensordict, a data carrier for managing nested dictionaries of tensors,
+to move around the data between the different components of the reinforcement learning pipeline, such as the environment,
+the model, and the data buffer.  Therefore, any custom model must be Tensordict-compatible. In simpler terms, it should accept a Tensordict as input 
+and return a Tensordict as output.
+
+To achieve this compatibility, we'll define our custom model as a subclass of `torch.nn.Module` and wrap it with the
+`tensordict.nn.TensordictModule` class. This ensures seamless integration with Tensordict. We'll explore this process in 
+detail later in the tutorial. It is also important to know that similar to how `torch.nn.Sequential` is used to
+concatenate layers, `tensordict.nn.TensordictSequential` can be used to concatenate TensordictModules. 
+
+### Requirement 2
+
+In reinforcement learning (RL), the model serves distinct purposes during training and inference phases. During 
+inference (data collection), the model's role is to generate actions (and sometimes  additional data like the action 
+log prob) based on the current state. However, during training, it must process sequences of data and predict outputs 
+for each sequence element. Consequently, it is fundamental that out model can identify and handle both phases.
+
+Now, the challenge arises in ensuring that our model can effectively handle both these phases. 
+One approach might be to design a single model capable of discerning the phase from the shape 
+of the input and adapting its behavior accordingly.
+
+For instance:
+
+- Recurrent models, during inference, typically receive a single step of the sequence without a time dimension 
+  (shape = (batch_size, )). However, during training, they process sequences with both batch and temporal dimensions
+  (shape = (batch_size, sequence_length)).
+- While this method may suffice for some models, it doesn't apply universally. Transformer-based models, for instance, 
+  consistently expect inputs of shape (batch_size, sequence_length) regardless of the phase. Nonetheless, 
+  during training, it is expected to return outcomes for the entire sequence, whereas during inference, it is expected 
+  to return outputs only for the first masked token (tokens are generated autoregressively and future tokens are masked).
+
+To address this, it's advisable to define separate models for training and inference, both sharing the same weights. 
+This approach ensures consistent behavior across phases, regardless of input shape variations. In the following sections, we'll walk through the process of implementing a custom model using the 
+transformers library from HuggingFace that meet these requirements.
+
+---
+
+## Simple Example with a TensorDictModule
+
+We will start by creating a simple example to illustrate how to make a model Tensordict-compatible.
+
+```python
+import torch
+from tensordict import TensorDict
+from tensordict.nn import TensorDictModule
+
+data = TensorDict({
+    "key_1": torch.ones(3, 4),
+    "key_2": torch.zeros(3, 4, dtype=torch.bool),
+}, batch_size=[3])
+
+# Define a simple module
+module = torch.nn.Linear(4, 5)
+
+# Make it Tensordict-compatible
+td_module = TensorDictModule(module, in_keys=["key_1"], out_keys=["key_3"])
+
+# Apply the module to the Tensordict data
+data = td_module(data)
+print(data)
+
+# Output
+TensorDict(
+    fields={
+        key_1: Tensor(shape=torch.Size([3, 4]), device=cpu, dtype=torch.float32, is_shared=False),
+        key_2: Tensor(shape=torch.Size([3, 4]), device=cpu, dtype=torch.bool, is_shared=False),
+        key_3: Tensor(shape=torch.Size([3, 5]), device=cpu, dtype=torch.float32, is_shared=False)},
+    batch_size=torch.Size([3]),
+    device=None,
+    is_shared=False,
+)
+```
+
+---
 
 ## Creating a custom model
 
-The output of the model should simply be the next token to be generated.
-We can get a better understanding of its structure by running the following code:
+Now we will define a custom model using the transformers library from HuggingFace. We will use the GPT-2 model as an example.
+The model will be a `torch.nn.Module`, and will provide different outputs depending on the phase (training or inference),
+defined by its `train_mode` attribute.
+
+From all the tensors in the environment TensorDicts, the model will only use the `sequence` and `sequence_mask` tensors, 
+so these will be the inputs of the forward method.  As explained in the [AceGen environment tutorial](understanding_the_smiles_environment.md)., the `sequence`
+tensor is a tensor of shape (batch_size, sequence_length) that contains all the tokens generated so fat for the current 
+SMILES. The `sequence_mask` tensor is a boolean tensor also  of shape (batch_size, sequence_length) that indicates as True 
+the tokens that are part of the SMILES and as False the current and future tokens. In other words, masks the future. 
+Therefore during inference the model will only return the prediction for the current token and during training it will
+return the prediction for all the tokens.
 
 ```python
 import torch
@@ -31,96 +108,104 @@ from torch import nn
 from transformers import GPT2Config, GPT2Model
 
 class GPT2(nn.Module):
-    """GPT2 model for language modeling. This model is a simple wrapper around the HuggingFace GPT2Model."""
 
-    def __init__(self, config):
+    def __init__(self, config=None):
         super(GPT2, self).__init__()
+        self.feature_extractor = GPT2Model(config) if config is not None else None        
+        self._train_mode = False
+        
+    @property
+    def train_mode(self):
+        return self._train_mode
+    
+    def set_train_mode(self, train_mode: bool = True):
+        if train_mode is self._train_mode:
+            return self
+        out = GPT2()
+        out.feature_extractor = self.feature_extractor
+        out._train_mode = train_mode
+        return out
 
-        # Define model
-        self.feature_extractor = GPT2Model(config)
-
-    def forward(self, sequence, sequence_mask=None):
-
-        is_inference = True
-        if sequence_mask is None:
-            sequence_mask = torch.ones_like(sequence, dtype=torch.long)
-            is_inference = False
+    def forward(self, sequence, sequence_mask):
 
         out = self.feature_extractor(
             input_ids=sequence,
             attention_mask=sequence_mask.long(),
         ).last_hidden_state
 
-        if is_inference:  # Data collection
+        if self.train_mode is False:  # If inference, return only last token set to True by the sequence_mask
             obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
 
         return out
 ```
 
-```python
-def define_gpt2_configuration(
-        vocabulary_size: int,
-        n_positions: int = 2048,
-        n_head: int = 16,
-        n_layer: int = 24,
-        n_embd: int = 128,
-        attn_pdrop: float = 0.1,
-        embd_pdrop: float = 0.1,
-        resid_pdrop: float = 0.1,
-):
-    """Define a GPT2 configuration.
-
-    This function is a simple wrapper around the HuggingFace GPT2Config, allowing to specify relevant parameters.
-    """
-    # Define model
-    config = GPT2Config()
-
-    # Adjust model parameters
-    config.vocab_size = vocabulary_size
-    config.n_positions = n_positions
-    config.n_head = n_head
-    config.n_layer = n_layer
-    config.n_embd = n_embd
-    config.attn_pdrop = attn_pdrop
-    config.embd_pdrop = embd_pdrop
-    config.resid_pdrop = resid_pdrop
-
-    return config
-```
+Now, we will wrap the model in a `tensordict.nn.TensordictModule` to make it Tensordict-compatible.
+Then, use `tensordict.nn.TensordictSequential` to concatenate the model with a final layer that will output the logits.
+Finally, we will wrap the model in a `ProbabilisticActor` to handle action sampling and log probability computation.
+We will do that for both training and inference versions of the model, obtaining two models that will share the same weights.
 
 ```python
+from tensordict.nn import TensorDictModule, TensorDictSequential
+from torchrl.envs import ExplorationType
+from torchrl.modules import ProbabilisticActor
+
+
 def create_gpt2_actor(
     vocabulary_size: int,
     return_log_prob=True,
 ):
-    """Create a GPT2 actor for language modeling."""
-    config = define_gpt2_configuration(vocabulary_size)
-    lm = TensorDictModule(
-        GPT2(config),
+    # Define transformer
+    config = GPT2Config()  # Original GPT2 configuration
+    lm = GPT2(config)    
+
+    # Wrap the transformer in a TensorDictModule to make TensorDict compatible
+    lm_training = TensorDictModule(
+        lm.set_train_mode(True),
         in_keys=["sequence", "sequence_mask"],
         out_keys=["features"],
     )
+    lm_inference = TensorDictModule(
+        lm,
+        in_keys=["sequence", "sequence_mask"],
+        out_keys=["features"],
+    )
+
+    # Define final layer and also make
     lm_head = TensorDictModule(
         nn.Linear(config.n_embd, vocabulary_size, bias=False),
         in_keys=["features"],
         out_keys=["logits"],
     )
-    policy = TensorDictSequential(lm, lm_head)
-    probabilistic_policy = ProbabilisticActor(
-        module=policy,
+
+    # Concatenate lm and head, similar to torch.nn.Sequential
+    policy_training = TensorDictSequential(lm_training, lm_head)
+    policy_inference = TensorDictSequential(lm_inference, lm_head)
+
+    # To make the actor probabilistic, wrap the policy in a ProbabilisticActor
+    # This module will take care of sampling and computing log probabilities
+    probabilistic_policy_training = ProbabilisticActor(
+        module=policy_training,
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
-    return probabilistic_policy, probabilistic_policy
+    probabilistic_policy_inference = ProbabilisticActor(
+        module=policy_inference,
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=torch.distributions.Categorical,
+        return_log_prob=return_log_prob,
+        default_interaction_type=ExplorationType.RANDOM,
+    )
+    return probabilistic_policy_training, probabilistic_policy_inference
 ```
 
 ## How to make the custom model available in the training scripts
 
-Models are defined in `/acegen/__init__.py` and as a mapping to tuples with the following format:
+Available models to the training scripts are defined in `/acegen/__init__.py` as a mapping to tuples with the following format:
 
     model_mapping = {
         "example_model": (
@@ -128,65 +213,29 @@ Models are defined in `/acegen/__init__.py` and as a mapping to tuples with the 
             create_critic_method: Callable # A method to create the critic model (Optional)
             create_actor_critic_method: Callable # A method to create the actor-critic model (Optional)
             vocabulary_file_path: Path # The path to the vocabulary file
-            weights_file_path: Path # The path to the weights file
+            weights_file_path: Path # The path to the weights file (Optional)
             tokenizer: Tokenizer # The tokenizer to use for the model (Optional)
         )
     }
 
-In the case of our example, it would look like this:
+New models can be added by creating a new tuple and appending it to the model_mapping dictionary. Then the model can be
+selected in any configuration file by setting the `model` parameter to the name of the model. In the case of our example, 
+adding the models would look like this:
 
     model_mapping = {
         "gpt2": (
             create_gpt2_actor,
             None,
             None,
-            None,
-            None, 
+            Path(__file__).resolve().parent.parent.parent / "priors" / "enamine_real_vocabulary.txt",
+            Path(__file__).resolve().parent.parent.parent / "priors" / "gpt2_enamine_real.ckpt",
             None,
         )
     }
 
-New models can be added by creating a new tuple adding it to the model_mapping dictionary. Then the model can be 
-selected in the configuration file by setting the `example_model` parameter to the name of the model.
-
-## Extending the AceGen environment for additional data fields
-
-Therefore, as we will see in the next section, the model can use any of these fields as input. We can even add more fields to the observation if we need to. For example, if we want to use recurrent models, we can add a `recurrent_state` field to the observation.
-This a more advanced topic, but it is important to know that we can add more fields to the observation if we need to.
-Here is how you would do it, with a something called `Transforms` in TorchRL:
-
-```python
-
-from torchrl.envs.transforms import TensorDictPrimer
-from torchrl.data.tensor_specs import UnboundedContinuousTensorSpec
-from torchrl.envs import TransformedEnv
-
-my_rnn_transform = TensorDictPrimer(
-    {
-        "recurrent_state": UnboundedContinuousTensorSpec(shape=(1, 10)),
-    }
-)
-
-env = TransformedEnv(env, my_rnn_transform)
-obs = env.reset()
-print(obs)
-```
-
-Now the output of the above code is:
-
-```python
-TensorDict(
-    fields={
-        done: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False),
-        observation: Tensor(shape=torch.Size([1]), device=cpu, dtype=torch.int32, is_shared=False),
-        recurrent_state: Tensor(shape=torch.Size([1, 10]), device=cpu, dtype=torch.float32, is_shared=False),
-        sequence: Tensor(shape=torch.Size([1, 100]), device=cpu, dtype=torch.int32, is_shared=False),
-        sequence_mask: Tensor(shape=torch.Size([1, 100]), device=cpu, dtype=torch.bool, is_shared=False),
-        terminated: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False),
-        truncated: Tensor(shape=torch.Size([1, 1]), device=cpu, dtype=torch.bool, is_shared=False)},
-    batch_size=torch.Size([1]),
-    device=None,
-    is_shared=False)
-```
-
-As we can see, the `recurrent_state` field has been added to the observation.
+Here we have assigned vocabulary and weights files from out set of priors to the model. We could, however, use others.  
+Now, we can already use the model in the Reinvent and AHC training scripts for de novo molecule generation.
+For decorative and linking tasks, we would need to define a tokenizer. We can use, for example, the SMILEStokenizer2()
+from AceGen that is compatible with enamine_real_vocabulary.txt.
+Finally, the PPO and A2C training scripts require a critic model. It would be similar to the actor model, but without the
+ProbabilisticActor wrapper. It is actually created [here](../acegen/models/gpt2.py).
