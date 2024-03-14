@@ -166,28 +166,6 @@ class SMILESDataset(Dataset):
 
         return smiles
 
-    def __contains__(self, v):
-        if _has_molbloom:
-            if not self.bloom_filter:
-                bloom_path = self.dataset_path.rsplit(".", 1)[0] + ".bloom"
-                if Path(bloom_path).exists():
-                    logging.info(f"Loading pre-calculated bloom filter {bloom_path}")
-                    self.bloom_filter = BloomFilter(bloom_path)
-                else:
-                    logging.info(f"Generating bloom filter {bloom_path}")
-                    self.bloom_filter = CustomFilter(100, len(self), "train")
-                    smiles_list = load_dataset(self.dataset_path)
-                    for smiles in tqdm(
-                        smiles_list, total=len(smiles_list), desc="Generating filter"
-                    ):
-                        self.bloom_filter.add(smiles)
-                    self.bloom_filter.save(bloom_path)
-            return v in self.bloom_filter
-        else:
-            raise RuntimeError(
-                "Please install molbloom with pip install molbloom to estimate inside/outside training set"
-            )
-
     def __len__(self):
         return len(self.mmaps["smiles_index"]) - 1
 
@@ -200,4 +178,5 @@ class SMILESDataset(Dataset):
             collated_arr[i, : seq.size(0)] = seq
         batch = smiles_to_tensordict(collated_arr, replace_mask_value=0)
         batch.set("sequence", batch.get("observation"))
+        batch.set("sequence_mask", batch.get("mask"))
         return batch
