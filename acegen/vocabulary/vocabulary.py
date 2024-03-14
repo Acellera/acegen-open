@@ -4,6 +4,22 @@ import numpy as np
 
 from acegen.vocabulary.base import Tokenizer, Vocabulary
 
+SMILES_TOKENS = [
+    ".",
+    "/",
+    "\\",
+    "@",
+    "%",
+    "*",
+    "=",
+    ":",
+    "#",
+    ">",
+    "+",
+    "-",
+    "<UNK>",
+]
+
 
 class SMILESVocabulary(Vocabulary):
     """A class for handling encoding/decoding from SMILES to an array of indices.
@@ -36,10 +52,12 @@ class SMILESVocabulary(Vocabulary):
         end_token: str = "EOS",
         max_length: int = 140,
         tokenizer: Tokenizer = None,
+        special_tokens: list = [],
     ):
         self.start_token = start_token
         self.end_token = end_token
         self.special_tokens = [end_token, start_token]
+        self.special_tokens += list(set(special_tokens))
         self.additional_chars = set()
         self.chars = self.special_tokens
         self.vocab_size = len(self.chars)
@@ -112,7 +130,7 @@ class SMILESVocabulary(Vocabulary):
                 self.additional_chars.add(char)
         char_list = list(self.additional_chars)
         char_list.sort()
-        self.chars = char_list + self.special_tokens
+        self.chars = self.special_tokens + char_list 
         self.vocab_size = len(self.chars)
         self.vocab = dict(zip(self.chars, range(len(self.chars))))
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}

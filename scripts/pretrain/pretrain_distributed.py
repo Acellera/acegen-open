@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from acegen.models import models as model_mapping
 from acegen.data import load_dataset, SMILESDataset
+from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from rdkit import Chem
@@ -172,7 +173,7 @@ def main(cfg: "DictConfig"):
         logging.info("\nCreating logger...")
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="pretrain",
+            logger_name=Path.cwd(),
             experiment_name=cfg.agent_name,
             wandb_kwargs={
                 "config": dict(cfg),
