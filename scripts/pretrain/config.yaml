@@ -1,23 +1,21 @@
 # Logging configuration
-experiment_name: GPT2_ZINC250k
-agent_name: GPT2_ZINC250k-c_5M
-logger_backend: wandb # csv, wandb, tensorboard, or null
+experiment_name: acegen
+agent_name: pretrain_gru
+logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
-dataset_log_dir: /tmp/pretrain/ # Absolute
-model_log_dir: /shared/morgan/acegen-open/scripts/pretrain/GPT2 # Absolute
-log_frequency: 500 # Steps in-between logging
+dataset_log_dir: /tmp/pretrain
+model_log_dir: /tmp/pretrain
 
 # Dataset configuration
-train_dataset_path: /shared/morgan/mol_opt/data/zinc.txt
-tokenizer: SMILESTokenizer # SMILESTokenizer, SMILESTokenizer2, DeepSMILESTokenizer, SELFIESTokenizer, AISTokenizer, SAFETokenizer, SmiZipTokenizer
+train_dataset_path: null
 
 # Model configuration
-model: gpt2 # gru, lstm, or gpt2
+model: gru # gru, lstm, or gpt2
 
 # Training configuration
-lr: 0.001
+lr: 0.0001
 lr_decay_per_epoch: 1.0 # no decay
 epochs: 10
-batch_size: 256
+batch_size: 8
 randomize_smiles: False
 num_test_smiles: 100
