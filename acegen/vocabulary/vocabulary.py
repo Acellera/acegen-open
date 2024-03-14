@@ -52,7 +52,7 @@ class SMILESVocabulary(Vocabulary):
         end_token: str = "EOS",
         max_length: int = 140,
         tokenizer: Tokenizer = None,
-        special_tokens: list = SMILES_TOKENS,  # Maybe some good defaults for a SMILESVocabulary
+        special_tokens: list = [],
     ):
         self.start_token = start_token
         self.end_token = end_token
