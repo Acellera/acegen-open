@@ -50,7 +50,7 @@ class SMILESVocabulary(Vocabulary):
         start_token: str = "GO",
         end_token: str = "EOS",
         tokenizer: Tokenizer = None,
-        special_tokens: list = [],
+        special_tokens: list = (),
     ):
         self.start_token = start_token
         self.end_token = end_token

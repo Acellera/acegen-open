@@ -1,5 +1,3 @@
-import io
-
 import numpy as np
 
 from rdkit.Chem import AllChem as Chem, Draw
