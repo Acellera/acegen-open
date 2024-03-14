@@ -3,6 +3,7 @@ experiment_name: acegen
 agent_name: pretrain_gru
 logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
+recompute_dataset: True # if False and dataset_log_dir contains a dataset, it will be used
 dataset_log_dir: /tmp/pretrain
 model_log_dir: /tmp/pretrain
 log_frequency: 500

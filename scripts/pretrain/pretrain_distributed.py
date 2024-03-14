@@ -2,12 +2,13 @@ import datetime
 import logging
 import os
 import random
+import shutil
+from glob import glob
 from pathlib import Path
 
 import hydra
 import numpy as np
 import torch
-from acegen.models import models as model_mapping
 from acegen.data import load_dataset, SMILESDataset
 from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
@@ -100,6 +101,10 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nPreparing dataset and dataloader...")
     if master:
+        if cfg.recompute_dataset:
+            logging.info("\nRemoving any existing previous dataset file...")
+            for file in glob(f"{cfg.dataset_log_dir}/*.mmap"):
+                os.remove(file)
         dataset = SMILESDataset(
             cache_path=cfg.dataset_log_dir,
             dataset_path=cfg.train_dataset_path,

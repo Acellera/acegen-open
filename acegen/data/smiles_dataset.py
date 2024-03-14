@@ -12,9 +12,11 @@ from acegen.data.utils import smiles_to_tensordict
 
 try:
     from molbloom import BloomFilter, CustomFilter
+
     _has_molbloom = True
 except ImportError:
     _has_molbloom = False
+
 
 def load_dataset(file_path):
     """Reads a list of SMILES from file_path."""
@@ -27,13 +29,14 @@ def load_dataset(file_path):
 
 
 class MolBloomDataset:
-
     def __init__(self, dataset_path):
         self.bloom_filter = None
         if not _has_molbloom:
-            logging.warn(RuntimeError(
-                "Please install molbloom with pip install molbloom to estimate inside/outside training set"
-            ))
+            logging.warn(
+                RuntimeError(
+                    "Please install molbloom with pip install molbloom to estimate inside/outside training set"
+                )
+            )
         else:
             bloom_path = dataset_path.rsplit(".", 1)[0] + ".bloom"
             if Path(bloom_path).exists():
@@ -42,7 +45,7 @@ class MolBloomDataset:
             else:
                 logging.info(f"Generating bloom filter {bloom_path}")
                 smiles_list = load_dataset(dataset_path)
-                M_bits = - (len(smiles_list)*np.log(0.01)) / (np.log(2)**2)
+                M_bits = -(len(smiles_list) * np.log(0.01)) / (np.log(2) ** 2)
                 self.bloom_filter = CustomFilter(M_bits, len(smiles_list), "train")
                 for smiles in tqdm(
                     smiles_list, total=len(smiles_list), desc="Generating filter"

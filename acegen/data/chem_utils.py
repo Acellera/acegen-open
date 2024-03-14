@@ -1,8 +1,9 @@
 import io
+
 import numpy as np
 
-from rdkit.Chem import Draw
-from rdkit.Chem import AllChem as Chem
+from rdkit.Chem import AllChem as Chem, Draw
+
 
 def get_mol(smiles_or_mol):
     if isinstance(smiles_or_mol, str):
@@ -21,6 +22,7 @@ def get_mol(smiles_or_mol):
     else:
         return None
 
+
 def fraction_valid(mol_list):
     parsed_mols = []
     for mol in mol_list:
@@ -31,7 +33,8 @@ def fraction_valid(mol_list):
             parsed_mols.append(0)
     return np.mean(parsed_mols)
 
-def draw(mol_list, molsPerRow=5, subImgSize=(300,300)):
+
+def draw(mol_list, molsPerRow=5, subImgSize=(300, 300)):
     mols = [get_mol(mol) for mol in mol_list]
     image = Draw.MolsToGridImage(mols, molsPerRow=molsPerRow, subImgSize=subImgSize)
 
