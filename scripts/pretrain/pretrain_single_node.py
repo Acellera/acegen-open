@@ -147,25 +147,6 @@ def main(cfg: "DictConfig"):
                 loss_actor.backward()
                 actor_optimizer.step()
                 actor_losses[step] = loss_actor.item()
-<<<<<<< HEAD
-
-            # Generate test smiles
-            smiles = generate_complete_smiles(test_env, actor_inference, max_length=100)
-            smiles_str =  [vocabulary.decode(smi.cpu().numpy()) for smi in smiles.get("action")]
-            num_valid_smiles = valid_smiles(smiles_str).sum()
-            unique_smiles = remove_duplicates(smiles, key="action")
-            num_inside_smiles = sum([smi in dataset for smi in smiles_str])
-
-            # Log
-            if logger:
-                logger.log_scalar("loss_actor", actor_losses.mean(), step=epoch)
-                logger.log_scalar("num_test_valid_smiles", num_valid_smiles, step=epoch)
-                logger.log_scalar(
-                    "num_test_unique_smiles", len(unique_smiles), step=epoch
-                )
-                logger.log_scalar("num_test_inside_smiles", num_inside_smiles, step=epoch)
-                logger.log_scalar("lr", lr_scheduler.get_lr()[0], step=epoch)
-=======
                 
                 if step % cfg.log_frequency == 0:
                     # Generate test smiles
@@ -198,7 +179,6 @@ def main(cfg: "DictConfig"):
                             image = chem_utils.draw(np.random.choice(mols, 10, replace=False))
                             logger.log_scalar("mols", wandb.Image(image), step=total_smiles)
                         logger.log_scalar("lr", lr_scheduler.get_lr()[0], step=total_smiles)
->>>>>>> morgan_res
 
             # Decay learning rate
             lr_scheduler.step()
