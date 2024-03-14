@@ -5,9 +5,11 @@ logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
 dataset_log_dir: /tmp/pretrain
 model_log_dir: /tmp/pretrain
+log_frequency: 500
 
 # Dataset configuration
 train_dataset_path: null
+tokenizer: SMILESTokenizer # SMILESTokenizer, SMILESTokenizer2, DeepSMILESTokenizer, SELFIESTokenizer, AISTokenizer, SAFETokenizer, SmiZipTokenizer 
 
 # Model configuration
 model: gru # gru, lstm, or gpt2
