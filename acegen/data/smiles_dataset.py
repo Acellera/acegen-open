@@ -31,28 +31,32 @@ def load_dataset(file_path):
 class MolBloomDataset:
 
     def __init__(self, dataset_path):
+        self.bloom_filter = None
         if not _has_molbloom:
-            raise RuntimeError(
+            logging.warn(RuntimeError(
                 "Please install molbloom with pip install molbloom to estimate inside/outside training set"
-            )
-
-        bloom_path = dataset_path.rsplit(".", 1)[0] + ".bloom"
-        if Path(bloom_path).exists():
-            logging.info(f"Loading pre-calculated bloom filter {bloom_path}")
-            self.bloom_filter = BloomFilter(bloom_path)
+            ))
         else:
-            logging.info(f"Generating bloom filter {bloom_path}")
-            smiles_list = load_dataset(dataset_path)
-            M_bits = - (len(smiles_list)*np.log(0.01)) / (np.log(2)**2)
-            self.bloom_filter = CustomFilter(M_bits, len(smiles_list), "train")
-            for smiles in tqdm(
-                smiles_list, total=len(smiles_list), desc="Generating filter"
-            ):
-                self.bloom_filter.add(smiles)
-            self.bloom_filter.save(bloom_path)
+            bloom_path = dataset_path.rsplit(".", 1)[0] + ".bloom"
+            if Path(bloom_path).exists():
+                logging.info(f"Loading pre-calculated bloom filter {bloom_path}")
+                self.bloom_filter = BloomFilter(bloom_path)
+            else:
+                logging.info(f"Generating bloom filter {bloom_path}")
+                smiles_list = load_dataset(dataset_path)
+                M_bits = - (len(smiles_list)*np.log(0.01)) / (np.log(2)**2)
+                self.bloom_filter = CustomFilter(M_bits, len(smiles_list), "train")
+                for smiles in tqdm(
+                    smiles_list, total=len(smiles_list), desc="Generating filter"
+                ):
+                    self.bloom_filter.add(smiles)
+                self.bloom_filter.save(bloom_path)
 
     def __contains__(self, v):
-        return v in self.bloom_filter
+        if self.bloom_filter:
+            return v in self.bloom_filter
+        else:
+            return False
 
 
 class SMILESDataset(Dataset):
