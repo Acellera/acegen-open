@@ -17,7 +17,10 @@ model: gru # gru, lstm, or gpt2
 
 # Training configuration
 lr: 0.0001
-lr_decay_per_epoch: 1.0 # no decay
+lr_scheduler: StepLR
+lr_scheduler_kwargs:
+  step_size: 1
+  gamma: 1.0 # no decay
 epochs: 10
 batch_size: 8
 randomize_smiles: False
