@@ -12,11 +12,11 @@ AceGen is a comprehensive toolkit designed to leverage reinforcement learning (R
 
 ## Features
 
-- **Generative Modes:** AceGen facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
+- **3 Generative Modes:** AceGen facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
 - **RL Algorithms:** AceGen offers task optimization with various reinforcement learning algorithms such as Proximal Policy Optimization (PPO), Advantage Actor-Critic (A2C), Reinvent, and Augmented Hill-Climb (AHC).
 - **Pre-trained Models:** The toolkit offers pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), and GPT-2.
 - **Scoring Functions :** AceGen relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
-- **Customization Support:** AceGen provides tutorials for integrating custom models and scoring functions, ensuring flexibility for advanced users.
+- **Customization Support:** AceGen provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
 
 ---
 
