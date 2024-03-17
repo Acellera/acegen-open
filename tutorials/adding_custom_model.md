@@ -153,10 +153,10 @@ from torchrl.modules import ProbabilisticActor
 
 def create_gpt2_actor(
     vocabulary_size: int,
-    return_log_prob=True,
 ):
     # Define transformer
-    config = GPT2Config()  # Original GPT2 configuration
+    config = GPT2Config()  # Original GPT2 configuration, can be customized
+    config.vocab_size = vocabulary_size
     lm = GPT2(config)    
 
     # Wrap the transformer in a TensorDictModule to make TensorDict compatible
@@ -197,7 +197,7 @@ def create_gpt2_actor(
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
-        return_log_prob=return_log_prob,
+        return_log_prob=True,
         default_interaction_type=ExplorationType.RANDOM,
     )
     return probabilistic_policy_training, probabilistic_policy_inference
@@ -238,4 +238,58 @@ Now, we can already use the model in the Reinvent and AHC training scripts for d
 For decorative and linking tasks, we would need to define a tokenizer. We can use, for example, the SMILEStokenizer2()
 from AceGen that is compatible with enamine_real_vocabulary.txt.
 Finally, the PPO and A2C training scripts require a critic model. It would be similar to the actor model, but without the
-ProbabilisticActor wrapper. It is actually created [here](../acegen/models/gpt2.py).
+ProbabilisticActor wrapper. Let's see how to define it:
+
+```python
+
+def create_gpt2_critic(
+    vocabulary_size: int,
+):
+    """Create a GPT2 critic for language modeling."""
+    # Define transformer
+    config = GPT2Config()  # Original GPT2 configuration, can be customized
+    config.vocab_size = vocabulary_size
+    lm = GPT2(config)
+
+    # Wrap the transformer in a TensorDictModule to make TensorDict compatible
+    lm_training = TensorDictModule(
+        lm.set_train_mode(True),
+        in_keys=["sequence", "sequence_mask"],
+        out_keys=["features"],
+    )
+    lm_inference = TensorDictModule(
+        lm,
+        in_keys=["sequence", "sequence_mask"],
+        out_keys=["features"],
+    )
+
+    # Define final layer and also make it a TensorDictModule
+    lm_head = TensorDictModule(
+        nn.Linear(
+            config.n_embd,
+            1,
+            bias=False,
+        ),
+        in_keys=["features"],
+        out_keys=["state_value"],
+    )
+
+    # Concatenate lm and head, similar to torch.nn.Sequential
+    # Critic does not need to be probabilistic, so we can return directly
+    critic_training = TensorDictSequential(lm_training, lm_head)
+    critic_inference = TensorDictSequential(lm_inference, lm_head)
+    return critic_training, critic_inference
+```
+
+and then add it to the model_mapping dictionary:
+
+    model_mapping = {
+        "gpt2": (
+            create_gpt2_actor,
+            create_gpt2_critic,
+            None,
+            Path(__file__).resolve().parent.parent.parent / "priors" / "enamine_real_vocabulary.txt",
+            Path(__file__).resolve().parent.parent.parent / "priors" / "gpt2_enamine_real.ckpt",
+            SMILEStokenizer2(), # Constratined generation tasks require a tokenizer
+        )
+    }
