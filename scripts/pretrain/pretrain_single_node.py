@@ -82,10 +82,10 @@ def main(cfg: "DictConfig"):
 
     actor_training, actor_inference = create_model(
         vocabulary_size=len(vocabulary),
-        pad_token_index=0, # Used by mamba
-        start_token_index=vocabulary.start_token_index, # Used by mamba
-        end_token_index=vocabulary.end_token_index, # Used by mamba
-        )
+        pad_token_index=0,  # Used by mamba_hf
+        start_token_index=vocabulary.start_token_index,  # Used by mamba_hf
+        end_token_index=vocabulary.end_token_index,  # Used by mamba_hf
+    )
     actor_training.to(device)
     actor_inference.to(device)
 
@@ -108,7 +108,9 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
-    lr_scheduler = getattr(torch.optim.lr_scheduler, cfg.lr_scheduler)(actor_optimizer, **cfg.lr_scheduler_kwargs)
+    lr_scheduler = getattr(torch.optim.lr_scheduler, cfg.lr_scheduler)(
+        actor_optimizer, **cfg.lr_scheduler_kwargs
+    )
 
     logger = None
     if cfg.logger_backend:

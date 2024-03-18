@@ -109,7 +109,7 @@ def create_gpt2_actor(
     embd_pdrop: float = 0.1,
     resid_pdrop: float = 0.1,
     return_log_prob=True,
-    **kwargs
+    **kwargs,
 ):
     """Create a GPT2 actor for language modeling."""
     config = define_gpt2_configuration(
@@ -179,7 +179,7 @@ def create_gpt2_critic(
     embd_pdrop: float = 0.1,
     resid_pdrop: float = 0.1,
     critic_value_per_action=False,
-    *kwargs
+    *kwargs,
 ):
     """Create a GPT2 critic for language modeling."""
     config = define_gpt2_configuration(
@@ -236,7 +236,7 @@ def create_gpt2_actor_critic(
     resid_pdrop: float = 0.1,
     return_log_prob=True,
     critic_value_per_action=False,
-    **kwargs
+    **kwargs,
 ):
     """Create a GPT2 shared actor-critic network for language modeling."""
     config = define_gpt2_configuration(

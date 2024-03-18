@@ -1,9 +1,7 @@
 import pytest
 import torch
-from acegen.models.mamba import (
-    create_mamba_actor,
-)
 from acegen.data.utils import smiles_to_tensordict
+from acegen.models.mamba import create_mamba_actor
 from tensordict import TensorDict
 from tests.utils import get_default_devices
 
@@ -12,7 +10,9 @@ def generate_valid_data_batch(
     vocabulary_size: int, batch_size: int, sequence_length: int
 ):
     tokens = torch.randint(0, vocabulary_size, (batch_size, sequence_length + 1))
-    batch = smiles_to_tensordict(tokens, replace_mask_value=0) # batch_size, sequence_length)
+    batch = smiles_to_tensordict(
+        tokens, replace_mask_value=0
+    )  # batch_size, sequence_length)
     batch.set("sequence", batch.get("observation"))
     batch.set("sequence_mask", batch.get("mask"))
     return batch
@@ -25,9 +25,8 @@ def test_mamba_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
     # Create the model and a data batch
     training_actor, inference_actor = create_mamba_actor(
         vocabulary_size,
-        hidden_size=512,
-        state_size=4,
-        num_hidden_layers=8,
+        n_embd=64,
+        n_layer=8,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length

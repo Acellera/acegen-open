@@ -1,8 +1,5 @@
 from pathlib import Path
 
-from acegen.models.mamba import (
-    create_mamba_actor,
-)
 from acegen.models.gpt2 import (
     create_gpt2_actor,
     create_gpt2_actor_critic,
@@ -18,6 +15,8 @@ from acegen.models.lstm import (
     create_lstm_actor_critic,
     create_lstm_critic,
 )
+
+from acegen.models.mamba import create_mamba_actor
 from acegen.models.utils import adapt_state_dict
 from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2
 
@@ -56,12 +55,5 @@ models = {
         / "gpt2_enamine_real.ckpt",
         SMILESTokenizer2(),
     ),
-    "mamba": (
-        create_mamba_actor,
-        None,
-        None,
-        None,
-        None,
-        None
-    )
+    "mamba": (create_mamba_actor, None, None, None, None, None),
 }

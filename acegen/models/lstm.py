@@ -120,7 +120,7 @@ def create_lstm_actor(
     out_key: str = "logits",
     recurrent_state: str = "recurrent_state_actor",
     python_based: bool = False,
-    **kwargs
+    **kwargs,
 ):
     """Create one LSTM-based actor model for inference and one for training.
 
@@ -213,7 +213,7 @@ def create_lstm_critic(
     in_key: str = "observation",
     recurrent_state: str = "recurrent_state_critic",
     python_based: bool = False,
-    **kwargs
+    **kwargs,
 ):
     """Create one LSTM-based critic model for inference and one for training.
 
@@ -289,7 +289,7 @@ def create_lstm_actor_critic(
     out_key: str = "logits",
     recurrent_state: str = "recurrent_state",
     python_based: bool = False,
-    **kwargs
+    **kwargs,
 ):
     """Create a LSTM-based actor-critic model for inference and one for training.
 

@@ -169,7 +169,9 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
-    lr_scheduler = getattr(torch.optim.lr_scheduler, cfg.lr_scheduler)(actor_optimizer, **cfg.lr_scheduler_kwargs)
+    lr_scheduler = getattr(torch.optim.lr_scheduler, cfg.lr_scheduler)(
+        actor_optimizer, **cfg.lr_scheduler_kwargs
+    )
 
     logger = None
     if cfg.logger_backend:
