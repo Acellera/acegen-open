@@ -188,19 +188,32 @@ class SMILESEnv(EnvBase):
             {
                 "observation": obs_spec(
                     n=self.length_vocabulary,
+                    shape=(
+                        torch.Size([self.max_length, self.length_vocabulary])
+                        if self.one_hot_obs_encoding
+                        else torch.Size([self.max_length])
+                    ),
                     dtype=torch.int32,
                     device=self.device,
                 ),
                 "sequence": obs_spec(
                     n=self.length_vocabulary,
-                    shape=torch.Size([self.max_length]),
+                    shape=(
+                        torch.Size([self.max_length, self.length_vocabulary])
+                        if self.one_hot_obs_encoding
+                        else torch.Size([self.max_length])
+                    ),
                     dtype=torch.int32,
                     device=self.device,
                 ),
                 "sequence_mask": obs_spec(
                     n=2,
                     dtype=torch.bool,
-                    shape=torch.Size([self.max_length]),
+                    shape=(
+                        torch.Size([self.max_length, 2])
+                        if self.one_hot_obs_encoding
+                        else torch.Size([self.max_length])
+                    ),
                     device=self.device,
                 ),
             }
