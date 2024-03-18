@@ -4,6 +4,7 @@ from rdkit.Chem import AllChem as Chem, Draw
 
 
 def get_mol(smiles_or_mol):
+    """Converts a SMILES, RDKitMol, or None into RDKitMol or None."""
     if isinstance(smiles_or_mol, str):
         if len(smiles_or_mol) == 0:
             return None
@@ -22,6 +23,7 @@ def get_mol(smiles_or_mol):
 
 
 def fraction_valid(mol_list):
+    """Compute the fraction of valid molecules in a list of SMILES strings or Mols."""
     parsed_mols = []
     for mol in mol_list:
         mol = get_mol(mol)
@@ -33,6 +35,7 @@ def fraction_valid(mol_list):
 
 
 def draw(mol_list, molsPerRow=5, subImgSize=(300, 300)):
+    """Create a grid image of molecules from a list of SMILES strings or Mols."""
     mols = [get_mol(mol) for mol in mol_list]
     image = Draw.MolsToGridImage(mols, molsPerRow=molsPerRow, subImgSize=subImgSize)
 

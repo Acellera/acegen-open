@@ -18,7 +18,7 @@ SMILES_TOKENS = [
     "+",
     "-",
     "<UNK>",
-    "<SEP>"
+    "<SEP>",
 ]
 
 

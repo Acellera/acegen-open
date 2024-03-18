@@ -29,6 +29,8 @@ def load_dataset(file_path):
 
 
 class MolBloomDataset:
+    """MolBloom dataset to check if a SMILES is inside the training set quickly."""
+
     def __init__(self, dataset_path):
         self.bloom_filter = None
         if not _has_molbloom:
