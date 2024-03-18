@@ -161,3 +161,9 @@ cython_debug/
 
 
 *.DS_Store*
+
+# Output data
+*wandb/
+*outputs/
+*nohup.out
+examples/

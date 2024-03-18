@@ -1,5 +1,8 @@
 from pathlib import Path
 
+from acegen.models.mamba import (
+    create_mamba_actor,
+)
 from acegen.models.gpt2 import (
     create_gpt2_actor,
     create_gpt2_actor_critic,
@@ -53,4 +56,12 @@ models = {
         / "gpt2_enamine_real.ckpt",
         SMILESTokenizer2(),
     ),
+    "mamba": (
+        create_mamba_actor,
+        None,
+        None,
+        None,
+        None,
+        None
+    )
 }

@@ -80,7 +80,12 @@ def main(cfg: "DictConfig"):
     else:
         raise ValueError(f"Unknown model type {cfg.model}")
 
-    actor_training, actor_inference = create_model(vocabulary_size=len(vocabulary))
+    actor_training, actor_inference = create_model(
+        vocabulary_size=len(vocabulary),
+        pad_token_index=0, # Used by mamba
+        start_token_index=vocabulary.start_token_index, # Used by mamba
+        end_token_index=vocabulary.end_token_index, # Used by mamba
+        )
     actor_training.to(device)
     actor_inference.to(device)
 

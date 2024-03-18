@@ -116,6 +116,7 @@ def create_gru_actor(
     out_key: str = "logits",
     recurrent_state: str = "recurrent_state_actor",
     python_based: bool = False,
+    **kwargs
 ):
     """Create one GRU-based actor model for inference and one for training.
 
@@ -204,6 +205,7 @@ def create_gru_critic(
     in_key: str = "observation",
     recurrent_state: str = "recurrent_state_critic",
     python_based: bool = False,
+    **kwargs
 ):
     """Create one GRU-based critic model for inference and one for training.
 
@@ -275,6 +277,7 @@ def create_gru_actor_critic(
     out_key: str = "logits",
     recurrent_state: str = "recurrent_state",
     python_based: bool = False,
+    **kwargs
 ):
     """Create a GRU-based actor-critic model for inference and one for training.
 
