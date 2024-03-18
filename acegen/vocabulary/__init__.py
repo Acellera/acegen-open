@@ -8,3 +8,12 @@ from acegen.vocabulary.tokenizers import (
     SMILESTokenizer2,
 )
 from acegen.vocabulary.vocabulary import SMILESVocabulary
+
+tokenizer_options = {
+    "AISTokenizer": AISTokenizer,
+    "DeepSMILESTokenizer": DeepSMILESTokenizer,
+    "SAFETokenizer": SAFETokenizer,
+    "SELFIESTokenizer": SELFIESTokenizer,
+    "SMILESTokenizer": SMILESTokenizer,
+    "SMILESTokenizer2": SMILESTokenizer2,
+}

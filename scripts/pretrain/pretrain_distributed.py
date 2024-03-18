@@ -2,15 +2,17 @@ import datetime
 import logging
 import os
 import random
+import shutil
+from glob import glob
 from pathlib import Path
 
 import hydra
 import numpy as np
 import torch
-from acegen import model_mapping
 from acegen.data import load_dataset, SMILESDataset
+from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary
+from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from rdkit import Chem
 from tensordict.utils import remove_duplicates
 from tokenizer import Tokenizer
@@ -86,7 +88,7 @@ def main(cfg: "DictConfig"):
     if master:
         vocabulary = SMILESVocabulary.create_from_smiles(
             load_dataset(cfg.train_dataset_path),
-            tokenizer=Tokenizer(),
+            tokenizer=tokenizer_options[cfg.tokenizer](),
         )
         save_path = Path(cfg.model_log_dir) / "vocabulary.ckpt"
         torch.save(vocabulary.state_dict(), save_path)
@@ -99,6 +101,10 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nPreparing dataset and dataloader...")
     if master:
+        if cfg.recompute_dataset:
+            logging.info("\nRemoving any existing previous dataset file...")
+            for file in glob(f"{cfg.dataset_log_dir}/*.mmap"):
+                os.remove(file)
         dataset = SMILESDataset(
             cache_path=cfg.dataset_log_dir,
             dataset_path=cfg.train_dataset_path,
@@ -163,8 +169,8 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        actor_optimizer, step_size=1, gamma=cfg.lr_decay_per_epoch
+    lr_scheduler = getattr(torch.optim.lr_scheduler, cfg.lr_scheduler)(
+        actor_optimizer, **cfg.lr_scheduler_kwargs
     )
 
     logger = None
@@ -172,7 +178,7 @@ def main(cfg: "DictConfig"):
         logging.info("\nCreating logger...")
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="pretrain",
+            logger_name=Path.cwd(),
             experiment_name=cfg.agent_name,
             wandb_kwargs={
                 "config": dict(cfg),
