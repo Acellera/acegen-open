@@ -6,7 +6,6 @@ from acegen.models.gpt2 import (
     create_gpt2_actor_critic,
     create_gpt2_critic,
 )
-from tensordict import TensorDict
 from tests.utils import get_default_devices
 
 
@@ -35,7 +34,8 @@ def test_gpt2_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
-    inference_batch = training_batch[:, 0].clone()
+    inference_batch = training_batch.clone()
+    inference_batch.batch_size = [batch_size]
 
     # Check that the inference model works
     inference_actor = inference_actor.to(device)
@@ -73,7 +73,8 @@ def test_gpt2_critic(
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
-    inference_batch = training_batch[:, 0].clone()
+    inference_batch = training_batch.clone()
+    inference_batch.batch_size = [batch_size]
 
     # Check that the inference model works
     inference_critic = inference_critic.to(device)
@@ -120,7 +121,8 @@ def test_gpt2_actor_critic(
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
-    inference_batch = training_batch[:, 0].clone()
+    inference_batch = training_batch.clone()
+    inference_batch.batch_size = [batch_size]
 
     # Check that the inference model works
     inference_actor = inference_actor.to(device)
