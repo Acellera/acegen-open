@@ -1,24 +1,24 @@
 import pytest
 import torch
+from acegen.data import smiles_to_tensordict
 from acegen.models.gpt2 import (
     create_gpt2_actor,
     create_gpt2_actor_critic,
     create_gpt2_critic,
 )
-from acegen.data import smiles_to_tensordict
 from tensordict import TensorDict
 from tests.utils import get_default_devices
-
 
 def generate_valid_data_batch(
     vocabulary_size: int, batch_size: int, sequence_length: int
 ):
     tokens = torch.randint(0, vocabulary_size, (batch_size, sequence_length + 1))
-    batch = smiles_to_tensordict(tokens, replace_mask_value=0) # batch_size, sequence_length)
+    batch = smiles_to_tensordict(
+        tokens, replace_mask_value=0
+    )  # batch_size, sequence_length)
     batch.set("sequence", batch.get("observation"))
     batch.set("sequence_mask", batch.get("mask"))
     return batch
-
 
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())

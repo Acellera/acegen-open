@@ -3,7 +3,6 @@ from acegen.data import smiles_to_tensordict
 
 from tensordict import TensorDict
 
-
 def test_smiles_to_tensordict():
     # Arrange
     B, T = 3, 4
