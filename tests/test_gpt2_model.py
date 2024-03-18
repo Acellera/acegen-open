@@ -9,6 +9,7 @@ from acegen.models.gpt2 import (
 from tensordict import TensorDict
 from tests.utils import get_default_devices
 
+
 def generate_valid_data_batch(
     vocabulary_size: int, batch_size: int, sequence_length: int
 ):
@@ -19,6 +20,7 @@ def generate_valid_data_batch(
     batch.set("sequence", batch.get("observation"))
     batch.set("sequence_mask", batch.get("mask"))
     return batch
+
 
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
