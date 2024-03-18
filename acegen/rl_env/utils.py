@@ -425,7 +425,7 @@ def _get_log_prob(
     data = smiles_to_tensordict(
         enc_smiles, mask_value=-1, replace_mask_value=0, device=policy.device
     )
-    actions = data.get("action").clone()
+    actions = data.get("action")
 
     # For transformers-based policies
     data.set("sequence", data.get("observation"))
