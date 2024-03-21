@@ -13,6 +13,14 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
+    scripts=[
+        "scripts/a2c/a2c.py",
+        "scripts/ahc/ahc.py",
+        "scripts/ppo/ppo.py",
+        "scripts/reinvent/reinvent.py",
+        "scripts/pretrain/pretrain_single_node.py",
+        "scripts/pretrain/pretrain_distributed.py"
+    ],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
