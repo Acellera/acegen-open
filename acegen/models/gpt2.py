@@ -19,7 +19,7 @@ except ImportError as err:
 class GPT2(nn.Module):
     """GPT2 model for language modeling. This model is a simple wrapper around the HuggingFace GPT2Model."""
 
-    def __init__(self, config):
+    def __init__(self, config=None):
         if not _has_transformers:
             raise RuntimeError(
                 "transformers library not found, please install with pip install transformers."
@@ -35,22 +35,34 @@ class GPT2(nn.Module):
         super(GPT2, self).__init__()
 
         # Define model
-        self.feature_extractor = GPT2Model(config)
+        if config is not None:
+            self.feature_extractor = GPT2Model(config)
+        else:
+            self.feature_extractor = None
 
-    def forward(self, sequence, sequence_mask=None):
+        # Start in evaluation mode
+        self._train_mode = False
 
-        is_inference = True
-        if sequence_mask is None:
-            #  sequence_mask = (sequence != 0).long()
-            sequence_mask = torch.ones_like(sequence, dtype=torch.long)
-            is_inference = False
+    @property
+    def train_mode(self):
+        return self._train_mode
+
+    def set_train_mode(self, train_mode: bool = True):
+        if train_mode is self._train_mode:
+            return self
+        out = GPT2()
+        out.feature_extractor = self.feature_extractor
+        out._train_mode = train_mode
+        return out
+
+    def forward(self, sequence, sequence_mask):
 
         out = self.feature_extractor(
             input_ids=sequence,
             attention_mask=sequence_mask.long(),
         ).last_hidden_state
 
-        if is_inference:  # Data collection
+        if self.train_mode is False:  # Data collection, return only last token
             obs_length = sequence_mask.sum(-1)
             out = out[torch.arange(len(out)), obs_length.to(torch.int64) - 1]
 
@@ -109,26 +121,51 @@ def create_gpt2_actor(
         embd_pdrop,
         resid_pdrop,
     )
-    lm = TensorDictModule(
-        GPT2(config),
+    # Define transformer
+    lm = GPT2(config)
+
+    # Wrap the transformer in a TensorDictModule to make TensorDict compatible
+    lm_training = TensorDictModule(
+        lm.set_train_mode(True),
         in_keys=["sequence", "sequence_mask"],
         out_keys=["features"],
     )
+    lm_inference = TensorDictModule(
+        lm,
+        in_keys=["sequence", "sequence_mask"],
+        out_keys=["features"],
+    )
+
+    # Define final layer and also make it a TensorDictModule
     lm_head = TensorDictModule(
         nn.Linear(config.n_embd, vocabulary_size, bias=False),
         in_keys=["features"],
         out_keys=["logits"],
     )
-    policy = TensorDictSequential(lm, lm_head)
-    probabilistic_policy = ProbabilisticActor(
-        module=policy,
+
+    # Concatenate lm and head, similar to torch.nn.Sequential
+    policy_training = TensorDictSequential(lm_training, lm_head)
+    policy_inference = TensorDictSequential(lm_inference, lm_head)
+
+    # To make the actor probabilistic, wrap the policy in a ProbabilisticActor
+    # This module will take care of sampling and computing log probabilities
+    probabilistic_policy_training = ProbabilisticActor(
+        module=policy_training,
         in_keys=["logits"],
         out_keys=["action"],
         distribution_class=torch.distributions.Categorical,
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
-    return probabilistic_policy, probabilistic_policy
+    probabilistic_policy_inference = ProbabilisticActor(
+        module=policy_inference,
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=torch.distributions.Categorical,
+        return_log_prob=return_log_prob,
+        default_interaction_type=ExplorationType.RANDOM,
+    )
+    return probabilistic_policy_training, probabilistic_policy_inference
 
 
 def create_gpt2_critic(
@@ -153,11 +190,22 @@ def create_gpt2_critic(
         embd_pdrop,
         resid_pdrop,
     )
-    lm = TensorDictModule(
-        GPT2(config),
+    # Define transformer
+    lm = GPT2(config)
+
+    # Wrap the transformer in a TensorDictModule to make TensorDict compatible
+    lm_training = TensorDictModule(
+        lm.set_train_mode(True),
         in_keys=["sequence", "sequence_mask"],
         out_keys=["features"],
     )
+    lm_inference = TensorDictModule(
+        lm,
+        in_keys=["sequence", "sequence_mask"],
+        out_keys=["features"],
+    )
+
+    # Define final layer and also make it a TensorDictModule
     lm_head = TensorDictModule(
         nn.Linear(
             config.n_embd,
@@ -167,8 +215,12 @@ def create_gpt2_critic(
         in_keys=["features"],
         out_keys=["action_value"] if critic_value_per_action else ["state_value"],
     )
-    critic = TensorDictSequential(lm, lm_head)
-    return critic, critic
+
+    # Concatenate lm and head, similar to torch.nn.Sequential
+    # Critic does not need to be probabilistic, so we can return directly
+    critic_training = TensorDictSequential(lm_training, lm_head)
+    critic_inference = TensorDictSequential(lm_inference, lm_head)
+    return critic_training, critic_inference
 
 
 def create_gpt2_actor_critic(
@@ -194,11 +246,22 @@ def create_gpt2_actor_critic(
         embd_pdrop,
         resid_pdrop,
     )
-    lm = TensorDictModule(
-        GPT2(config),
+    # Define transformer
+    lm = GPT2(config)
+
+    # Wrap the transformer in a TensorDictModule to make TensorDict compatible
+    lm_training = TensorDictModule(
+        lm.set_train_mode(True),
         in_keys=["sequence", "sequence_mask"],
         out_keys=["features"],
     )
+    lm_inference = TensorDictModule(
+        lm,
+        in_keys=["sequence", "sequence_mask"],
+        out_keys=["features"],
+    )
+
+    # Define actor head and also make it a TensorDictModule and Probabilistic
     actor_head = TensorDictModule(
         nn.Linear(config.n_embd, vocabulary_size, bias=False),
         in_keys=["features"],
@@ -212,6 +275,8 @@ def create_gpt2_actor_critic(
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
+
+    # Define critic head and also make it a TensorDictModule
     critic_head = TensorDictModule(
         nn.Linear(
             config.n_embd,
@@ -221,11 +286,23 @@ def create_gpt2_actor_critic(
         in_keys=["features"],
         out_keys=["action_value"] if critic_value_per_action else ["state_value"],
     )
-    actor_critic = ActorValueOperator(
-        common_operator=lm,
+
+    # Create shared actor-critic TensorDictModule
+    actor_critic_train = ActorValueOperator(
+        common_operator=lm_training,
         policy_operator=actor_head,
         value_operator=critic_head,
     )
-    actor = actor_critic.get_policy_operator()
-    critic = actor_critic.get_value_operator()
-    return actor, actor, critic, critic
+    actor_critic_inference = ActorValueOperator(
+        common_operator=lm_inference,
+        policy_operator=actor_head,
+        value_operator=critic_head,
+    )
+
+    # Get individual operators
+    actor_training = actor_critic_train.get_policy_operator()
+    critic_training = actor_critic_train.get_value_operator()
+    actor_inference = actor_critic_inference.get_policy_operator()
+    critic_inference = actor_critic_inference.get_value_operator()
+
+    return actor_training, actor_inference, critic_training, critic_inference

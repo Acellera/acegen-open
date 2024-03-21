@@ -1,22 +1,28 @@
 import logging
 import os
 import random
+from glob import glob
 from pathlib import Path
 
 import hydra
 import numpy as np
 import torch
-from acegen import model_mapping
-from acegen.data import load_dataset, SMILESDataset
+from acegen.data import chem_utils, load_dataset, MolBloomDataset, SMILESDataset
+from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary
-from rdkit import Chem
+from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from tensordict.utils import remove_duplicates
-from tokenizer import Tokenizer
 from torch.utils.data import DataLoader
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
+
+try:
+    import wandb
+
+    _has_wandb = True
+except:
+    _has_wandb = False
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,16 +40,21 @@ def main(cfg: "DictConfig"):
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
 
-    device = f"cuda:0" if torch.cuda.device_count() > 1 else "cpu"
+    device = f"cuda:0" if torch.cuda.device_count() >= 1 else "cpu"
     os.makedirs(cfg.model_log_dir, exist_ok=True)
 
     logging.info("\nConstructing vocabulary...")
     vocabulary = SMILESVocabulary.create_from_smiles(
         load_dataset(cfg.train_dataset_path),
-        tokenizer=Tokenizer(),
+        tokenizer=tokenizer_options[cfg.tokenizer](),
     )
     save_path = Path(cfg.model_log_dir) / "vocabulary.ckpt"
     torch.save(vocabulary.state_dict(), save_path)
+
+    if cfg.recompute_dataset:
+        logging.info("\nRemoving any existing previous dataset file...")
+        for file in glob(f"{cfg.dataset_log_dir}/*.mmap"):
+            os.remove(file)
 
     logging.info("\nPreparing dataset and dataloader...")
     dataset = SMILESDataset(
@@ -52,6 +63,7 @@ def main(cfg: "DictConfig"):
         vocabulary=vocabulary,
         randomize_smiles=cfg.randomize_smiles,
     )
+    molbloom_dataset = MolBloomDataset(dataset_path=cfg.train_dataset_path)
 
     dataloader = DataLoader(
         dataset,
@@ -89,20 +101,10 @@ def main(cfg: "DictConfig"):
         rhs_primer = TensorDictPrimer(primers)
         test_env.append_transform(rhs_primer)
 
-    logging.info("\nCreating test scoring function...")
-
-    def valid_smiles(smiles_list):
-        result_tensor = torch.zeros(len(smiles_list))
-        for i, smiles in enumerate(smiles_list):
-            mol = Chem.MolFromSmiles(smiles)
-            if mol is not None:
-                result_tensor[i] = 1.0
-        return result_tensor
-
     logging.info("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        actor_optimizer, step_size=1, gamma=cfg.lr_decay_per_epoch
+    lr_scheduler = getattr(torch.optim.lr_scheduler, cfg.lr_scheduler)(
+        actor_optimizer, **cfg.lr_scheduler_kwargs
     )
 
     logger = None
@@ -110,7 +112,7 @@ def main(cfg: "DictConfig"):
         logging.info("\nCreating logger...")
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="pretrain",
+            logger_name=Path.cwd(),
             experiment_name=cfg.agent_name,
             wandb_kwargs={
                 "config": dict(cfg),
@@ -134,7 +136,6 @@ def main(cfg: "DictConfig"):
             tepoch.set_description(f"Epoch {epoch}")
 
             for step, batch_td in tepoch:
-
                 batch_td = batch_td.to(device)
                 target = batch_td.get("action")
 
@@ -150,21 +151,60 @@ def main(cfg: "DictConfig"):
                 actor_optimizer.step()
                 actor_losses[step] = loss_actor.item()
 
-            # Generate test smiles
-            smiles = generate_complete_smiles(test_env, actor_inference, max_length=100)
-            num_valid_smiles = valid_smiles(
-                [vocabulary.decode(smi.cpu().numpy()) for smi in smiles.get("action")]
-            ).sum()
-            unique_smiles = remove_duplicates(smiles, key="action")
+                if step % cfg.log_frequency == 0:
+                    # Generate test smiles
+                    smiles = generate_complete_smiles(
+                        environment=test_env,
+                        vocabulary=vocabulary,
+                        policy_sample=actor_inference,
+                        policy_evaluate=actor_training,
+                        max_length=100,
+                    )
+                    smiles_log_prob = smiles["sample_log_prob"].sum(-1)
+                    smiles_str = [
+                        vocabulary.decode(smi.cpu().numpy())
+                        for smi in smiles.get("action")
+                    ]
+                    mols = [chem_utils.get_mol(smi) for smi in smiles_str]
+                    valid_smiles = chem_utils.fraction_valid(mols)
+                    unique_smiles = len(remove_duplicates(smiles, key="action")) / len(
+                        smiles
+                    )
+                    inside_smiles = np.mean(
+                        [smi in molbloom_dataset for smi in smiles_str]
+                    )
+                    total_smiles = ((epoch - 1) * (len(dataset))) + (
+                        step * cfg.batch_size
+                    )
 
-            # Log
-            if logger:
-                logger.log_scalar("loss_actor", actor_losses.mean(), step=epoch)
-                logger.log_scalar("num_test_valid_smiles", num_valid_smiles, step=epoch)
-                logger.log_scalar(
-                    "num_test_unique_smiles", len(unique_smiles), step=epoch
-                )
-                logger.log_scalar("lr", lr_scheduler.get_lr()[0], step=epoch)
+                    # Log
+                    if logger:
+                        logger.log_scalar("num_smiles", total_smiles, step=total_smiles)
+                        logger.log_scalar(
+                            "loss_actor", actor_losses[step], step=total_smiles
+                        )
+                        logger.log_scalar(
+                            "loss_sample", -smiles_log_prob.mean(), step=total_smiles
+                        )
+                        logger.log_scalar(
+                            "valid_smiles", valid_smiles, step=total_smiles
+                        )
+                        logger.log_scalar(
+                            "unique_smiles", unique_smiles, step=total_smiles
+                        )
+                        logger.log_scalar(
+                            "inside_smiles", inside_smiles, step=total_smiles
+                        )
+                        if _has_wandb and cfg.logger_backend == "wandb":
+                            image = chem_utils.draw(
+                                np.random.choice(mols, 10, replace=False)
+                            )
+                            logger.log_scalar(
+                                "mols", wandb.Image(image), step=total_smiles
+                            )
+                        logger.log_scalar(
+                            "lr", lr_scheduler.get_lr()[0], step=total_smiles
+                        )
 
             # Decay learning rate
             lr_scheduler.step()

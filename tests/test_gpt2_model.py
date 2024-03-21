@@ -1,11 +1,11 @@
 import pytest
 import torch
+from acegen.data import smiles_to_tensordict
 from acegen.models.gpt2 import (
     create_gpt2_actor,
     create_gpt2_actor_critic,
     create_gpt2_critic,
 )
-from tensordict import TensorDict
 from tests.utils import get_default_devices
 
 
@@ -13,22 +13,11 @@ def generate_valid_data_batch(
     vocabulary_size: int, batch_size: int, sequence_length: int
 ):
     tokens = torch.randint(0, vocabulary_size, (batch_size, sequence_length + 1))
-    done = torch.randint(0, 2, (batch_size, sequence_length + 1, 1), dtype=torch.bool)
-    batch = TensorDict(
-        {
-            "sequence": tokens[:, :-1],
-            "done": torch.zeros(batch_size, sequence_length, 1),
-            "is_init": done[:, 1:],
-            "next": TensorDict(
-                {
-                    "sequence": tokens[:, 1:],
-                    "done": done[:, :-1],
-                },
-                batch_size=[batch_size, sequence_length],
-            ),
-        },
-        batch_size=[batch_size, sequence_length],
-    )
+    batch = smiles_to_tensordict(
+        tokens, replace_mask_value=0
+    )  # batch_size, sequence_length)
+    batch.set("sequence", batch.get("observation"))
+    batch.set("sequence_mask", batch.get("mask"))
     return batch
 
 
@@ -45,7 +34,8 @@ def test_gpt2_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
-    inference_batch = training_batch[:, 0].clone()
+    inference_batch = training_batch.clone()
+    inference_batch.batch_size = [batch_size]
 
     # Check that the inference model works
     inference_actor = inference_actor.to(device)
@@ -83,7 +73,8 @@ def test_gpt2_critic(
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
-    inference_batch = training_batch[:, 0].clone()
+    inference_batch = training_batch.clone()
+    inference_batch.batch_size = [batch_size]
 
     # Check that the inference model works
     inference_critic = inference_critic.to(device)
@@ -130,7 +121,8 @@ def test_gpt2_actor_critic(
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
-    inference_batch = training_batch[:, 0].clone()
+    inference_batch = training_batch.clone()
+    inference_batch.batch_size = [batch_size]
 
     # Check that the inference model works
     inference_actor = inference_actor.to(device)

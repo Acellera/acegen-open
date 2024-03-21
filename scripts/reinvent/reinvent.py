@@ -26,7 +26,7 @@ from torchrl.data import (
     TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import CatFrames, InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.record.loggers import get_logger
 
 try:
@@ -307,7 +307,7 @@ def run_reinvent(cfg, task):
 
 
 def get_log_prob(data, model):
-    actions = data.get("action").clone()
+    actions = data.get("action")
     model_in = data.select(*model.in_keys, strict=False)
     log_prob = model.get_dist(model_in).log_prob(actions)
     return log_prob

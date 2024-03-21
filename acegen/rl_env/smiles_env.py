@@ -155,7 +155,7 @@ class SMILESEnv(EnvBase):
             obs = torch.nn.functional.one_hot(obs, num_classes=self.length_vocabulary)
 
         # Update sequence
-        no_done = ~done.squeeze()
+        no_done = ~done.squeeze(-1)
         self.sequence[no_done, self.episode_length[no_done] - 1] = obs[no_done].int()
         self.sequence_mask[no_done, self.episode_length[no_done] - 1] = True
 
@@ -188,7 +188,32 @@ class SMILESEnv(EnvBase):
             {
                 "observation": obs_spec(
                     n=self.length_vocabulary,
+                    shape=(
+                        torch.Size([self.max_length, self.length_vocabulary])
+                        if self.one_hot_obs_encoding
+                        else torch.Size([self.max_length])
+                    ),
                     dtype=torch.int32,
+                    device=self.device,
+                ),
+                "sequence": obs_spec(
+                    n=self.length_vocabulary,
+                    shape=(
+                        torch.Size([self.max_length, self.length_vocabulary])
+                        if self.one_hot_obs_encoding
+                        else torch.Size([self.max_length])
+                    ),
+                    dtype=torch.int32,
+                    device=self.device,
+                ),
+                "sequence_mask": obs_spec(
+                    n=2,
+                    dtype=torch.bool,
+                    shape=(
+                        torch.Size([self.max_length, 2])
+                        if self.one_hot_obs_encoding
+                        else torch.Size([self.max_length])
+                    ),
                     device=self.device,
                 ),
             }
@@ -216,6 +241,24 @@ class SMILESEnv(EnvBase):
                 )
             }
         ).expand(self.num_envs)
+
+        self.done_spec = (
+            CompositeSpec(
+                {
+                    "done": DiscreteTensorSpec(
+                        n=2, dtype=torch.bool, device=self.device
+                    ),
+                    "truncated": DiscreteTensorSpec(
+                        n=2, dtype=torch.bool, device=self.device
+                    ),
+                    "terminated": DiscreteTensorSpec(
+                        n=2, dtype=torch.bool, device=self.device
+                    ),
+                }
+            )
+            .expand(self.num_envs)
+            .unsqueeze(-1)
+        )
 
     def __repr__(self) -> str:
         return (
