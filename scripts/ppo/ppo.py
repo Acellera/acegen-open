@@ -26,13 +26,7 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import (
-    CatFrames,
-    ExplorationType,
-    InitTracker,
-    TensorDictPrimer,
-    TransformedEnv,
-)
+from torchrl.envs import ExplorationType, InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
