@@ -228,16 +228,16 @@ def test_sample_smiles_with_prompt(
 @pytest.mark.parametrize("promptsmiles_optimize", [False, True])
 @pytest.mark.parametrize("promptsmiles_shuffle", [False, True])
 @pytest.mark.parametrize("promptsmiles_multi", [False, True])
+@pytest.mark.parametrize("device", get_default_devices())
 def test_sample_promptsmiles(
     batch_size,
     promptsmiles,
     promptsmiles_optimize,
     promptsmiles_shuffle,
     promptsmiles_multi,
+    device,
 ):
     torch.manual_seed(0)
-    device = torch.device("cuda" if torch.cuda.device_count() > 0 else "cpu")
-
     create_actor, _, _, voc_path, ckpt_path, tokenizer = models["gru"]
 
     # Create vocabulary
@@ -253,7 +253,7 @@ def test_sample_promptsmiles(
     length_vocabulary = len(vocabulary)
 
     # Create policy
-    ckpt = torch.load(ckpt_path)
+    ckpt = torch.load(ckpt_path, map_location=device)
     policy_train, policy_inference = create_actor(length_vocabulary)
     policy_train.load_state_dict(adapt_state_dict(ckpt, policy_train.state_dict()))
     policy_inference.load_state_dict(
