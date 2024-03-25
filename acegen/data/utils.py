@@ -50,6 +50,7 @@ def smiles_to_tensordict(
                     "done": done[:, 1:],
                     "terminated": done[:, 1:],
                     "truncated": truncated[:, 1:],
+                    "mask": mask[:, 1:],
                 },
                 batch_size=[B, T - 1],
                 device=device,
