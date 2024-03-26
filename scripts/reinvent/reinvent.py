@@ -229,6 +229,7 @@ def run_reinvent(cfg, task):
             promptsmiles_optimize=cfg.get("promptsmiles_optimize", True),
             promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
             promptsmiles_multi=cfg.get("promptsmiles_multi", False),
+            promptsmiles_scan=cfg.get("promptsmiles_scan", False),
             remove_duplicates=True,
         )
 

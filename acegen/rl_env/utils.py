@@ -41,6 +41,7 @@ def generate_complete_smiles(
     promptsmiles_optimize: bool = True,
     promptsmiles_shuffle: bool = True,
     promptsmiles_multi: bool = False,
+    promptsmiles_scan: bool = False,
     remove_duplicates: bool = False,
     return_smiles_only: bool = False,
     **kwargs,
@@ -75,6 +76,8 @@ def generate_complete_smiles(
             Defaults to True.
         promptsmiles_multi (bool, optional): Return all promptsmiles iterations. Resulting in multiple updates
             per SMILES. Defaults to False.
+        promptsmiles_scan (bool, optional): Fragment linking mode only, scan through linker positions.
+            Defaults to False.
         remove_duplicates (bool, optional): Remove duplicate SMILES strings from the output. Defaults to False.
         return_smiles_only (bool, optional): If ``True``, only the SMILES strings are returned.
             Only when not using a PrompSMILES argument. Defaults to False.
@@ -157,6 +160,7 @@ def generate_complete_smiles(
                 batch_prompts=True,
                 optimize_prompts=promptsmiles_optimize,
                 shuffle=promptsmiles_shuffle,
+                scan=promptsmiles_scan,
                 return_all=True,
             )
 
