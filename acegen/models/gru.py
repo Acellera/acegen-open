@@ -29,7 +29,7 @@ class Embed(torch.nn.Module):
         *batch, L = inputs.shape
         if len(batch) > 1:
             inputs = inputs.flatten(0, len(batch) - 1)
-        inputs = inputs.squeeze(-1)  # Embedding creates an extra dimension
+            inputs = inputs.squeeze(-1)  # Embedding creates an extra dimension
         out = self._embedding(inputs)
         if len(batch) > 1:
             out = out.unflatten(0, batch)
