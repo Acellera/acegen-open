@@ -1,3 +1,4 @@
+import tarfile
 from importlib import resources
 
 from acegen.models.gpt2 import (
@@ -17,6 +18,20 @@ from acegen.models.lstm import (
 )
 from acegen.models.utils import adapt_state_dict
 from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2
+
+## Extract tarfiles
+def extract(path):
+    if not Path.exists():
+        tar_path = path.with_suffix(".tar.gz")
+        if tar_path.exists():
+            print("Extracting model checkpoint...")
+            with tarfile.open(tar_path, "r:gz") as tar:
+                tar.extractall()
+                return path
+        else:
+            raise FileNotFoundError(f"File {path} not found.")
+    else:
+        return path
 
 models = {
     "gru": (
@@ -40,7 +55,7 @@ models = {
         create_gpt2_critic,
         create_gpt2_actor_critic,
         resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
-        resources.files("acegen.priors") / "gpt2_enamine_real.ckpt",
+        extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt"),
         SMILESTokenizer2(),
     ),
 }
