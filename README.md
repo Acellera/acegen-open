@@ -56,7 +56,7 @@ To install AceGen, run
 
     pip3 install tqdm wandb hydra-core
     cd acegen-open
-    python setup.py install
+    python setup.py develop
 
 ### Optional dependencies
 
