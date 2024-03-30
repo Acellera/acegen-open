@@ -228,6 +228,7 @@ def test_sample_smiles_with_prompt(
 @pytest.mark.parametrize("promptsmiles_optimize", [False, True])
 @pytest.mark.parametrize("promptsmiles_shuffle", [False, True])
 @pytest.mark.parametrize("promptsmiles_multi", [False, True])
+@pytest.mark.parametrize("promptsmiles_scan", [False, True])
 @pytest.mark.parametrize("device", get_default_devices())
 def test_sample_promptsmiles(
     batch_size,
@@ -235,6 +236,7 @@ def test_sample_promptsmiles(
     promptsmiles_optimize,
     promptsmiles_shuffle,
     promptsmiles_multi,
+    promptsmiles_scan,
     device,
 ):
     torch.manual_seed(0)
@@ -284,6 +286,7 @@ def test_sample_promptsmiles(
         promptsmiles=promptsmiles,
         promptsmiles_optimize=promptsmiles_optimize,
         promptsmiles_shuffle=promptsmiles_shuffle,
+        promptsmiles_scan=promptsmiles_scan,
     )
     terminated = smiles.get(("next", "terminated")).squeeze(
         dim=-1

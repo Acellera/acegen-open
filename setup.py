@@ -1,18 +1,22 @@
 from setuptools import find_packages, setup
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
-
 setup(
-    name="acegen",
-    version="1.0",
-    license="MIT",
-    author="Albert Bou",
-    author_email="albertbou92@gmail.com",
-    description="A torchrl RL framework for de novo drug design",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={"acegen": [
+        "priors/**",
+        "scripts/**/config_denovo.yaml",
+        "scripts/**/config_fragment.yaml",
+        "scripts/**/config_scaffold.yaml",
+        ]},
+    scripts=[
+        "scripts/a2c/a2c.py",
+        "scripts/ahc/ahc.py",
+        "scripts/ppo/ppo.py",
+        "scripts/reinvent/reinvent.py",
+        "scripts/pretrain/pretrain_single_node.py",
+        "scripts/pretrain/pretrain_distributed.py",
+    ],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
@@ -22,7 +26,11 @@ setup(
         "Programming Language :: Python :: 3.9",
     ],
     install_requires=[
-        # List your dependencies here
-    ],
-    python_requires=">=3.8",
+        "torch",
+        "tensordict",
+        "torchrl",
+        "tqdm",
+        "wandb",
+        "hydra-core"
+    ]
 )

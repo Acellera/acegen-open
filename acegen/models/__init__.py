@@ -1,4 +1,5 @@
-from pathlib import Path
+import tarfile
+from importlib import resources
 
 from acegen.models.gpt2 import (
     create_gpt2_actor,
@@ -18,39 +19,43 @@ from acegen.models.lstm import (
 from acegen.models.utils import adapt_state_dict
 from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2
 
+## Extract tarfiles
+def extract(path):
+    if not Path.exists():
+        tar_path = path.with_suffix(".tar.gz")
+        if tar_path.exists():
+            print("Extracting model checkpoint...")
+            with tarfile.open(tar_path, "r:gz") as tar:
+                tar.extractall()
+                return path
+        else:
+            raise FileNotFoundError(f"File {path} not found.")
+    else:
+        return path
+
 models = {
     "gru": (
         create_gru_actor,
         create_gru_critic,
         create_gru_actor_critic,
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "chembl_filtered_vocabulary.txt",
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "gru_chembl_filtered.ckpt",
+        resources.files("acegen.priors") / "chembl_filtered_vocabulary.txt",
+        resources.files("acegen.priors") / "gru_chembl_filtered.ckpt",
         SMILESTokenizer(),
     ),
     "lstm": (
         create_lstm_actor,
         create_lstm_critic,
         create_lstm_actor_critic,
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "chembl_vocabulary.txt",
-        Path(__file__).resolve().parent.parent.parent / "priors" / "lstm_chembl.ckpt",
+        resources.files("acegen.priors") / "chembl_vocabulary.txt",
+        resources.files("acegen.priors") / "lstm_chembl.ckpt",
         SMILESTokenizer(),
     ),
     "gpt2": (
         create_gpt2_actor,
         create_gpt2_critic,
         create_gpt2_actor_critic,
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "enamine_real_vocabulary.txt",
-        Path(__file__).resolve().parent.parent.parent
-        / "priors"
-        / "gpt2_enamine_real.ckpt",
+        resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
+        extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt"),
         SMILESTokenizer2(),
     ),
 }
