@@ -26,11 +26,13 @@ model: gru # gru, lstm, or gpt2
 # The default prior varies for each model. Refer to the README file in the root directory for more information.
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
 
-# AHC configuration
+# Optimizer configuration
 lr: 0.0001
 eps: 1.0e-08
-topk: 0.5
 weight_decay: 0.0
+
+# AHC configuration
+topk: 0.5
 sigma: 60
 
 # Replay configuration
