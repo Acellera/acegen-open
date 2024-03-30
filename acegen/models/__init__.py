@@ -1,5 +1,7 @@
+import logging
 import tarfile
 from importlib import resources
+from pathlib import Path
 
 from acegen.models.gpt2 import (
     create_gpt2_actor,
@@ -19,12 +21,13 @@ from acegen.models.lstm import (
 from acegen.models.utils import adapt_state_dict
 from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2
 
-## Extract tarfiles
+
 def extract(path):
+    """Extract tarfile if it exists."""
     if not Path.exists():
         tar_path = path.with_suffix(".tar.gz")
         if tar_path.exists():
-            print("Extracting model checkpoint...")
+            logging.info("Extracting model checkpoint...")
             with tarfile.open(tar_path, "r:gz") as tar:
                 tar.extractall()
                 return path
@@ -32,6 +35,7 @@ def extract(path):
             raise FileNotFoundError(f"File {path} not found.")
     else:
         return path
+
 
 models = {
     "gru": (
