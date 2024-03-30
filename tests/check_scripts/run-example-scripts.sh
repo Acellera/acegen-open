@@ -19,6 +19,7 @@ EOF
 # Check if the script is called with --help or without any arguments
 if [ "$1" == "--help" ]; then
     display_usage
+    exit 1
 fi
 
 # Initialize variables with default values
