@@ -3,8 +3,8 @@ import json
 import os
 import random
 import shutil
-from pathlib import Path
 from importlib import resources
+from pathlib import Path
 
 import hydra
 import numpy as np
@@ -12,14 +12,6 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-
-from acegen import SMILESEnv, SMILESVocabulary
-from acegen.models import (
-    adapt_state_dict,
-    create_gru_actor,
-    create_gru_actor_critic,
-    create_gru_critic,
-)
 from omegaconf import OmegaConf
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import (
@@ -42,6 +34,14 @@ from torchrl.modules.distributions import OneHotCategorical
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
 from torchrl.record.loggers import get_logger
 
+from acegen import SMILESEnv, SMILESVocabulary
+from acegen.models import (
+    adapt_state_dict,
+    create_gru_actor,
+    create_gru_actor_critic,
+    create_gru_critic,
+)
+
 
 try:
     import molscore
@@ -53,7 +53,11 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-@hydra.main(config_path=str(resources.files("acegen.scripts.sac")), config_name="pretrain_config", version_base="1.2")
+@hydra.main(
+    config_path=str(resources.files("acegen.scripts.sac")),
+    config_name="pretrain_config",
+    version_base="1.2",
+)
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -341,9 +345,8 @@ def main(cfg: "DictConfig"):
                     "train/reward": episode_rewards.mean().item(),
                     "train/min_reward": episode_rewards.min().item(),
                     "train/max_reward": episode_rewards.max().item(),
-                    "train/episode_length": episode_length.sum().item() / len(
-                        episode_length
-                    ),
+                    "train/episode_length": episode_length.sum().item()
+                    / len(episode_length),
                 }
             )
             if logger:
