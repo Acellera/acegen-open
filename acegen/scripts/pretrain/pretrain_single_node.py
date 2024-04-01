@@ -3,6 +3,7 @@ import os
 import random
 from glob import glob
 from pathlib import Path
+from importlib import resources
 
 import hydra
 import numpy as np
@@ -31,7 +32,7 @@ logging.basicConfig(
 )
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path=str(resources.files("acegen.scripts.pretrain")), config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Set seeds

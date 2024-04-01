@@ -3,7 +3,7 @@ import torch
 from acegen.models import adapt_state_dict, models
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary
-from tests.utils import get_default_devices
+from utils import get_default_devices
 from torchrl.collectors import RandomPolicy
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.envs.utils import step_mdp

@@ -5,6 +5,7 @@ import random
 import shutil
 from glob import glob
 from pathlib import Path
+from importlib import resources
 
 import hydra
 import numpy as np
@@ -62,7 +63,7 @@ def print_master(msg):
     barrier()
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(config_path=str(resources.files("acegen.scripts.pretrain")), config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Initialize processes

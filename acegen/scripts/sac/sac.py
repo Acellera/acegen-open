@@ -4,6 +4,7 @@ import os
 import random
 import shutil
 from pathlib import Path
+from importlib import resources
 
 import hydra
 import numpy as np
@@ -20,6 +21,7 @@ from acegen.models import (
     create_gru_critic,
 )
 from omegaconf import OmegaConf
+from torch.distributions.kl import kl_divergence
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import (
     LazyMemmapStorage,
@@ -52,7 +54,7 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-@hydra.main(config_path=".", config_name="pretrain_config", version_base="1.2")
+@hydra.main(config_path=str(resources.files("acegen.scripts.sac")), config_name="config", version_base="1.2")
 def main(cfg: "DictConfig"):
 
     # Save config
@@ -104,47 +106,53 @@ def main(cfg: "DictConfig"):
         )
     else:
         actor_training, actor_inference = create_gru_actor(
-            len(vocabulary),
-            distribution_class=OneHotCategorical,
+            len(vocabulary), distribution_class=OneHotCategorical
         )
         critic_training, critic_inference = create_gru_critic(
             len(vocabulary),
             critic_value_per_action=True,
             python_based=True,
+            dropout=0.01,
+            layer_norm=True,
         )
 
     # Load pretrained weights
-    ckpt = torch.load(
-        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior
+    ckpt_actor = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior_actor
     )
     actor_inference.load_state_dict(
-        adapt_state_dict(ckpt, actor_inference.state_dict())
+        adapt_state_dict(ckpt_actor, actor_inference.state_dict())
     )
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
+    actor_training.load_state_dict(
+        adapt_state_dict(ckpt_actor, actor_training.state_dict())
+    )
+
+    ckpt_critic = torch.load(
+        Path(__file__).resolve().parent.parent.parent / "priors" / cfg.prior_critic
+    )["critic"]
+    critic_inference.load_state_dict(
+        adapt_state_dict(ckpt_critic, critic_inference.state_dict())
+    )
+    critic_training.load_state_dict(
+        adapt_state_dict(ckpt_critic, critic_training.state_dict())
+    )
+
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
 
-    # Load weights
-    actor_inference.load_state_dict(
-        adapt_state_dict(ckpt, actor_inference.state_dict())
-    )
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
-
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
     critic_training = critic_training.to(device)
 
-    if not cfg.trainable_actor:
-        for param in actor_inference.parameters():
-            param.requires_grad = False
-        for param in actor_training.parameters():
-            param.requires_grad = False
+    prior, _ = create_gru_actor(len(vocabulary), distribution_class=OneHotCategorical)
+    prior.load_state_dict(adapt_state_dict(ckpt_actor, prior.state_dict()))
+    prior = prior.to(device)
 
     # Environment
     ####################################################################################################################
 
-    # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
+    # Create transform to populate initial tensordict with recurrent states equal to 0.0
     if cfg.shared_nets:
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
         rhs_primers = [TensorDictPrimer(primers)]
@@ -191,7 +199,7 @@ def main(cfg: "DictConfig"):
             env.append_transform(rhs_primer)
         return env
 
-    # tests rl_env
+    # tests env
     test_env = SMILESEnv(**env_kwargs)
 
     # Scoring transform - more efficient to do it outside the environment
@@ -199,8 +207,8 @@ def main(cfg: "DictConfig"):
 
     if not _has_molscore:
         raise RuntimeError(
-            "MolScore library not found, unable to create a scoring function. "
-            "MolScore can be installed from `https://github.com/MorganCThomas/MolScore`."
+            "MolScore library not found. Unable to create a scoring function. "
+            "To install MolScore, use: `pip install MolScore`"
         ) from MOLSCORE_ERR
 
     if cfg.molscore is None:
@@ -231,7 +239,7 @@ def main(cfg: "DictConfig"):
         total_frames=-1,
         device=device,
         storing_device=device,
-        reset_at_each_iter=True,
+        reset_at_each_iter=True,  # To avoid burn in issues
     )
 
     # Loss
@@ -259,20 +267,21 @@ def main(cfg: "DictConfig"):
     # burn_in = BurnInTransform(
     #     modules=(actor_training, critic_training), burn_in=cfg.burn_in
     # )
-    buffer = TensorDictReplayBuffer(
-        storage=LazyMemmapStorage(cfg.replay_buffer_size),
-        batch_size=cfg.batch_size,
-        prefetch=3,
-    )
-    # buffer = TensorDictPrioritizedReplayBuffer(
+    # buffer = TensorDictReplayBuffer(
     #     storage=LazyMemmapStorage(cfg.replay_buffer_size),
-    #     alpha=0.7,
-    #     beta=0.5,
-    #     pin_memory=False,
-    #     prefetch=3,
     #     batch_size=cfg.batch_size,
-    #     priority_key="loss_qvalue",
+    #     prefetch=3,
     # )
+    buffer = TensorDictPrioritizedReplayBuffer(
+        storage=LazyMemmapStorage(cfg.replay_buffer_size),
+        alpha=0.7,
+        beta=0.5,
+        pin_memory=False,
+        prefetch=3,
+        batch_size=cfg.batch_size,
+        priority_key="loss_qvalue",
+    )
+
     # buffer.append_transform(crop_seq)
     # buffer.append_transform(burn_in)
 
@@ -294,7 +303,7 @@ def main(cfg: "DictConfig"):
         logger = get_logger(
             cfg.logger_backend,
             logger_name="sac",
-            experiment_name=cfg.agent_name + "_pretrain",
+            experiment_name=cfg.agent_name,
             wandb_kwargs={"config": dict(cfg), "project": cfg.experiment_name},
         )
 
@@ -305,6 +314,7 @@ def main(cfg: "DictConfig"):
     collected_frames = 0
     num_updates = 0
     pbar = tqdm.tqdm(total=cfg.total_smiles)
+    kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
 
     for data in tqdm.tqdm(collector):
@@ -368,14 +378,24 @@ def main(cfg: "DictConfig"):
             batch = buffer.sample()
             if batch.device != device:
                 batch = batch.to(device, non_blocking=True)
+            else:
+                batch = batch.clone()
 
             loss = loss_module(batch)
             loss_sum = loss["loss_qvalue"]
             log_info.update({f"train/loss_qvalue": loss["loss_qvalue"].detach().item()})
 
             if num_updates % cfg.actor_updates_frequency == 0:
+                loss_sum += loss["loss_actor"] + loss["loss_alpha"]
+                with torch.no_grad():
+                    prior_dist = prior.get_dist(batch)
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+                mask = torch.isnan(kl_div) | torch.isinf(kl_div)
+                kl_div = kl_div[~mask].mean()
+                loss_sum += kl_div * kl_coef
                 log_info.update(
                     {
+                        "train/kl_div": kl_div.detach().item(),
                         "train/loss_actor": loss["loss_actor"].detach().item(),
                         "train/loss_alpha": loss["loss_alpha"].detach().item(),
                         "train/alpha": loss["alpha"].detach().item(),
@@ -398,17 +418,9 @@ def main(cfg: "DictConfig"):
 
             if logger:
                 for key, value in log_info.items():
-                    logger.log_scalar(key, value, collected_frames)
+                    logger.log_scalar(key, value)
 
         collector.update_policy_weights_()
-
-        if num_updates % 10_000 == 0:
-            torch.save(
-                {
-                    "critic": critic_training.state_dict(),
-                },
-                Path(save_dir) / f"ckpt_{num_updates}.pt",
-            )
 
     collector.shutdown()
     print("Success!")

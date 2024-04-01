@@ -7,7 +7,7 @@ from acegen.models.lstm import (
 )
 from acegen.models.utils import adapt_state_dict
 from tensordict import TensorDict
-from tests.utils import get_default_devices
+from utils import get_default_devices
 from torchrl.envs import TensorDictPrimer
 
 
