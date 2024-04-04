@@ -119,12 +119,7 @@ def run_ahc(cfg, task):
     # Create vocabulary
     ####################################################################################################################
 
-    with open(voc_path, "r") as f:
-        tokens = f.read().splitlines()
-    tokens_dict = dict(zip(tokens, range(len(tokens))))
-    vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, start_token="GO", end_token="EOS", tokenizer=tokenizer
-    )
+    vocabulary = SMILESVocabulary.load(voc_path, tokenizer=tokenizer)   
 
     # Create models
     ####################################################################################################################
