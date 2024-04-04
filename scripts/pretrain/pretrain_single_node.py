@@ -9,16 +9,16 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-from tensordict.utils import remove_duplicates
-from torch.utils.data import DataLoader
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
-from torchrl.record.loggers import get_logger
-from tqdm import tqdm
 
 from acegen.data import chem_utils, load_dataset, MolBloomDataset, SMILESDataset
 from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary, tokenizer_options
+from tensordict.utils import remove_duplicates
+from torch.utils.data import DataLoader
+from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.record.loggers import get_logger
+from tqdm import tqdm
 
 try:
     import wandb

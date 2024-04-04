@@ -11,6 +11,11 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
+
+from acegen.data import load_dataset, SMILESDataset
+from acegen.models import models as model_mapping
+from acegen.rl_env import generate_complete_smiles, SMILESEnv
+from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from rdkit import Chem
 from tensordict.utils import remove_duplicates
 from tokenizer import Tokenizer
@@ -21,11 +26,6 @@ from torch.utils.data.distributed import DistributedSampler
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
-
-from acegen.data import load_dataset, SMILESDataset
-from acegen.models import models as model_mapping
-from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 
 
 logging.basicConfig(

@@ -12,6 +12,14 @@ import numpy as np
 import torch
 import tqdm
 import yaml
+
+from acegen import SMILESEnv, SMILESVocabulary
+from acegen.models import (
+    adapt_state_dict,
+    create_gru_actor,
+    create_gru_actor_critic,
+    create_gru_critic,
+)
 from omegaconf import OmegaConf
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import (
@@ -33,14 +41,6 @@ from torchrl.envs import (
 from torchrl.modules.distributions import OneHotCategorical
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
 from torchrl.record.loggers import get_logger
-
-from acegen import SMILESEnv, SMILESVocabulary
-from acegen.models import (
-    adapt_state_dict,
-    create_gru_actor,
-    create_gru_actor_critic,
-    create_gru_critic,
-)
 
 
 try:

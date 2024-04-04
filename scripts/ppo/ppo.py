@@ -12,6 +12,11 @@ import numpy as np
 import torch
 import tqdm
 import yaml
+
+from acegen.models import adapt_state_dict, models
+from acegen.rl_env import generate_complete_smiles, SMILESEnv
+from acegen.scoring_functions import custom_scoring_functions, Task
+from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.utils import isin
@@ -27,11 +32,6 @@ from torchrl.envs import ExplorationType, InitTracker, TensorDictPrimer, Transfo
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
-
-from acegen.models import adapt_state_dict, models
-from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.scoring_functions import custom_scoring_functions, Task
-from acegen.vocabulary import SMILESVocabulary
 
 
 try:
