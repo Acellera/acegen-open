@@ -1,10 +1,10 @@
+#! /usr/bin/python3
 import datetime
 import json
 import os
 import random
 import shutil
 from copy import deepcopy
-from importlib import resources
 from pathlib import Path
 
 import hydra
@@ -43,7 +43,7 @@ except ImportError as err:
 
 
 @hydra.main(
-    config_path=str(resources.files("acegen.scripts.reinvent")),
+    config_path=".",
     config_name="config_denovo",
     version_base="1.2",
 )
@@ -83,7 +83,7 @@ def main(cfg: "DictConfig"):
                 include=cfg.molscore_include,
             )
             for task in MSB:
-                run_reinvent(cfg, task)
+                run_ahc(cfg, task)
         else:
             # Save molscore output. Also redirect output to save_dir
             cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -95,15 +95,15 @@ def main(cfg: "DictConfig"):
                 budget=cfg.total_smiles,
                 output_dir=os.path.abspath(save_dir),
             )
-            run_reinvent(cfg, task)
+            run_ahc(cfg, task)
     elif cfg.get("custom_task", None):
         task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
-        run_reinvent(cfg, task)
+        run_ahc(cfg, task)
     else:
         raise ValueError("No scoring function specified.")
 
 
-def run_reinvent(cfg, task):
+def run_ahc(cfg, task):
 
     # Get available device
     device = (
@@ -196,16 +196,10 @@ def run_reinvent(cfg, task):
 
     logger = None
     if cfg.logger_backend:
-        experiment_name = f"{cfg.agent_name}"
-        try:
-            experiment_name += f"_{task.configs.get('task')}"
-        except AttributeError:
-            experiment_name += "_custom_task"
-
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="reinvent",
-            experiment_name=experiment_name,
+            logger_name="ahc",
+            experiment_name=f"{cfg.agent_name}_{task.configs.get('task')}",
             wandb_kwargs={
                 "config": dict(cfg),
                 "project": cfg.experiment_name,
@@ -260,6 +254,10 @@ def run_reinvent(cfg, task):
             )
 
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
+        sscore, sscore_idxs = (
+            data_next["reward"][done].squeeze(-1).sort(descending=True)
+        )
+        loss = loss[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
 
         # Compute experience replay loss
         if (

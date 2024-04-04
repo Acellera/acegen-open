@@ -10,6 +10,14 @@
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
 agent_name="ppo_scaffold"
+if [ -z "$N_RUN" ]; then
+  echo "N_RUN is not set. Setting to default value of 1."
+  N_RUN=1
+fi
+if [ -z "$ACEGEN_MODEL" ]; then
+  echo "ACEGEN_MODEL is not set. Setting to default value of gru. Choose from [gru, lstm, gpt2]"
+  ACEGEN_MODEL="gru"
+fi
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
 python $PYTHONPATH/scripts/ppo/ppo.py --config-name config_scaffold \
@@ -18,7 +26,8 @@ python $PYTHONPATH/scripts/ppo/ppo.py --config-name config_scaffold \
   agent_name="$agent_name" \
   experience_replay=False \
   seed=$N_RUN \
-  log_dir="$agent_name"_seed"$N_RUN"
+  log_dir="$agent_name"_seed"$N_RUN" \
+  model=$ACEGEN_MODEL
 
 # Capture the exit status of the Python command
 exit_status=$?

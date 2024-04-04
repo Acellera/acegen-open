@@ -8,7 +8,7 @@ setup(
             "priors/**",
             "scripts/**/config_denovo.yaml",
             "scripts/**/config_fragment.yaml",
-            "scripts/**/config_scaffold.yaml",
+            "scripts/**/config_scaffold.#! /usr/bin/python3yaml",
         ]
     },
     scripts=[
