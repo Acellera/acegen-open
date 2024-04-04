@@ -1,6 +1,9 @@
 from copy import deepcopy
+from pathlib import Path
 
 import numpy as np
+
+import torch
 
 from acegen.vocabulary.base import Tokenizer, Vocabulary
 
@@ -271,7 +274,10 @@ class SMILESVocabulary(Vocabulary):
                 tokens = f.read().splitlines()
             tokens_dict = dict(zip(tokens, range(len(tokens))))
             vocabulary = SMILESVocabulary.create_from_dict(
-                tokens_dict, start_token=start_token, end_token=end_token, tokenizer=tokenizer
+                tokens_dict,
+                start_token=start_token,
+                end_token=end_token,
+                tokenizer=tokenizer,
             )
             return vocabulary
 

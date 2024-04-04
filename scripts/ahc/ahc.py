@@ -119,7 +119,7 @@ def run_ahc(cfg, task):
     # Create vocabulary
     ####################################################################################################################
 
-    vocabulary = SMILESVocabulary.load(voc_path, tokenizer=tokenizer)   
+    vocabulary = SMILESVocabulary.load(voc_path, tokenizer=tokenizer)
 
     # Create models
     ####################################################################################################################
