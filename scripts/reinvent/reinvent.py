@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 import datetime
 import json
 import os
@@ -12,6 +13,7 @@ import numpy as np
 import torch
 import tqdm
 import yaml
+
 from acegen.models import adapt_state_dict, models
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.scoring_functions import custom_scoring_functions, Task
@@ -40,7 +42,11 @@ except ImportError as err:
     MOLSCORE_ERR = err
 
 
-@hydra.main(config_path=".", config_name="config_denovo", version_base="1.2")
+@hydra.main(
+    config_path=".",
+    config_name="config_denovo",
+    version_base="1.2",
+)
 def main(cfg: "DictConfig"):
 
     # Set seeds
@@ -113,12 +119,7 @@ def run_reinvent(cfg, task):
     # Create vocabulary
     ####################################################################################################################
 
-    with open(voc_path, "r") as f:
-        tokens = f.read().splitlines()
-    tokens_dict = dict(zip(tokens, range(len(tokens))))
-    vocabulary = SMILESVocabulary.create_from_dict(
-        tokens_dict, start_token="GO", end_token="EOS", tokenizer=tokenizer
-    )
+    vocabulary = SMILESVocabulary.load(voc_path, tokenizer=tokenizer)
 
     # Create models
     ####################################################################################################################

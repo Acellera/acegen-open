@@ -6,7 +6,7 @@ from acegen.models.gpt2 import (
     create_gpt2_actor_critic,
     create_gpt2_critic,
 )
-from tests.utils import get_default_devices
+from utils import get_default_devices
 
 
 def generate_valid_data_batch(

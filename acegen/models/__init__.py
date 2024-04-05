@@ -24,7 +24,7 @@ from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2
 
 def extract(path):
     """Extract tarfile if it exists."""
-    if not Path.exists(path):
+    if not path.exists():
         tar_path = path.with_suffix(".tar.gz")
         if tar_path.exists():
             logging.info("Extracting model checkpoint...")

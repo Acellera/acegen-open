@@ -97,6 +97,16 @@ To run the training scripts for fragment linking, run the following commands (re
 
 To modify training parameters, edit the corresponding YAML file in each example's directory.
 
+#### Advanced usage
+
+Scripts are also available as executables after installation, but both the path and name of the config must be specified. For example,
+
+    ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml> 
+
+YAML config parameters can also be specified on the command line. For example,
+
+    ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml> total_smiles=100
+
 ---
 
 # Available models
