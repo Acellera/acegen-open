@@ -83,6 +83,7 @@ def main(cfg: "DictConfig"):
                 benchmark=cfg.molscore,
                 budget=cfg.total_smiles,
                 output_dir=os.path.abspath(save_dir),
+                add_benchmark_dir=False,
                 include=cfg.molscore_include,
             )
             for task in MSB:
@@ -97,6 +98,7 @@ def main(cfg: "DictConfig"):
                 task_config=cfg.molscore,
                 budget=cfg.total_smiles,
                 output_dir=os.path.abspath(save_dir),
+                add_run_dir=False,
             )
             run_ppo(cfg, task)
     elif cfg.get("custom_task", None):
