@@ -52,11 +52,11 @@ def main(cfg: "DictConfig"):
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
 
-    # Save the config
+    # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-    save_dir = f"{cfg.log_dir}_{timestamp_str}"
-    os.makedirs(save_dir)
+    save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
+    os.makedirs(save_dir, exist_ok=True)
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         yaml.dump(cfg_dict, yaml_file, default_flow_style=False)

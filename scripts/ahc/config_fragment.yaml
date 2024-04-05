@@ -2,7 +2,7 @@
 # Logging configuration
 experiment_name: acegen
 agent_name: ahc
-log_dir: logs_ahc
+log_dir: results
 logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
 

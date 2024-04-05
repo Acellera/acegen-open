@@ -1,7 +1,7 @@
 # Logging configuration
 experiment_name: acegen
 agent_name: reinvent
-log_dir: logs_reinvent
+log_dir: results
 logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
 
