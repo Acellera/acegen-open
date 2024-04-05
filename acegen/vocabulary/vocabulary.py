@@ -1,6 +1,9 @@
 from copy import deepcopy
+from pathlib import Path
 
 import numpy as np
+
+import torch
 
 from acegen.vocabulary.base import Tokenizer, Vocabulary
 
@@ -233,3 +236,55 @@ class SMILESVocabulary(Vocabulary):
         self.additional_chars = {
             char for char in self.chars if char not in self.special_tokens
         }
+
+    @classmethod
+    def load(
+        cls,
+        voc_path: Path,
+        start_token: str = "GO",
+        end_token: str = "EOS",
+        tokenizer: Tokenizer = None,
+    ):
+        """Loads a vocabulary from a file.
+
+        Depending on file extension the vocabulary will be loaded from a text file or a cktp file.
+
+        Args:
+            vocab (dict[str, int]): A dictionary mapping characters to indices.
+            start_token (str, optional): The start token. Defaults to "GO".
+            end_token (str, optional): The end token. Defaults to "EOS".
+            tokenizer (Tokenizer, optional): A tokenizer to use for tokenizing the SMILES. Defaults to None.
+                Any class that implements the tokenize and untokenize methods can be used.
+
+        Returns:
+            SMILESVocabulary: A vocabulary for the SMILES syntax.
+        """
+        if isinstance(voc_path, str):
+            voc_path = Path(voc_path)
+
+        if voc_path.suffix in [".ckpt", ".pt"]:
+            tokens = torch.load(voc_path)
+            vocabulary = cls()
+            vocabulary.load_state_dict(tokens)
+            vocabulary.tokenizer = tokenizer
+            return vocabulary
+
+        elif voc_path.suffix == ".txt":
+            with open(voc_path, "r") as f:
+                tokens = f.read().splitlines()
+            tokens_dict = dict(zip(tokens, range(len(tokens))))
+            vocabulary = SMILESVocabulary.create_from_dict(
+                tokens_dict,
+                start_token=start_token,
+                end_token=end_token,
+                tokenizer=tokenizer,
+            )
+            return vocabulary
+
+        elif voc_path.suffix == ".json":
+            raise NotImplementedError
+
+        else:
+            raise ValueError(
+                "File type not supported. Please use a .txt, .ckpt, or .pt file."
+            )

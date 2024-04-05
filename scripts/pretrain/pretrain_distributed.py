@@ -1,14 +1,17 @@
+#! /usr/bin/python3
 import datetime
 import logging
 import os
 import random
 import shutil
 from glob import glob
+from importlib import resources
 from pathlib import Path
 
 import hydra
 import numpy as np
 import torch
+
 from acegen.data import load_dataset, SMILESDataset
 from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
@@ -62,7 +65,11 @@ def print_master(msg):
     barrier()
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(
+    config_path=str(resources.files("acegen.scripts.pretrain")),
+    config_name="config",
+    version_base="1.2",
+)
 def main(cfg: "DictConfig"):
 
     # Initialize processes

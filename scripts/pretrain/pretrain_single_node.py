@@ -1,12 +1,15 @@
+#! /usr/bin/python3
 import logging
 import os
 import random
 from glob import glob
+from importlib import resources
 from pathlib import Path
 
 import hydra
 import numpy as np
 import torch
+
 from acegen.data import chem_utils, load_dataset, MolBloomDataset, SMILESDataset
 from acegen.models import models as model_mapping
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
@@ -31,7 +34,11 @@ logging.basicConfig(
 )
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.2")
+@hydra.main(
+    config_path=str(resources.files("acegen.scripts.pretrain")),
+    config_name="config",
+    version_base="1.2",
+)
 def main(cfg: "DictConfig"):
 
     # Set seeds
