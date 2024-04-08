@@ -285,7 +285,7 @@ def run_a2c(cfg, task):
 
         # Register smiles lengths and real rewards and total generated smiles
         log_info = {}
-        total_done += cfg.num_envs
+        total_done += done.sum().item()
         episode_rewards = data_next["reward"][done]
         episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
         if len(episode_rewards) > 0:

@@ -1,5 +1,4 @@
 # Logging configuration
-# Logging configuration
 experiment_name: acegen
 agent_name: ahc
 log_dir: results

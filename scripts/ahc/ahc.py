@@ -231,9 +231,9 @@ def run_ahc(cfg, task):
         )
 
         log_info = {}
-        total_done += cfg.num_envs
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
+        total_done += done.sum().item()
         pbar.update(done.sum().item())
 
         # Save info about smiles lengths and rewards

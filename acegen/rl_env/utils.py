@@ -194,20 +194,12 @@ def generate_complete_smiles(
                 )
             )
 
-        # Compute reward
-        reward = None
-        if scoring_function:
-            reward = torch.tensor(
-                scoring_function(smiles[-1]), device=env_device
-            ).unsqueeze(-1)
-
         if promptsmiles_multi:
             # Stack all promptsmiles iterations
             promptiterations = []
             for enc_smi in enc_smiles:
                 _output_data = smiles_to_tensordict(
                     enc_smi,
-                    reward=reward,
                     mask_value=-1,
                     replace_mask_value=vocabulary.end_token_index,
                     device=env_device,
@@ -234,7 +226,6 @@ def generate_complete_smiles(
             # Create tensordicts
             output_data = smiles_to_tensordict(
                 enc_smiles[ps_idx],
-                reward=reward,
                 mask_value=-1,
                 replace_mask_value=vocabulary.end_token_index,
                 device=env_device,
@@ -250,11 +241,24 @@ def generate_complete_smiles(
                 enc_smiles[-1][:, :-1].to(env_device),
             )
 
+        if remove_duplicates:
+            output_data = rdups(output_data, key="action")
+
         # For transformers-based policies
         output_data.set("sequence", output_data.get("observation"))
         output_data.set("sequence_mask", output_data.get("mask"))
         output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
         output_data.set(("next", "sequence_mask"), output_data.get(("next", "mask")))
+
+        # Compute rewards
+        if scoring_function:
+            smiles = output_data.get("action").cpu()
+            next_output_data = output_data.get("next")
+            done = next_output_data.get("done").squeeze(-1)
+            smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
+            next_output_data["reward"][done] = torch.tensor(
+                scoring_function(smiles_str), device=output_data.device
+            ).unsqueeze(-1)
 
         # Recompute policy log_prob
         if (
@@ -268,8 +272,6 @@ def generate_complete_smiles(
                     ),
                 )
 
-        if remove_duplicates:
-            output_data = rdups(output_data, key="action")
         return output_data
 
     # ----------------------------------------
@@ -389,6 +391,16 @@ def generate_complete_smiles(
         return smiles_str
 
     else:
+
+        # For transformers-based policies
+        output_data.set("sequence", output_data.get("observation"))
+        output_data.set("sequence_mask", output_data.get("mask"))
+        output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
+        output_data.set(("next", "sequence_mask"), output_data.get(("next", "mask")))
+
+        if remove_duplicates:
+            output_data = rdups(output_data, key="action")
+
         # Compute rewards
         if scoring_function:
             smiles = output_data.get("action").cpu()
@@ -399,14 +411,6 @@ def generate_complete_smiles(
                 scoring_function(smiles_str), device=output_data.device
             ).unsqueeze(-1)
 
-        # For transformers-based policies
-        output_data.set("sequence", output_data.get("observation"))
-        output_data.set("sequence_mask", output_data.get("mask"))
-        output_data.set(("next", "sequence"), output_data.get(("next", "observation")))
-        output_data.set(("next", "sequence_mask"), output_data.get(("next", "mask")))
-
-        if remove_duplicates:
-            output_data = rdups(output_data, key="action")
         return output_data
 
 
