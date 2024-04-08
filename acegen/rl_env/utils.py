@@ -194,7 +194,6 @@ def generate_complete_smiles(
                 )
             )
 
-
         if promptsmiles_multi:
             # Stack all promptsmiles iterations
             promptiterations = []
