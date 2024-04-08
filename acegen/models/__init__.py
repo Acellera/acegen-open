@@ -19,7 +19,7 @@ from acegen.models.lstm import (
     create_lstm_critic,
 )
 from acegen.models.utils import adapt_state_dict
-from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2
+from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2, SMILESTokenizer3
 
 
 def extract(path):
@@ -52,7 +52,7 @@ models = {
         create_gru_actor_critic,
         resources.files("acegen.priors") / "gru_guacamol_vocabulary.ckpt",
         resources.files("acegen.priors") / "gru_guacamol.ckpt",
-        SMILESTokenizer(),
+        SMILESTokenizer3(),
     ),
     "lstm": (
         create_lstm_actor,
