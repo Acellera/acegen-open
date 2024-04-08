@@ -179,7 +179,7 @@ def generate_complete_smiles(
                     warnings.warn(
                         f"Failed to encode {smi} with error {e}: ignoring invalid prompt"
                     )
-                    failed_encodings.append(i)
+                    failed_encodings.add(i)
                     tokens.append(torch.tensor(vocabulary.encode("")))
 
             enc_smiles.append(
