@@ -3,7 +3,6 @@ import datetime
 import logging
 import os
 import random
-import shutil
 from glob import glob
 from importlib import resources
 from pathlib import Path
@@ -33,6 +32,9 @@ logging.basicConfig(
     filename="pretraining.log",
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
+
+# hydra outputs saved in /tmp
+os.chdir("/tmp")
 
 
 # Wraps the actor into a module for DDP

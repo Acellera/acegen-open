@@ -44,6 +44,9 @@ except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
 
+# hydra outputs saved in /tmp
+os.chdir("/tmp")
+
 
 @hydra.main(
     config_path=".",

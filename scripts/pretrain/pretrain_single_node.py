@@ -33,6 +33,9 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
+# hydra outputs saved in /tmp
+os.chdir("/tmp")
+
 
 @hydra.main(
     config_path=str(resources.files("acegen.scripts.pretrain")),
