@@ -52,8 +52,6 @@ os.chdir("/tmp")
 )
 def main(cfg: "DictConfig"):
 
-    os.chdir(__path__)
-
     # Set seeds
     seed = cfg.seed
     random.seed(int(seed))
