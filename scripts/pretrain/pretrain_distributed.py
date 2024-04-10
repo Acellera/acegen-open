@@ -86,6 +86,7 @@ def main(cfg: "DictConfig"):
     # NOTE: this shouldn't be needed, but something is screwed down the stack
     torch.cuda.set_device(device)
 
+    os.chdir(os.path.dirname(__file__))
     if master:
         seed = cfg.seed
         random.seed(int(seed))

@@ -52,6 +52,8 @@ os.chdir("/tmp")
 )
 def main(cfg: "DictConfig"):
 
+    os.chdir(__path__)
+
     # Set seeds
     seed = cfg.seed
     random.seed(int(seed))
@@ -61,6 +63,7 @@ def main(cfg: "DictConfig"):
     # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
+    os.chdir(os.path.dirname(__file__))
     save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
     os.makedirs(save_dir, exist_ok=True)
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
