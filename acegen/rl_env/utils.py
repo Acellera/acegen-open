@@ -193,6 +193,8 @@ def generate_complete_smiles(
                     ]
                 )
             )
+        # Put back to correct order
+        enc_smiles = enc_smiles[::-1]
 
         if promptsmiles_multi:
             # Stack all promptsmiles iterations
@@ -211,7 +213,13 @@ def generate_complete_smiles(
                 )
                 # Fix failed encodings
                 if failed_encodings:
-                    _output_data.masked_fill_(torch.tensor(list(failed_encodings)), 0)
+                    failed_mask = torch.zeros(batch_size[0], dtype=torch.bool).to(
+                        env_device
+                    )
+                    failed_mask[list(failed_encodings)] = True
+                    _output_data["action"].masked_fill_(
+                        failed_mask.unsqueeze(-1).expand_as(_output_data["action"]), 0
+                    )
                 promptiterations.append(_output_data)
             output_data = torch.cat(promptiterations, dim=0).contiguous()
         else:
@@ -233,7 +241,13 @@ def generate_complete_smiles(
 
             # Fix failed encodings
             if failed_encodings:
-                output_data.masked_fill_(torch.tensor(list(failed_encodings)), 0)
+                failed_mask = torch.zeros(batch_size[0], dtype=torch.bool).to(
+                    env_device
+                )
+                failed_mask[list(failed_encodings)] = True
+                output_data["action"].masked_fill_(
+                    failed_mask.unsqueeze(-1).expand_as(output_data["action"]), 0
+                )
 
             # Add final completed promptsmiles for logging
             output_data.set(
@@ -256,9 +270,15 @@ def generate_complete_smiles(
             next_output_data = output_data.get("next")
             done = next_output_data.get("done").squeeze(-1)
             smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
-            next_output_data["reward"][done] = torch.tensor(
-                scoring_function(smiles_str), device=output_data.device
-            ).unsqueeze(-1)
+            try:
+                next_output_data["reward"][done] = torch.tensor(
+                    scoring_function(smiles_str), device=output_data.device
+                ).unsqueeze(-1)
+            except RuntimeError:
+                import pdb
+
+                pdb.set_trace()
+                pass
 
         # Recompute policy log_prob
         if (
@@ -291,7 +311,8 @@ def generate_complete_smiles(
                         raise ValueError(
                             f"Prompt {smi} is longer than max_length {max_length}."
                         )
-                    tokens.append(torch.tensor(ts))
+                    else:
+                        tokens.append(torch.tensor(ts))
                 # Prompt may contain tokens outside of the working vocabulary
                 except KeyError:
                     failed_encodings.append(i)
