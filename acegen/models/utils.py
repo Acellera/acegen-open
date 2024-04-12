@@ -32,3 +32,20 @@ def adapt_state_dict(source_state_dict: dict, target_state_dict: dict):
         target_state_dict[key_target] = value_source
 
     return target_state_dict
+
+
+def get_primers_from_module(module):
+    """Get all tensordict primers from all submodules of a module."""
+    primers = []
+
+    def make_primers(submodule):
+        if hasattr(submodule, "make_tensordict_primer"):
+            primers.append(submodule.make_tensordict_primer())
+
+    module.apply(make_primers)
+    if not primers:
+        import warnings
+
+        raise warnings.warn("No primers found in the module.")
+    else:
+        return primers
