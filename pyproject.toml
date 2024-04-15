@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acegen"
+version = "1.0"
+authors = [
+  { name="Albert Bou", email="albertbou92@gmail.com"},
+]
+description = "A torchrl RL framework for de novo drug design"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/Acellera/acegen-open"
+Issues = "https://github.com/Acellera/acegen-open/issues"
