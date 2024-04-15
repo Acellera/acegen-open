@@ -44,9 +44,6 @@ except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
 
-# hydra outputs saved in /tmp
-os.chdir("/tmp")
-
 
 @hydra.main(
     config_path=".",
@@ -64,7 +61,6 @@ def main(cfg: "DictConfig"):
     # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-    os.chdir(os.path.dirname(__file__))
     save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
     os.makedirs(save_dir, exist_ok=True)
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
@@ -128,7 +124,7 @@ def run_ppo(cfg, task):
             voc_path,
             ckpt_path,
             tokenizer,
-        ) = models[cfg.model]
+        ) = models[cfg.model](cfg)
     else:
         raise ValueError(f"Unknown model type: {cfg.model}")
 
@@ -153,10 +149,13 @@ def run_ppo(cfg, task):
         critic_training, critic_inference = create_critic(len(vocabulary))
 
     # Load pretrained weights
-    ckpt = torch.load(ckpt_path)
+    ckpt_path = cfg.get("model_weights", ckpt_path)
+    ckpt = torch.load(ckpt_path, map_location=device)
+    
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )
+
     actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
