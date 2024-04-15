@@ -44,5 +44,5 @@ ppo_clip: 0.5
 
 # Data replay configuration
 experience_replay: True # If True, the algorithm is PPO+D
-replay_batch_size: 16
+replay_batch_size: 24
 replay_buffer_size: 100
