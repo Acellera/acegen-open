@@ -34,7 +34,6 @@ lmbda: 1.0 # GAE
 critic_coef: 0.25
 entropy_coef: 0.01
 kl_coef: 0.001
-mini_batch_size: 88
 ppo_epochs: 3
 max_grad_norm: 0.25
 ppo_clip: 0.5

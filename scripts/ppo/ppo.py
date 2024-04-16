@@ -228,10 +228,11 @@ def run_ppo(cfg, task):
     # Create data storage
     ####################################################################################################################
 
+    mini_batch_size = cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay)
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_envs + cfg.replay_batch_size, device=device),
+        storage=LazyTensorStorage(cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay), device=device),
         sampler=SamplerWithoutReplacement(),
-        batch_size=cfg.mini_batch_size,
+        batch_size=mini_batch_size,
         prefetch=4,
     )
 
@@ -282,7 +283,7 @@ def run_ppo(cfg, task):
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = (cfg.num_envs + cfg.replay_batch_size) // cfg.mini_batch_size
+    num_mini_batches = (cfg.num_envs + cfg.replay_batch_size) // mini_batch_size
     losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
     while not task.finished:
