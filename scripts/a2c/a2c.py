@@ -319,7 +319,8 @@ def run_a2c(cfg, task):
             loss = loss_module(batch)
             loss = loss.named_apply(
                 lambda name, value: (
-                    (value * mask).mean() if name.startswith("loss_") else value
+                    # (value * mask).mean() if name.startswith("loss_") else value
+                    (value * mask).sum(-1).mean(-1) if name.startswith("loss_") else value
                 ),
                 batch_size=[],
             )
