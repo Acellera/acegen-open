@@ -230,7 +230,10 @@ def run_ppo(cfg, task):
 
     mini_batch_size = cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay)
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay), device=device),
+        storage=LazyTensorStorage(
+            cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay),
+            device=device,
+        ),
         sampler=SamplerWithoutReplacement(),
         batch_size=mini_batch_size,
         prefetch=4,
