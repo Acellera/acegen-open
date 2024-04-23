@@ -290,7 +290,7 @@ def compute_loss(data, model):
     agent_log_prob = get_log_prob(data, model)
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
-    loss = - agent_likelihood * reward
+    loss = -agent_likelihood * reward
 
     return data, loss
 
