@@ -1,6 +1,6 @@
 # Logging configuration
 experiment_name: acegen
-agent_name: reinvent
+agent_name: reinvereinforcnt
 log_dir: results
 logger_backend: null # csv, wandb, tensorboard, or null
 seed: 101
@@ -27,7 +27,7 @@ lr: 0.0001
 eps: 1.0e-08
 weight_decay: 0.0
 
-# Reinvent configuration
+# Reinforce configuration
 sigma: 120
 
 # Data replay configuration

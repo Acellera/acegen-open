@@ -10,12 +10,15 @@ num_envs: 128 # Number of smiles to generate in parallel
 total_smiles: 10_000
 
 # Scoring function
-molscore: MolOpt
-molscore_include: ["Albuterol_similarity"]
+molscore: LibINVENT_Exp1
+molscore_include: ["DRD2_SelRF_SubFilt_DF"]
 custom_task: null # Requires molscore to be set to null
 
-# Fix the beginning of the generated molecules
-prompt: null  # e.g. c1ccccc
+# Promptsmiles configuration
+promptsmiles: N1(*)CCN(CC1)CCCCN(*)
+promptsmiles_optimize: True
+promptsmiles_shuffle: True
+promptsmiles_multi: False
 
 # Architecture
 model: gru # gru, lstm, or gpt2
@@ -27,10 +30,3 @@ lr: 0.0001
 eps: 1.0e-08
 weight_decay: 0.0
 
-# Reinvent configuration
-sigma: 120
-
-# Data replay configuration
-replay_buffer_size: 100
-experience_replay: True
-replay_batch_size: 10
