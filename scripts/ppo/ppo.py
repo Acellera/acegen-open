@@ -55,61 +55,64 @@ os.chdir("/tmp")
 )
 def main(cfg: "DictConfig"):
 
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
+    if isinstance(cfg.seed, int):
+        cfg.seed = [cfg.seed]
 
-    # Save config
-    current_time = datetime.datetime.now()
-    timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-    os.chdir(os.path.dirname(__file__))
-    save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
-    os.makedirs(save_dir, exist_ok=True)
-    with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
-        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-        yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+    for seed in cfg.seed:
+        # Set seeds
+        random.seed(int(seed))
+        np.random.seed(int(seed))
+        torch.manual_seed(int(seed))
 
-    # Define training task and run
-    if cfg.get("molscore", None):
+        # Save config
+        current_time = datetime.datetime.now()
+        timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
+        os.chdir(os.path.dirname(__file__))
+        save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
+        os.makedirs(save_dir, exist_ok=True)
+        with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
+            cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+            yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-        if not _has_molscore:
-            raise RuntimeError(
-                "MolScore library not found. Unable to create a scoring function. "
-                "To install MolScore, use: `pip install MolScore`"
-            ) from MOLSCORE_ERR
+        # Define training task and run
+        if cfg.get("molscore", None):
 
-        if cfg.molscore in MolScoreBenchmark.presets:
-            MSB = MolScoreBenchmark(
-                model_name=cfg.agent_name,
-                model_parameters=dict(cfg),
-                benchmark=cfg.molscore,
-                budget=cfg.total_smiles,
-                output_dir=os.path.abspath(save_dir),
-                add_benchmark_dir=False,
-                include=cfg.molscore_include,
-            )
-            for task in MSB:
+            if not _has_molscore:
+                raise RuntimeError(
+                    "MolScore library not found. Unable to create a scoring function. "
+                    "To install MolScore, use: `pip install MolScore`"
+                ) from MOLSCORE_ERR
+
+            if cfg.molscore in MolScoreBenchmark.presets:
+                MSB = MolScoreBenchmark(
+                    model_name=cfg.agent_name,
+                    model_parameters=dict(cfg),
+                    benchmark=cfg.molscore,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    add_benchmark_dir=False,
+                    include=cfg.molscore_include,
+                )
+                for task in MSB:
+                    run_ppo(cfg, task)
+            else:
+                # Save molscore output. Also redirect output to save_dir
+                cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+                data = json.load(open(cfg.molscore, "r"))
+                json.dump(data, open(cfg.molscore, "w"), indent=4)
+                task = MolScore(
+                    model_name=cfg.agent_name,
+                    task_config=cfg.molscore,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    add_run_dir=False,
+                )
                 run_ppo(cfg, task)
-        else:
-            # Save molscore output. Also redirect output to save_dir
-            cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-            data = json.load(open(cfg.molscore, "r"))
-            json.dump(data, open(cfg.molscore, "w"), indent=4)
-            task = MolScore(
-                model_name=cfg.agent_name,
-                task_config=cfg.molscore,
-                budget=cfg.total_smiles,
-                output_dir=os.path.abspath(save_dir),
-                add_run_dir=False,
-            )
+        elif cfg.get("custom_task", None):
+            task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
             run_ppo(cfg, task)
-    elif cfg.get("custom_task", None):
-        task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
-        run_ppo(cfg, task)
-    else:
-        raise ValueError("No scoring function specified.")
+        else:
+            raise ValueError("No scoring function specified.")
 
 
 def run_ppo(cfg, task):
