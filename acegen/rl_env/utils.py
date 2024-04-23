@@ -270,15 +270,9 @@ def generate_complete_smiles(
             next_output_data = output_data.get("next")
             done = next_output_data.get("done").squeeze(-1)
             smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
-            try:
-                next_output_data["reward"][done] = torch.tensor(
-                    scoring_function(smiles_str), device=output_data.device
-                ).unsqueeze(-1)
-            except RuntimeError:
-                import pdb
-
-                pdb.set_trace()
-                pass
+            next_output_data["reward"][done] = torch.tensor(
+                scoring_function(smiles_str), device=output_data.device
+            ).unsqueeze(-1)
 
         # Recompute policy log_prob
         if (
