@@ -25,7 +25,6 @@ from torchrl.data import (
     LazyTensorStorage,
     PrioritizedSampler,
     TensorDictMaxValueWriter,
-    TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv

@@ -1,5 +1,8 @@
 __version__ = "1.0"
 
+from models import custom_models
+from scoring_functions import custom_scoring_functions, register_custom_scoring_function
+
 from acegen.models import (
     create_gpt2_actor,
     create_gpt2_actor_critic,

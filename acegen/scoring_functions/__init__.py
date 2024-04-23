@@ -19,25 +19,25 @@ def check_scoring_function(scoring_function):
             f"scoring_function must be a callable, got {type(scoring_function)}"
         )
 
-    # Check it accepts a single smiles and returns typing number of a tensor
-    if not isinstance(scoring_function("CCO"), (int, float, list, Tensor, ndarray)):
+    # Check it accepts a single smiles and returns a number, list, tensor or array
+    if not isinstance(scoring_function("CCO"), (float, list, Tensor, ndarray)):
         raise ValueError(
-            f"scoring_function must return a number, got {type(scoring_function('CCO'))}"
+            f"scoring_function must return a float, list, array or tensor, got {type(scoring_function('CCO'))}"
         )
 
-    # Check it accepts a single smiles and returns a list of number or a tensor
+    # Check it accepts multiple smiles and returns a list, a tensor or an array
     scores = scoring_function(["CCO", "CCC"])
     if not isinstance(scores, (list, Tensor, ndarray)):
         raise ValueError(
-            f"scoring_function must return a list of number, got {type(scoring_function(['CCO', 'CCC']))}"
+            f"scoring_function must return a list, array or tensor, got {type(scores)}"
         )
 
-    # If scores is a list, check that each element is a number
+    # If scores is a list, check that each element is a float
     if isinstance(scores, list):
         for score in scores:
-            if not isinstance(score, (int, float)):
+            if not isinstance(score, float):
                 raise ValueError(
-                    f"scoring_function must return a list of number, got {type(scoring_function(['CCO', 'CCC']))}"
+                    f"scoring_function must return a list of floats, got {type(score)}"
                 )
 
 
@@ -45,7 +45,7 @@ def register_custom_scoring_function(name, scoring_function):
     """Register a custom scoring function.
 
     Example:
-        >>> from acegen import register_custom_scoring_function, custom_scoring_functions
+        >>> from acegen.scoring_functions import register_custom_scoring_function, custom_scoring_functions
         >>> from my_module import my_scoring_function
         >>> register_custom_scoring_function("my_scoring_function", my_scoring_function)
         >>> custom_scoring_functions["my_scoring_function"]
