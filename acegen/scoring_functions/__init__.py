@@ -52,4 +52,3 @@ def register_custom_scoring_function(name, scoring_function):
     """
     check_scoring_function(scoring_function)
     custom_scoring_functions[name] = scoring_function
-
