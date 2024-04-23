@@ -149,6 +149,7 @@ class SMILESVocabulary(Vocabulary):
         tokenizer: Tokenizer,
         start_token: str = "GO",
         end_token: str = "EOS",
+        special_tokens: list = (),
     ):
         """Creates a vocabulary for the SMILES syntax.
 
@@ -157,6 +158,7 @@ class SMILESVocabulary(Vocabulary):
             tokenizer (Tokenizer): A tokenizer to use for tokenizing the SMILES.
             start_token (str, optional): The start token. Defaults to "GO".
             end_token (str, optional): The end token. Defaults to "EOS".
+            special_tokens (list, optional): A list of special tokens. Defaults to ().
 
         Returns:
             SMILESVocabulary: A vocabulary for the SMILES syntax.
@@ -165,6 +167,7 @@ class SMILESVocabulary(Vocabulary):
             start_token=start_token,
             end_token=end_token,
             tokenizer=tokenizer,
+            special_tokens=special_tokens,
         )
         tokens = set()
         for smi in smiles_list:

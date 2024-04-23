@@ -84,6 +84,52 @@ class SMILESTokenizer:
         return smi
 
 
+class SMILESTokenizer3:
+    """Deals with the tokenization and untokenization of SMILES."""
+
+    GRAMMAR = "SMILES"
+
+    def __init__(self, start_token="GO", end_token="EOS"):
+        self.REGEXPS = {
+            "brackets": re.compile(r"(\[[^\]]*\])"),
+            "brcl": re.compile(r"(Br|Cl)"),
+        }
+        self.REGEXP_ORDER = ["brackets", "brcl"]
+        self.start_token = start_token
+        self.end_token = end_token
+
+    def tokenize(self, data, with_begin_and_end=False):
+        """Tokenizes a SMILES string."""
+
+        def split_by(data, regexps):
+            if not regexps:
+                return list(data)
+            regexp = self.REGEXPS[regexps[0]]
+            splitted = regexp.split(data)
+            tokens = []
+            for i, split in enumerate(splitted):
+                if i % 2 == 0:
+                    tokens += split_by(split, regexps[1:])
+                else:
+                    tokens.append(split)
+            return tokens
+
+        tokens = split_by(data, self.REGEXP_ORDER)
+        if with_begin_and_end:
+            tokens = [self.start_token] + tokens + [self.end_token]
+        return tokens
+
+    def untokenize(self, tokens, **kwargs):
+        """Untokenizes a SMILES string."""
+        smi = ""
+        for token in tokens:
+            if token == self.end_token:
+                break
+            if token != self.start_token:
+                smi += token
+        return smi
+
+
 class SMILESTokenizer2:
     """Deals with the tokenization and untokenization of SMILES."""
 
