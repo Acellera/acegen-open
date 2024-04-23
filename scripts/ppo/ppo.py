@@ -109,7 +109,9 @@ def main(cfg: "DictConfig"):
                 )
                 run_ppo(cfg, task)
         elif cfg.get("custom_task", None):
-            task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
+            task = Task(
+                custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles
+            )
             run_ppo(cfg, task)
         else:
             raise ValueError("No scoring function specified.")
