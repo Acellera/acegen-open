@@ -44,16 +44,6 @@ except ImportError as err:
 os.chdir("/tmp")
 
 
-from acegen.scoring_functions import (
-    custom_scoring_functions,
-    register_custom_scoring_function,
-)
-
-my_scoring_function = lambda x: [float(1)] * len(x)
-register_custom_scoring_function("my_scoring_function", my_scoring_function)
-custom_scoring_functions["my_scoring_function"]
-
-
 @hydra.main(
     config_path=".",
     config_name="config_denovo",

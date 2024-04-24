@@ -3,7 +3,7 @@ experiment_name: acegen
 agent_name: reinvent
 log_dir: results
 logger_backend: null # csv, wandb, tensorboard, or null
-seed: 101
+seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
 
 # Environment configuration
 num_envs: 128 # Number of smiles to generate in parallel
@@ -29,11 +29,3 @@ model: gru # gru, lstm, or gpt2
 lr: 0.0001
 eps: 1.0e-08
 weight_decay: 0.0
-
-# Reinforce configuration
-sigma: 120
-
-# Data replay configuration
-replay_buffer_size: 100
-experience_replay: True
-replay_batch_size: 10
