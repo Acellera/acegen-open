@@ -109,7 +109,8 @@ def main(cfg: "DictConfig"):
                 run_reinforce(cfg, task)
         elif cfg.get("custom_task", None):
             task = Task(
-                custom_scoring_functions[cfg.custom_task],
+                name=cfg.custom_task,
+                scoring_function=custom_scoring_functions[cfg.custom_task],
                 budget=cfg.total_smiles,
                 output_dir=save_dir,
             )
@@ -197,7 +198,6 @@ def run_reinforce(cfg, task):
             experiment_name += f"_{task.configs.get('task')}"
         except AttributeError:
             experiment_name += "_custom_task"
-
         logger = get_logger(
             cfg.logger_backend,
             logger_name=cfg.save_dir,

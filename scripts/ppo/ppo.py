@@ -113,7 +113,8 @@ def main(cfg: "DictConfig"):
                 run_ppo(cfg, task)
         elif cfg.get("custom_task", None):
             task = Task(
-                custom_scoring_functions[cfg.custom_task],
+                name=cfg.custom_task,
+                scoring_function=custom_scoring_functions[cfg.custom_task],
                 budget=cfg.total_smiles,
                 output_dir=save_dir,
             )
@@ -276,10 +277,15 @@ def run_ppo(cfg, task):
 
     logger = None
     if cfg.logger_backend:
+        experiment_name = f"{cfg.agent_name}"
+        try:
+            experiment_name += f"_{task.configs.get('task')}"
+        except AttributeError:
+            experiment_name += "_custom_task"
         logger = get_logger(
             cfg.logger_backend,
             logger_name=cfg.save_dir,
-            experiment_name=f"{cfg.agent_name}_{task.configs.get('task')}",
+            experiment_name=experiment_name,
             wandb_kwargs={
                 "config": dict(cfg),
                 "project": cfg.experiment_name,
