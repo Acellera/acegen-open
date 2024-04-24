@@ -2,7 +2,7 @@
 experiment_name: acegen
 agent_name: ppo
 log_dir: results
-logger_backend: null # csv, wandb, tensorboard, or null
+logger_backend: null  # wandb, tensorboard, or null
 seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
 
 # Environment configuration

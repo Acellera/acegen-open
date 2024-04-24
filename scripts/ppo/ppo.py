@@ -17,7 +17,7 @@ from acegen.models import adapt_state_dict, models
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.scoring_functions import custom_scoring_functions, Task
 from acegen.vocabulary import SMILESVocabulary
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from tensordict import TensorDict
 from tensordict.utils import isin
 from torch.distributions.kl import kl_divergence
@@ -59,16 +59,19 @@ def main(cfg: "DictConfig"):
         cfg.seed = [cfg.seed]
 
     for seed in cfg.seed:
-        # Set seeds
+
+        # Set seed
         random.seed(int(seed))
         np.random.seed(int(seed))
         torch.manual_seed(int(seed))
 
-        # Save config
+        # Define save_dir and save config
         current_time = datetime.datetime.now()
         timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
         os.chdir(os.path.dirname(__file__))
         save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
+        with open_dict(cfg):
+            cfg.save_dir = save_dir
         os.makedirs(save_dir, exist_ok=True)
         with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
             cfg_dict = OmegaConf.to_container(cfg, resolve=True)
@@ -110,7 +113,9 @@ def main(cfg: "DictConfig"):
                 run_ppo(cfg, task)
         elif cfg.get("custom_task", None):
             task = Task(
-                custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles
+                custom_scoring_functions[cfg.custom_task],
+                budget=cfg.total_smiles,
+                output_dir=save_dir,
             )
             run_ppo(cfg, task)
         else:
@@ -273,7 +278,7 @@ def run_ppo(cfg, task):
     if cfg.logger_backend:
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="ppo",
+            logger_name=cfg.save_dir,
             experiment_name=f"{cfg.agent_name}_{task.configs.get('task')}",
             wandb_kwargs={
                 "config": dict(cfg),
