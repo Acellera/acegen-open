@@ -172,18 +172,6 @@ def run_reinforce(cfg, task):
 
     env = create_env_fn()
 
-    # Create replay buffer
-    ####################################################################################################################
-
-    storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
-    experience_replay_buffer = TensorDictReplayBuffer(
-        storage=storage,
-        sampler=PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0),
-        batch_size=cfg.replay_batch_size,
-        writer=TensorDictMaxValueWriter(rank_key="priority"),
-        priority_key="priority",
-    )
-
     # Create optimizer
     ####################################################################################################################
 
