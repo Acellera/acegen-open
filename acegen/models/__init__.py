@@ -104,5 +104,6 @@ if clms_available:
 
     models["clm"] = clm_model_factory
 
-    
+def register_model(name, factory):
+    models[name] = factory
 
