@@ -2,8 +2,8 @@
 experiment_name: acegen
 agent_name: reinvent
 log_dir: results
-logger_backend: null # csv, wandb, tensorboard, or null
-seed: 101
+logger_backend: null  # wandb, tensorboard, or null
+seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
 
 # Environment configuration
 num_envs: 128 # Number of smiles to generate in parallel
@@ -18,7 +18,7 @@ custom_task: null # Requires molscore to be set to null
 promptsmiles: N1(*)CCN(CC1)CCCCN(*)
 promptsmiles_optimize: True
 promptsmiles_shuffle: True
-promptsmiles_multi: True
+promptsmiles_multi: False
 
 # Architecture
 model: gru # gru, lstm, or gpt2

@@ -2,8 +2,8 @@
 experiment_name: acegen
 agent_name: ppo
 log_dir: results
-logger_backend: null # csv, wandb, tensorboard, or null
-seed: 101
+logger_backend: null  # wandb, tensorboard, or null
+seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
 
 # Environment configuration
 num_envs: 64 # Number of smiles to generate in parallel
@@ -34,7 +34,6 @@ lmbda: 1.0 # GAE
 critic_coef: 0.25
 entropy_coef: 0.01
 kl_coef: 0.001
-mini_batch_size: 88
 ppo_epochs: 3
 max_grad_norm: 0.25
 ppo_clip: 0.5

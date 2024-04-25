@@ -18,14 +18,13 @@ from acegen.models import adapt_state_dict, models
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.scoring_functions import custom_scoring_functions, Task
 from acegen.vocabulary import SMILESVocabulary
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from tensordict.utils import isin
 
 from torchrl.data import (
     LazyTensorStorage,
     PrioritizedSampler,
     TensorDictMaxValueWriter,
-    TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
@@ -52,61 +51,72 @@ os.chdir("/tmp")
 )
 def main(cfg: "DictConfig"):
 
-    # Set seeds
-    seed = cfg.seed
-    random.seed(int(seed))
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
+    if isinstance(cfg.seed, int):
+        cfg.seed = [cfg.seed]
 
-    # Save config
-    current_time = datetime.datetime.now()
-    timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-    os.chdir(os.path.dirname(__file__))
-    save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
-    os.makedirs(save_dir, exist_ok=True)
-    with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
-        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-        yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
+    for seed in cfg.seed:
 
-    # Define training task and run
-    if cfg.get("molscore", None):
+        # Set seed
+        random.seed(int(seed))
+        np.random.seed(int(seed))
+        torch.manual_seed(int(seed))
 
-        if not _has_molscore:
-            raise RuntimeError(
-                "MolScore library not found. Unable to create a scoring function. "
-                "To install MolScore, use: `pip install MolScore`"
-            ) from MOLSCORE_ERR
+        # Define save_dir and save config
+        current_time = datetime.datetime.now()
+        timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
+        os.chdir(os.path.dirname(__file__))
+        save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
+        with open_dict(cfg):
+            cfg.save_dir = save_dir
+        os.makedirs(save_dir, exist_ok=True)
+        with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
+            cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+            yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
-        if cfg.molscore in MolScoreBenchmark.presets:
-            MSB = MolScoreBenchmark(
-                model_name=cfg.agent_name,
-                model_parameters=dict(cfg),
-                benchmark=cfg.molscore,
-                budget=cfg.total_smiles,
-                output_dir=os.path.abspath(save_dir),
-                add_benchmark_dir=False,
-                include=cfg.molscore_include,
-            )
-            for task in MSB:
+        # Define training task and run
+        if cfg.get("molscore", None):
+
+            if not _has_molscore:
+                raise RuntimeError(
+                    "MolScore library not found. Unable to create a scoring function. "
+                    "To install MolScore, use: `pip install MolScore`"
+                ) from MOLSCORE_ERR
+
+            if cfg.molscore in MolScoreBenchmark.presets:
+                MSB = MolScoreBenchmark(
+                    model_name=cfg.agent_name,
+                    model_parameters=dict(cfg),
+                    benchmark=cfg.molscore,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    add_benchmark_dir=False,
+                    include=cfg.molscore_include,
+                )
+                for task in MSB:
+                    run_ahc(cfg, task)
+            else:
+                # Save molscore output. Also redirect output to save_dir
+                cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+                data = json.load(open(cfg.molscore, "r"))
+                json.dump(data, open(cfg.molscore, "w"), indent=4)
+                task = MolScore(
+                    model_name=cfg.agent_name,
+                    task_config=cfg.molscore,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    add_run_dir=False,
+                )
                 run_ahc(cfg, task)
-        else:
-            # Save molscore output. Also redirect output to save_dir
-            cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-            data = json.load(open(cfg.molscore, "r"))
-            json.dump(data, open(cfg.molscore, "w"), indent=4)
-            task = MolScore(
-                model_name=cfg.agent_name,
-                task_config=cfg.molscore,
+        elif cfg.get("custom_task", None):
+            task = Task(
+                name=cfg.custom_task,
+                scoring_function=custom_scoring_functions[cfg.custom_task],
                 budget=cfg.total_smiles,
-                output_dir=os.path.abspath(save_dir),
-                add_run_dir=False,
+                output_dir=save_dir,
             )
             run_ahc(cfg, task)
-    elif cfg.get("custom_task", None):
-        task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
-        run_ahc(cfg, task)
-    else:
-        raise ValueError("No scoring function specified.")
+        else:
+            raise ValueError("No scoring function specified.")
 
 
 def run_ahc(cfg, task):
@@ -197,10 +207,15 @@ def run_ahc(cfg, task):
 
     logger = None
     if cfg.logger_backend:
+        experiment_name = f"{cfg.agent_name}"
+        try:
+            experiment_name += f"_{task.configs.get('task')}"
+        except AttributeError:
+            experiment_name += "_custom_task"
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="ahc",
-            experiment_name=f"{cfg.agent_name}_{task.configs.get('task')}",
+            logger_name=cfg.save_dir,
+            experiment_name=experiment_name,
             wandb_kwargs={
                 "config": dict(cfg),
                 "project": cfg.experiment_name,

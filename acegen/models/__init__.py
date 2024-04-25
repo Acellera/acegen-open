@@ -20,7 +20,11 @@ from acegen.models.lstm import (
     create_lstm_critic,
 )
 from acegen.models.utils import adapt_state_dict
-from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2
+from acegen.vocabulary.tokenizers import (
+    SMILESTokenizer,
+    SMILESTokenizer2,
+    SMILESTokenizer3,
+)
 
 try:
     from clms.models.vocabulary import AsciiSMILESTokenizer

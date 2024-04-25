@@ -6,6 +6,7 @@ from acegen.vocabulary.tokenizers import (
     SELFIESTokenizer,
     SMILESTokenizer,
     SMILESTokenizer2,
+    SMILESTokenizer3,
 )
 from acegen.vocabulary.vocabulary import SMILESVocabulary
 
@@ -16,4 +17,5 @@ tokenizer_options = {
     "SELFIESTokenizer": SELFIESTokenizer,
     "SMILESTokenizer": SMILESTokenizer,
     "SMILESTokenizer2": SMILESTokenizer2,
+    "SMILESTokenizer3": SMILESTokenizer3,
 }

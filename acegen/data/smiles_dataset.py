@@ -4,9 +4,10 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from rdkit import Chem
 from torch.utils.data import Dataset
 from tqdm import tqdm
+
+from acegen.data import chem_utils
 
 from acegen.data.utils import smiles_to_tensordict
 
@@ -65,11 +66,19 @@ class MolBloomDataset:
 class SMILESDataset(Dataset):
     """Dataset that takes a list of smiles."""
 
-    def __init__(self, cache_path, dataset_path, vocabulary, randomize_smiles=False):
+    def __init__(
+        self,
+        cache_path,
+        dataset_path,
+        vocabulary,
+        randomize_smiles=False,
+        randomize_type="restricted",
+    ):
 
         self.vocabulary = vocabulary
         self.dataset_path = dataset_path
         self.randomize_smiles = randomize_smiles
+        self.randomize_type = randomize_type
         self.bloom_filter = None
         os.makedirs(cache_path, exist_ok=True)
 
@@ -160,8 +169,8 @@ class SMILESDataset(Dataset):
         if self.randomize_smiles:
             smiles_string = self.vocabulary.decode(smiles.tolist())
             try:
-                equivalent_sample = Chem.MolToSmiles(
-                    Chem.MolFromSmiles(smiles_string), doRandom=True, canonical=False
+                equivalent_sample = chem_utils.randomize_smiles(
+                    smiles_string, random_type=self.randomize_type
                 )
                 smiles = torch.tensor(
                     self.vocabulary.encode(equivalent_sample), dtype=torch.int64
