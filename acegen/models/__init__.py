@@ -26,19 +26,6 @@ from acegen.vocabulary.tokenizers import (
     SMILESTokenizer3,
 )
 
-try:
-    from clms.models.vocabulary import AsciiSMILESTokenizer
-    from acegen.models.clms import (
-        create_clm_actor,
-        create_clm_actor_critic,
-        create_clm_critic
-    )
-    clms_available = True
-except: 
-    print("CLMS models not available.")
-    clms_available = False
-    pass
-
 def extract(path):
     """Extract tarfile if it exists."""
     if not path.exists():
@@ -90,19 +77,6 @@ models = {
     "gpt2": gpt2_model_factory,
 }
 
-# Add CLM models if available
-if clms_available:
-    def clm_model_factory(cfg, *args, **kwargs):
-        return (
-            partial(create_clm_actor, cfg),
-            partial(create_clm_critic, cfg),
-            partial(create_clm_actor_critic, cfg),
-            resources.files("acegen.priors") / "ascii.pt",
-            None,
-            AsciiSMILESTokenizer(),
-        )
-
-    models["clm"] = clm_model_factory
 
 def register_model(name, factory):
     models[name] = factory
