@@ -34,6 +34,17 @@ def fraction_valid(mol_list):
     return np.mean(parsed_mols)
 
 
+def randomize_smiles(smiles, random_type="restricted"):
+    """Randomize a SMILES string using restricted or unrestricted randomization."""
+    mol = get_mol(smiles)
+    if random_type == "restricted":
+        return Chem.MolToSmiles(mol, doRandom=True, canonical=True)
+    elif random_type == "unrestricted":
+        return Chem.MolToSmiles(mol, doRandom=True, canonical=False)
+    else:
+        raise ValueError(f"Invalid randomization type: {random_type}")
+
+
 def draw(mol_list, molsPerRow=5, subImgSize=(300, 300)):
     """Create a grid image of molecules from a list of SMILES strings or Mols."""
     mols = [get_mol(mol) for mol in mol_list]

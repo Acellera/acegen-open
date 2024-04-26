@@ -38,7 +38,7 @@ os.chdir("/tmp")
 
 
 @hydra.main(
-    config_path=str(resources.files("acegen.scripts.pretrain")),
+    config_path=".",
     config_name="config",
     version_base="1.2",
 )
@@ -58,6 +58,7 @@ def main(cfg: "DictConfig"):
     vocabulary = SMILESVocabulary.create_from_smiles(
         load_dataset(cfg.train_dataset_path),
         tokenizer=tokenizer_options[cfg.tokenizer](),
+        special_tokens=cfg.get("special_tokens", []),
     )
     save_path = Path(cfg.model_log_dir) / "vocabulary.ckpt"
     torch.save(vocabulary.state_dict(), save_path)

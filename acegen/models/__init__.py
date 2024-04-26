@@ -1,6 +1,6 @@
 import logging
 import tarfile
-from importlib import resources
+from importlib import resources, import_module
 from pathlib import Path
 from functools import partial
 
@@ -20,20 +20,11 @@ from acegen.models.lstm import (
     create_lstm_critic,
 )
 from acegen.models.utils import adapt_state_dict
-from acegen.vocabulary.tokenizers import SMILESTokenizer, SMILESTokenizer2
-
-try:
-    from clms.models.vocabulary import AsciiSMILESTokenizer
-    from acegen.models.clms import (
-        create_clm_actor,
-        create_clm_actor_critic,
-        create_clm_critic
-    )
-    clms_available = True
-except: 
-    print("CLMS models not available.")
-    clms_available = False
-    pass
+from acegen.vocabulary.tokenizers import (
+    SMILESTokenizer,
+    SMILESTokenizer2,
+    SMILESTokenizer3,
+)
 
 def extract(path):
     """Extract tarfile if it exists."""
@@ -86,19 +77,11 @@ models = {
     "gpt2": gpt2_model_factory,
 }
 
-# Add CLM models if available
-if clms_available:
-    def clm_model_factory(cfg, *args, **kwargs):
-        return (
-            partial(create_clm_actor, cfg),
-            partial(create_clm_critic, cfg),
-            partial(create_clm_actor_critic, cfg),
-            resources.files("acegen.priors") / "ascii.pt",
-            None,
-            AsciiSMILESTokenizer(),
-        )
 
-    models["clm"] = clm_model_factory
-
-    
+def register_model(name, factory):
+    """Register a model factory."""
+    if isinstance(factory, str):   
+        m, f = factory.rsplit('.', 1)
+        factory = getattr(import_module(m), f)
+    models[name] = factory
 

@@ -1,38 +1,31 @@
 # Logging configuration
 experiment_name: acegen
-agent_name: a2c
+agent_name: reinvent
 log_dir: results
 logger_backend: null  # wandb, tensorboard, or null
 seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
 
 # Environment configuration
-num_envs: 16 # Number of smiles to generate in parallel
+num_envs: 128 # Number of smiles to generate in parallel
 total_smiles: 10_000
 
 # Scoring function
-molscore: MolOpt
-molscore_include: ["Albuterol_similarity"]
+molscore: LibINVENT_Exp1
+molscore_include: ["DRD2_SelRF_SubFilt_DF"]
 custom_task: null # Requires molscore to be set to null
 
-# Fix the beginning of the generated molecules
-prompt: null  # e.g. c1ccccc
+# Promptsmiles configuration
+promptsmiles: N1(*)CCN(CC1)CCCCN(*)
+promptsmiles_optimize: True
+promptsmiles_shuffle: True
+promptsmiles_multi: False
 
-# Architecture configuration
-shared_nets: False
+# Architecture
 model: gru # gru, lstm, or gpt2
 # The default prior varies for each model. Refer to the README file in the root directory for more information.
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
 
 # Optimizer configuration
 lr: 0.0001
-eps: 1.0e-06
+eps: 1.0e-08
 weight_decay: 0.0
-
-# A2C configuration
-gamma: 0.999
-lmbda: 0.99
-critic_coef: 0.5
-entropy_coef: 0.05
-kl_coef: 0.1
-mini_batch_size: 16
-max_grad_norm: 0.5

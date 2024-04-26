@@ -4,6 +4,7 @@ import json
 import os
 import random
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 import hydra
@@ -18,14 +19,15 @@ from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.scoring_functions import custom_scoring_functions, Task
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
-from tensordict import TensorDict
-from torch.distributions.kl import kl_divergence
-from torchrl.data import LazyTensorStorage, TensorDictReplayBuffer
-from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+from tensordict.utils import isin
 
+from torchrl.data import (
+    LazyTensorStorage,
+    PrioritizedSampler,
+    TensorDictMaxValueWriter,
+    TensorDictReplayBuffer,
+)
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
-from torchrl.objectives import A2CLoss
-from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
 
 try:
@@ -91,7 +93,7 @@ def main(cfg: "DictConfig"):
                     include=cfg.molscore_include,
                 )
                 for task in MSB:
-                    run_a2c(cfg, task)
+                    run_reinforce(cfg, task)
             else:
                 # Save molscore output. Also redirect output to save_dir
                 cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -104,7 +106,7 @@ def main(cfg: "DictConfig"):
                     output_dir=os.path.abspath(save_dir),
                     add_run_dir=False,
                 )
-                run_a2c(cfg, task)
+                run_reinforce(cfg, task)
         elif cfg.get("custom_task", None):
             task = Task(
                 name=cfg.custom_task,
@@ -112,12 +114,12 @@ def main(cfg: "DictConfig"):
                 budget=cfg.total_smiles,
                 output_dir=save_dir,
             )
-            run_a2c(cfg, task)
+            run_reinforce(cfg, task)
         else:
             raise ValueError("No scoring function specified.")
 
 
-def run_a2c(cfg, task):
+def run_reinforce(cfg, task):
 
     # Get available device
     device = (
@@ -130,14 +132,7 @@ def run_a2c(cfg, task):
     else:
         raise ValueError(f"Model {cfg.model} not found. For custom models, create and register a model factory.")
 
-    (
-        create_actor,
-        create_critic,
-        create_shared,
-        voc_path,
-        ckpt_path,
-        tokenizer
-    ) = models[cfg.model](cfg)
+    create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model](cfg)
 
     # Create vocabulary
     ####################################################################################################################
@@ -147,52 +142,26 @@ def run_a2c(cfg, task):
     # Create models
     ####################################################################################################################
 
-    # Create actor and critic networks
-    if cfg.shared_nets:
-        (
-            actor_training,
-            actor_inference,
-            critic_training,
-            critic_inference,
-        ) = create_shared(vocabulary_size=len(vocabulary))
-    else:
-        actor_training, actor_inference = create_actor(len(vocabulary))
-        critic_training, critic_inference = create_critic(len(vocabulary))
-
-    # Load pretrained weights
     ckpt_path = cfg.get("model_weights", ckpt_path)
-    ckpt = torch.load(ckpt_path, map_location=device)
+    ckpt = torch.load(ckpt_path)
 
+    actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )
     actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
-    critic_training = critic_training.to(device)
-
-    # Define prior
-    prior, _ = create_actor(len(vocabulary))
-    prior = prior.to(device)
-    prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
 
     # Create RL environment
     ####################################################################################################################
 
+    # For RNNs, create a transform to populate initial tensordict with recurrent states equal to 0.0
     rhs_primers = []
-    # if rnn's, create a transform to populate initial tensordict with recurrent states equal to 0.0
-    if cfg.shared_nets and hasattr(actor_training, "rnn_spec"):
+    if hasattr(actor_training, "rnn_spec"):
         primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers = [TensorDictPrimer(primers)]
-    elif hasattr(actor_training, "rnn_spec"):
-        actor_primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        critic_primers = critic_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers = [
-            TensorDictPrimer(actor_primers),
-            TensorDictPrimer(critic_primers),
-        ]
+        rhs_primers.append(TensorDictPrimer(primers))
 
-    # Define environment kwargs
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
         "end_token": vocabulary.end_token_index,
@@ -201,7 +170,6 @@ def run_a2c(cfg, task):
         "device": device,
     }
 
-    # Define environment creation function
     def create_env_fn():
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
@@ -213,39 +181,11 @@ def run_a2c(cfg, task):
 
     env = create_env_fn()
 
-    # Create loss module
-    ####################################################################################################################
-
-    adv_module = GAE(
-        gamma=cfg.gamma,
-        lmbda=cfg.lmbda,
-        value_network=critic_training,
-        average_gae=True,
-        shifted=True,
-    )
-    loss_module = A2CLoss(
-        actor_network=actor_training,
-        critic_network=critic_training,
-        critic_coef=cfg.critic_coef,
-        entropy_coef=cfg.entropy_coef,
-        loss_critic_type="l2",
-    )
-
-    # Create data storage
-    ####################################################################################################################
-
-    buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(cfg.num_envs, device=device),
-        sampler=SamplerWithoutReplacement(),
-        batch_size=cfg.mini_batch_size,
-        prefetch=4,
-    )
-
     # Create optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
-        loss_module.parameters(),
+        actor_training.parameters(),
         lr=cfg.lr,
         eps=cfg.eps,
         weight_decay=cfg.weight_decay,
@@ -277,12 +217,7 @@ def run_a2c(cfg, task):
     ####################################################################################################################
 
     total_done = 0
-    num_updates = 0
-    kl_coef = cfg.kl_coef
-    max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = cfg.num_envs // cfg.mini_batch_size
-    losses = TensorDict({}, batch_size=[num_mini_batches])
 
     while not task.finished:
 
@@ -302,14 +237,13 @@ def run_a2c(cfg, task):
             remove_duplicates=True,
         )
 
-        # Update progress bar
+        log_info = {}
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
+        total_done += done.sum().item()
         pbar.update(done.sum().item())
 
-        # Register smiles lengths and real rewards and total generated smiles
-        log_info = {}
-        total_done += done.sum().item()
+        # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]
         episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
         if len(episode_rewards) > 0:
@@ -323,60 +257,38 @@ def run_a2c(cfg, task):
                 }
             )
 
-        # Compute advantage
-        with torch.no_grad():
-            data = adv_module(data)
+        data, loss = compute_loss(data, actor_training)
 
-        # Add extended_data to buffer
-        buffer.extend(data)
+        # Average loss over the batch
+        loss = loss.mean()
 
-        for j, batch in enumerate(buffer):
+        # Calculate gradients and make an update to the network weights
+        optim.zero_grad()
+        loss.backward()
+        optim.step()
 
-            batch = batch.to(device, non_blocking=True)
-
-            # Compute loss
-            mask = batch.get("mask").squeeze(-1)
-            loss = loss_module(batch)
-            loss = loss.named_apply(
-                lambda name, value: (
-                    (value * mask).mean()
-                    if name.startswith("loss_")
-                    else value
-                    # (value * mask).sum(-1).mean(-1) if name.startswith("loss_") else value
-                ),
-                batch_size=[],
-            )
-            loss_sum = (
-                loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-            )
-            losses[j] = loss.select(
-                "loss_critic", "loss_entropy", "loss_objective"
-            ).detach()
-
-            # Add KL loss term
-            with torch.no_grad():
-                prior_dist = prior.get_dist(batch)
-                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-            kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
-            loss_sum += kl_div * kl_coef
-            losses[j] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
-
-            # Update policy
-            loss_sum.backward()
-            torch.nn.utils.clip_grad_norm_(
-                loss_module.parameters(), max_norm=max_grad_norm
-            )
-            optim.step()
-            optim.zero_grad()
-            num_updates += 1
-
-        losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
-        for key, value in losses_mean.items():
-            log_info.update({f"train/{key}": value.item()})
-
+        # Log info
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done)
+
+
+def get_log_prob(data, model):
+    actions = data.get("action")
+    model_in = data.select(*model.in_keys, strict=False)
+    log_prob = model.get_dist(model_in).log_prob(actions)
+    return log_prob
+
+
+def compute_loss(data, model):
+
+    mask = data.get("mask").squeeze(-1)
+    agent_log_prob = get_log_prob(data, model)
+    agent_likelihood = (agent_log_prob * mask).sum(-1)
+    reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
+    loss = -agent_likelihood * reward
+
+    return data, loss
 
 
 if __name__ == "__main__":
