@@ -1,6 +1,6 @@
 import logging
 import tarfile
-from importlib import resources
+from importlib import resources, import_module
 from pathlib import Path
 from functools import partial
 
@@ -79,5 +79,9 @@ models = {
 
 
 def register_model(name, factory):
+    """Register a model factory."""
+    if isinstance(factory, str):   
+        m, f = factory.rsplit('.', 1)
+        factory = getattr(import_module(m), f)
     models[name] = factory
 
