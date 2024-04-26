@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from importlib import import_module
 
 from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
@@ -128,13 +127,12 @@ def run_reinvent(cfg, task):
     )
 
     # Get model and vocabulary checkpoints
-    if cfg.model in models:
-        create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model](cfg)
+    if cfg.model not in models and cfg.model_factory is not None:
+        register_model(cfg.model, cfg.model_factory)
     else:
-        m, f = cfg.model_factory.rsplit('.', 1)
-        model_factory = getattr(import_module(m), f)
-        register_model(cfg.model, model_factory)
-        create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model](cfg)
+        raise ValueError(f"Model {cfg.model} not found. For custom models, create and register a model factory.")
+
+    create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model](cfg)
 
     # Create vocabulary
     ####################################################################################################################
@@ -144,7 +142,6 @@ def run_reinvent(cfg, task):
     # Create models
     ####################################################################################################################
 
-    #ckpt = torch.load(ckpt_path)
     ckpt_path = cfg.get("model_weights", ckpt_path)
     ckpt = torch.load(ckpt_path)
     
