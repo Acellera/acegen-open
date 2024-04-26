@@ -13,8 +13,9 @@ import numpy as np
 import torch
 import tqdm
 import yaml
+from importlib import import_module
 
-from acegen.models import adapt_state_dict, models
+from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.scoring_functions import custom_scoring_functions, Task
 from acegen.vocabulary import SMILESVocabulary
@@ -128,9 +129,12 @@ def run_reinvent(cfg, task):
 
     # Get model and vocabulary checkpoints
     if cfg.model in models:
-        create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model]
+        create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model](cfg)
     else:
-        raise ValueError(f"Unknown model type: {cfg.model}")
+        m, f = cfg.model_factory.rsplit('.', 1)
+        model_factory = getattr(import_module(m), f)
+        register_model(cfg.model, model_factory)
+        create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model](cfg)
 
     # Create vocabulary
     ####################################################################################################################
@@ -140,8 +144,10 @@ def run_reinvent(cfg, task):
     # Create models
     ####################################################################################################################
 
+    #ckpt = torch.load(ckpt_path)
+    ckpt_path = cfg.get("model_weights", ckpt_path)
     ckpt = torch.load(ckpt_path)
-
+    
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
