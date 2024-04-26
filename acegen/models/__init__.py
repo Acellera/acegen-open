@@ -1,8 +1,8 @@
 import logging
 import tarfile
-from importlib import resources, import_module
-from pathlib import Path
 from functools import partial
+from importlib import import_module, resources
+from pathlib import Path
 
 from acegen.models.gpt2 import (
     create_gpt2_actor,
@@ -26,6 +26,7 @@ from acegen.vocabulary.tokenizers import (
     SMILESTokenizer3,
 )
 
+
 def extract(path):
     """Extract tarfile if it exists."""
     if not path.exists():
@@ -40,15 +41,17 @@ def extract(path):
     else:
         return path
 
+
 def gru_model_factory(*args, **kwargs):
     return (
-        create_gru_actor, 
+        create_gru_actor,
         create_gru_critic,
         create_gru_actor_critic,
         resources.files("acegen.priors") / "chembl_filtered_vocabulary.txt",
         resources.files("acegen.priors") / "gru_chembl_filtered.ckpt",
         SMILESTokenizer(),
     )
+
 
 def lstm_model_factory(*args, **kwargs):
     return (
@@ -60,6 +63,7 @@ def lstm_model_factory(*args, **kwargs):
         SMILESTokenizer(),
     )
 
+
 def gpt2_model_factory(*args, **kwargs):
     return (
         create_gpt2_actor,
@@ -69,6 +73,7 @@ def gpt2_model_factory(*args, **kwargs):
         extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt"),
         SMILESTokenizer2(),
     )
+
 
 # Default models
 models = {
@@ -80,8 +85,7 @@ models = {
 
 def register_model(name, factory):
     """Register a model factory."""
-    if isinstance(factory, str):   
-        m, f = factory.rsplit('.', 1)
+    if isinstance(factory, str):
+        m, f = factory.rsplit(".", 1)
         factory = getattr(import_module(m), f)
     models[name] = factory
-
