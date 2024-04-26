@@ -413,7 +413,7 @@ def run_ppo(cfg, task):
             log_info.update({f"train/{key}": value.item()})
 
         # Add new experiences to the replay buffer
-        if cfg.experience_replay is True:
+        if cfg.experience_replay:
 
             # MaxValueWriter is not compatible with storages of more than one dimension.
             replay_data.batch_size = [replay_data.batch_size[0]]

@@ -296,7 +296,7 @@ def run_reinvent(cfg, task):
         optim.step()
 
         # Then add new experiences to the replay buffer
-        if cfg.experience_replay is True:
+        if cfg.experience_replay:
 
             replay_data = data.clone()
 
