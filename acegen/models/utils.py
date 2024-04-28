@@ -1,5 +1,7 @@
 import warnings
 
+from torchrl.envs import Compose
+
 
 def adapt_state_dict(source_state_dict: dict, target_state_dict: dict):
     """Adapt the source state dict to the target state dict.
@@ -47,5 +49,7 @@ def get_primers_from_module(module):
         import warnings
 
         raise warnings.warn("No primers found in the module.")
+    elif len(primers) == 1:
+        return primers[0]
     else:
-        return primers
+        return Compose(primers)
