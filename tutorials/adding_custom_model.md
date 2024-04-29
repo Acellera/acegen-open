@@ -314,7 +314,7 @@ def create_custom_critic(config, vocabulary_size, critic_value_per_action=False)
 ```
 
 and then add it to the model factory:
-
+```
 def custom_model_factory(cfg, *args, **kwargs):
     return (
         partial(create_custom_actor, cfg),
@@ -324,3 +324,4 @@ def custom_model_factory(cfg, *args, **kwargs):
         resources.files("acegen.priors") / "custom_model.ckpt",
         None,
         )
+```
