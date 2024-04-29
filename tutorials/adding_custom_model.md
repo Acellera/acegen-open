@@ -262,15 +262,39 @@ def custom_model_factory(cfg, *args, **kwargs):
         None,
         resources.files("acegen.priors") / "custom_ascii.pt",
         resources.files("acegen.priors") / "custom_model.ckpt",
-        None,
+        AsciiSMILESTokenizer(),
         )
 
 ```
 
-Here we have assigned vocabulary and weights files from out set of priors to the model. We could, however, use others.  
+Here we have assigned a custom vocabulary that simply converts smiles to Ascii tokens, with our custom Tokenizer:
+```
+class AsciiSMILESTokenizer:
+    """
+    Deals with the tokenization and untokenization of SMILES.
+    Uses ASCII characters as tokens.
+    """
+    
+    def tokenize(self, data, with_begin_and_end=True):
+        """Tokenizes a SMILES string."""
+
+        tokens = list(data)
+        if with_begin_and_end:
+            tokens = ["^"] + tokens + ["$"]
+        return tokens
+
+    def untokenize(self, tokens):
+        """Untokenizes a SMILES string."""
+        smi = ""
+        for token in tokens:
+            if token == "$":
+                break
+            if token != "^":
+                smi += token
+        return smi
+```
+
 Now, we can already use the model in the Reinvent and AHC training scripts for de novo molecule generation.
-For decorative and linking tasks, we would need to define a tokenizer. We can use, for example, the SMILEStokenizer2()
-from AceGen that is compatible with enamine_real_vocabulary.txt.
 Finally, the PPO and A2C training scripts require a critic model. It would be similar to the actor model, but without the
 ProbabilisticActor wrapper. Let's see how to define it:
 
@@ -322,6 +346,6 @@ def custom_model_factory(cfg, *args, **kwargs):
         None,
         resources.files("acegen.priors") / "custom_ascii.pt",
         resources.files("acegen.priors") / "custom_model.ckpt",
-        None,
+        AsciiSMILESTokenizer(),
         )
 ```
