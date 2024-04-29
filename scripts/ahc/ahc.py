@@ -130,7 +130,9 @@ def run_ahc(cfg, task):
     if cfg.model not in models and cfg.model_factory is not None:
         register_model(cfg.model, cfg.model_factory)
     else:
-        raise ValueError(f"Model {cfg.model} not found. For custom models, create and register a model factory.")
+        raise ValueError(
+            f"Model {cfg.model} not found. For custom models, create and register a model factory."
+        )
 
     create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model](cfg)
 
