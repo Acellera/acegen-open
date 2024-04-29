@@ -127,7 +127,7 @@ def run_ahc(cfg, task):
     )
 
     # Get model and vocabulary checkpoints
-    if cfg.model not in models and cfg.model_factory is not None:
+    if cfg.model not in models and cfg.get("model_factory", None) is not None:
         register_model(cfg.model, cfg.model_factory)
     else:
         raise ValueError(
