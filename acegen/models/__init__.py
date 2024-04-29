@@ -42,7 +42,7 @@ def extract(path):
         return path
 
 
-def gru_model_factory(*args, **kwargs):
+def default_gru_model_factory(*args, **kwargs):
     return (
         create_gru_actor,
         create_gru_critic,
@@ -53,7 +53,7 @@ def gru_model_factory(*args, **kwargs):
     )
 
 
-def lstm_model_factory(*args, **kwargs):
+def default_lstm_model_factory(*args, **kwargs):
     return (
         create_lstm_actor,
         create_lstm_critic,
@@ -64,7 +64,7 @@ def lstm_model_factory(*args, **kwargs):
     )
 
 
-def gpt2_model_factory(*args, **kwargs):
+def default_gpt2_model_factory(*args, **kwargs):
     return (
         create_gpt2_actor,
         create_gpt2_critic,
@@ -77,9 +77,9 @@ def gpt2_model_factory(*args, **kwargs):
 
 # Default models
 models = {
-    "gru": gru_model_factory,
-    "lstm": lstm_model_factory,
-    "gpt2": gpt2_model_factory,
+    "gru": default_gru_model_factory,
+    "lstm": default_lstm_model_factory,
+    "gpt2": default_gpt2_model_factory,
 }
 
 
