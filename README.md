@@ -8,6 +8,8 @@ AceGen is a comprehensive toolkit designed to leverage reinforcement learning (R
 
 ![Alt Text](./acegen/images/train_zaleplon.png)
 
+The full paper can be found [here](https://arxiv.org/abs/2405.04657).
+
 ---
 
 ## Features
