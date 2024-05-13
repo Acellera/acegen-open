@@ -88,7 +88,7 @@ def main(cfg: "DictConfig"):
                     include=cfg.molscore_include,
                 )
                 for task in MSB:
-                    run_reinvent(cfg, task)
+                    run_reinforce(cfg, task)
             else:
                 # Save molscore output. Also redirect output to save_dir
                 cfg.molscore = shutil.copy(cfg.molscore, save_dir)
@@ -101,15 +101,15 @@ def main(cfg: "DictConfig"):
                     output_dir=os.path.abspath(save_dir),
                     add_run_dir=False,
                 )
-                run_reinvent(cfg, task)
+                run_reinforce(cfg, task)
         elif cfg.get("custom_task", None):
             task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
-            run_reinvent(cfg, task)
+            run_reinforce(cfg, task)
         else:
             raise ValueError("No scoring function specified.")
 
 
-def run_reinvent(cfg, task):
+def run_reinforce(cfg, task):
 
     # Get available device
     device = (
@@ -174,13 +174,65 @@ def run_reinvent(cfg, task):
     ####################################################################################################################
 
     storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
+    if cfg.get('replay_sampler', 'prioritized') in ['random', 'uniform']:
+        replay_sampler = RandomSampler()
+    elif cfg.get('replay_sampler', 'prioritized') == 'prioritized':
+        replay_sampler =  PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0)
+    else:
+        raise ValueError(f"Unknown replay sampler: {replay_sampler}")
     experience_replay_buffer = TensorDictReplayBuffer(
         storage=storage,
-        sampler=RandomSampler(), # PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0),
+        sampler=replay_sampler,
         batch_size=cfg.replay_batch_size,
         writer=TensorDictMaxValueWriter(rank_key="priority"),
         priority_key="priority",
     )
+
+    # Create baseline
+    ####################################################################################################################
+
+    class MovingAverageBaseline:
+        """Class to keep track on the running mean and variance of tensors batches."""
+
+        def __init__(self, epsilon=1e-3, shape=(), device=torch.device("cpu")):
+            self.mean = torch.zeros(shape, dtype=torch.float64).to(device)
+            self.count = epsilon
+
+        def update(self, x):
+            batch_mean = torch.mean(x, dim=0)
+            batch_count = x.shape[0]
+            self.update_from_moments(batch_mean, batch_count)
+
+        def update_from_moments(self, batch_mean, batch_count):
+            delta = batch_mean - self.mean
+            tot_count = self.count + batch_count
+            new_mean = self.mean + delta * batch_count / tot_count
+            new_count = tot_count
+            self.mean, self.count = new_mean, new_count
+
+    class LeaveOneOutBaseline:
+        """Class to compute the leave-one-out baseline for a given tensor."""
+
+        def __init__(self):
+            self.mean = None
+        
+        def update(self, x):
+            with torch.no_grad():
+                loo = x.unsqueeze(1).expand(-1, x.size(0))
+                loo_mask = 1 - torch.eye(loo.size(0), device=loo.device)
+                self.mean = (loo * loo_mask).sum(0) / loo_mask.sum(0)
+
+    # Select baseline
+    if cfg.get("baseline", False):
+        if cfg.baseline == "loo":
+            baseline = LeaveOneOutBaseline()
+        elif cfg.baseline == "mab":
+            baseline = MovingAverageBaseline(device=device)
+        else:
+            raise ValueError(f"Unknown baseline: {cfg.baseline}")
+    else:
+        baseline = None
+
 
     # Create optimizer
     ####################################################################################################################
@@ -205,7 +257,7 @@ def run_reinvent(cfg, task):
 
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="reinvent",
+            logger_name="reinforce",
             experiment_name=experiment_name,
             wandb_kwargs={
                 "config": dict(cfg),
@@ -259,45 +311,36 @@ def run_reinvent(cfg, task):
                 }
             )
 
-        data, loss, agent_likelihood = compute_loss(
-            data,
-            actor_training,
-            prior,
-            reward_scale=cfg.get("reward_scale", 1),
-            prior_coef=cfg.get("prior_coef", 0.0),
-            arbitrary_shaping=cfg.get("arbitrary_shaping", True)
-            )
-        # Apply HC
+        # Apply Hill-Climb
         if cfg.get("topk", False):
             sscore, sscore_idxs = (
                 data_next["reward"][done].squeeze(-1).sort(descending=True)
             )
-            loss = loss[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
+            data = data[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
 
-        # Compute experience replay loss
+        # Apply experience replay
         if (
             cfg.experience_replay
             and len(experience_replay_buffer) > cfg.replay_batch_size
         ):
             replay_batch = experience_replay_buffer.sample()
-            _, replay_loss, replay_agent_likelihood = compute_loss(
-                replay_batch,
-                actor_training,
-                prior,
-                reward_scale=cfg.get("reward_scale", 1),
-                prior_coef=cfg.get("prior_coef", 0.0),
-                arbitrary_shaping=cfg.get("arbitrary_shaping", True)
+            _ = replay_batch.pop('priority')
+            _ = replay_batch.pop('index')
+            _ = replay_batch.pop('prior_log_prob')
+            data = torch.cat((data, replay_batch), 0)
+
+        # Compute loss
+        data, loss, agent_likelihood = compute_loss(
+            data,
+            actor_training,
+            prior,
+            reward_exp=cfg.get("reward_exp", 1),
+            prior_coef=cfg.get("prior_coef", 0.0),
+            baseline=baseline,
             )
-            loss = torch.cat((loss, replay_loss), 0)
-            agent_likelihood = torch.cat((agent_likelihood, replay_agent_likelihood), 0)
 
         # Average loss over the batch
         loss = loss.mean()
-
-        # Add regularizer that penalizes high likelihood for the entire sequence
-        if cfg.get("arbitrary_penalty", False):
-            loss_p = -(1 / agent_likelihood).mean()
-            loss += 5 * 1e3 * loss_p
 
         # Calculate gradients and make an update to the network weights
         optim.zero_grad()
@@ -339,7 +382,7 @@ def get_log_prob(data, model):
     return log_prob
 
 
-def compute_loss(data, model, prior, reward_scale, prior_coef, arbitrary_shaping=True):
+def compute_loss(data, model, prior, reward_exp=1, prior_coef=0.0, baseline=None):
 
     mask = data.get("mask").squeeze(-1)
 
@@ -354,10 +397,16 @@ def compute_loss(data, model, prior, reward_scale, prior_coef, arbitrary_shaping
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     prior_likelihood = (prior_log_prob * mask).sum(-1)
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
+    
+    # Reward reshaping
+    reward = torch.pow(reward, reward_exp) + prior_coef*prior_likelihood
 
-    if arbitrary_shaping:
-        reward = torch.pow(reward, reward_scale) + (prior_coef/10)*prior_likelihood
+    # Subtract baselines
+    if baseline:
+        baseline.update(reward.detach())
+        reward = reward - baseline.mean
 
+    # REINFORCE (negative as we minimize the negative log prob to maximize the policy)
     loss = - agent_likelihood * reward
 
     return data, loss, agent_likelihood
