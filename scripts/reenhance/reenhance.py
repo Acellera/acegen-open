@@ -11,6 +11,7 @@ import hydra
 import numpy as np
 
 import torch
+from torch.distributions.kl import kl_divergence
 import tqdm
 import yaml
 
@@ -376,28 +377,27 @@ def run_reinforce(cfg, task):
 def get_log_prob(data, model):
     actions = data.get("action")
     model_in = data.select(*model.in_keys, strict=False)
-    log_prob = model.get_dist(model_in).log_prob(actions)
-    return log_prob
+    dist = model.get_dist(model_in)
+    log_prob = dist.log_prob(actions)
+    return log_prob, dist
 
 
 def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None):
 
     mask = data.get("mask").squeeze(-1)
 
-    if "prior_log_prob" not in data.keys():
-        with torch.no_grad():
-            prior_log_prob = get_log_prob(data, prior)
-            data.set("prior_log_prob", prior_log_prob)
-    else:
-        prior_log_prob = data.get("prior_log_prob")
-
-    agent_log_prob = get_log_prob(data, model)
+    with torch.no_grad():
+        prior_log_prob, prior_dist = get_log_prob(data, prior)
+        data.set("prior_log_prob", prior_log_prob)
+        
+    agent_log_prob, agent_dist = get_log_prob(data, model)
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     prior_likelihood = (prior_log_prob * mask).sum(-1)
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     
     # Reward reshaping
-    reward = torch.clamp(torch.pow(reward, alpha) + (sigma*prior_likelihood), min=0.0)
+    #reward = torch.clamp(torch.pow(reward, alpha) + (sigma*prior_likelihood), min=0.0)
+    reward = torch.pow(reward, alpha) # + (sigma*prior_likelihood)+1
 
     # Subtract baselines
     if baseline:
@@ -406,6 +406,11 @@ def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None):
 
     # REINFORCE (negative as we minimize the negative log prob to maximize the policy)
     loss = - agent_likelihood * reward
+
+    # Add KL loss term
+    kl_div = kl_divergence(agent_dist, prior_dist)
+    kl_div = (kl_div * mask.squeeze()).sum(-1)
+    loss += kl_div * sigma
 
     return data, loss, agent_likelihood
 
