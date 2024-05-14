@@ -223,6 +223,7 @@ def run_reinforce(cfg, task):
                 self.mean = (loo * loo_mask).sum(0) / loo_mask.sum(0)
 
     # Select baseline
+    baseline = None
     if cfg.get("baseline", False):
         if cfg.baseline == "loo":
             baseline = LeaveOneOutBaseline()
@@ -230,9 +231,6 @@ def run_reinforce(cfg, task):
             baseline = MovingAverageBaseline(device=device)
         else:
             raise ValueError(f"Unknown baseline: {cfg.baseline}")
-    else:
-        baseline = None
-
 
     # Create optimizer
     ####################################################################################################################
@@ -334,8 +332,8 @@ def run_reinforce(cfg, task):
             data,
             actor_training,
             prior,
-            reward_exp=cfg.get("reward_exp", 1),
-            prior_coef=cfg.get("prior_coef", 0.0),
+            alpha=cfg.get("alpha", 1),
+            sigma=cfg.get("sigma", 0.0),
             baseline=baseline,
             )
 
@@ -382,7 +380,7 @@ def get_log_prob(data, model):
     return log_prob
 
 
-def compute_loss(data, model, prior, reward_exp=1, prior_coef=0.0, baseline=None):
+def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None):
 
     mask = data.get("mask").squeeze(-1)
 
@@ -399,7 +397,7 @@ def compute_loss(data, model, prior, reward_exp=1, prior_coef=0.0, baseline=None
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     
     # Reward reshaping
-    reward = torch.pow(reward, reward_exp) + prior_coef*prior_likelihood
+    reward = torch.clamp(torch.pow(reward, alpha) + (sigma*prior_likelihood), min=0.0)
 
     # Subtract baselines
     if baseline:

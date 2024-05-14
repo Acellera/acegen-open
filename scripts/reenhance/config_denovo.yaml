@@ -1,9 +1,9 @@
 # Logging configuration
 experiment_name: MolOpt_reward_shaping
-agent_name: reinforce_test # 
-log_dir: results/reinforce_test #/reinforce_shape
+agent_name: reinforce_BAS_HC_ER_EXP_REG-001_LR
+log_dir: results/
 logger_backend: wandb # csv, wandb, tensorboard, or null
-seed: 101 # [101, 102, 103, 104, 105]
+seed: [101, 102, 103, 104, 105]
 
 # Environment configuration
 num_envs: 128 # Number of smiles to generate in parallel
@@ -11,13 +11,13 @@ total_smiles: 10_000
 
 # Scoring function
 molscore: MolOpt
-molscore_include: ['Albuterol_similarity']
+molscore_include: []
 custom_task: null # Requires molscore to be set to null
 
 # Fix the beginning of the generated molecules
 prompt: null  # e.g. c1ccccc
 
-# Architecturecd
+# Architecture
 model: gru # gru, lstm, or gpt2
 # The default prior varies for each model. Refer to the README file in the root directory for more information.
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
@@ -31,8 +31,8 @@ weight_decay: 0.0
 topk: 0.5
 
 # Reinforce configuration
-reward_exp: 5 # 1 Reinforce
-prior_coef: 0.005 # No prior=0, 0.001 - 0.1 for prior
+alpha: 5 # 1 Reinforce
+sigma: 0.001 # 0.001 # No prior=0, 0.001 - 0.005 for prior
 baseline: mab # null, mab or loo
 
 # Data replay configuration
