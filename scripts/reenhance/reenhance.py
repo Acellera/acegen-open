@@ -396,8 +396,8 @@ def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None):
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     
     # Reward reshaping
-    #reward = torch.clamp(torch.pow(reward, alpha) + (sigma*prior_likelihood), min=0.0)
-    reward = torch.pow(reward, alpha) # + (sigma*prior_likelihood)+1
+    reward = torch.clamp(torch.pow(reward, alpha) + (sigma*prior_likelihood), min=0.0)
+    #reward = torch.pow(reward, alpha) + (sigma*prior_likelihood)+1
 
     # Subtract baselines
     if baseline:
@@ -408,9 +408,9 @@ def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None):
     loss = - agent_likelihood * reward
 
     # Add KL loss term
-    kl_div = kl_divergence(agent_dist, prior_dist)
-    kl_div = (kl_div * mask.squeeze()).sum(-1)
-    loss += kl_div * sigma
+    #kl_div = kl_divergence(agent_dist, prior_dist)
+    #kl_div = (kl_div * mask.squeeze()).sum(-1)
+    #loss += kl_div * sigma
 
     return data, loss, agent_likelihood
 
