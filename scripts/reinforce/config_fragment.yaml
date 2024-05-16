@@ -29,3 +29,8 @@ model: gru # gru, lstm, or gpt2
 lr: 0.0001
 eps: 1.0e-08
 weight_decay: 0.0
+
+# Data replay configuration
+experience_replay: True
+replay_buffer_size: 100
+replay_batch_size: 10

@@ -27,7 +27,8 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 
 try:
@@ -158,12 +159,6 @@ def run_reinforce(cfg, task):
     # Create RL environment
     ####################################################################################################################
 
-    # For RNNs, create a transform to populate initial tensordict with recurrent states equal to 0.0
-    rhs_primers = []
-    if hasattr(actor_training, "rnn_spec"):
-        primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers.append(TensorDictPrimer(primers))
-
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
         "end_token": vocabulary.end_token_index,
@@ -177,11 +172,22 @@ def run_reinforce(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        env.append_transform(get_primers_from_module(actor_training))
         return env
 
     env = create_env_fn()
+
+    # Create replay buffer
+    ####################################################################################################################
+
+    storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
+    experience_replay_buffer = TensorDictReplayBuffer(
+        storage=storage,
+        sampler=PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0),
+        batch_size=cfg.replay_batch_size,
+        writer=TensorDictMaxValueWriter(rank_key="priority"),
+        priority_key="priority",
+    )
 
     # Create optimizer
     ####################################################################################################################
@@ -261,6 +267,15 @@ def run_reinforce(cfg, task):
 
         data, loss = compute_loss(data, actor_training)
 
+        # Compute experience replay loss
+        if (
+            cfg.experience_replay
+            and len(experience_replay_buffer) > cfg.replay_batch_size
+        ):
+            replay_batch = experience_replay_buffer.sample()
+            _, replay_loss = compute_loss(replay_batch, actor_training)
+            loss = torch.cat((loss, replay_loss), 0)
+
         # Average loss over the batch
         loss = loss.mean()
 
@@ -268,6 +283,29 @@ def run_reinforce(cfg, task):
         optim.zero_grad()
         loss.backward()
         optim.step()
+
+        # Then add new experiences to the replay buffer
+        if cfg.experience_replay:
+
+            replay_data = data.clone()
+
+            # MaxValueWriter is not compatible with storages of more than one dimension.
+            replay_data.batch_size = [replay_data.batch_size[0]]
+
+            # Remove SMILES that are already in the replay buffer
+            if len(experience_replay_buffer) > 0:
+                is_duplicated = isin(
+                    input=replay_data,
+                    key="action",
+                    reference=experience_replay_buffer[:],
+                )
+                replay_data = replay_data[~is_duplicated]
+
+            # Add data to the replay buffer
+            reward = replay_data.get(("next", "reward"))
+            replay_data.set("priority", reward)
+            if len(replay_data) > 0:
+                experience_replay_buffer.extend(replay_data)
 
         # Log info
         if logger:

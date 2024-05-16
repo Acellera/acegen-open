@@ -28,11 +28,11 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import ExplorationType, InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
-
 
 try:
     import molscore
@@ -182,19 +182,6 @@ def run_ppo(cfg, task):
     # Create RL environment
     ####################################################################################################################
 
-    rhs_primers = []
-    # if rnn's, create a transform to populate initial tensordict with recurrent states equal to 0.0
-    if cfg.shared_nets and hasattr(actor_training, "rnn_spec"):
-        primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers = [TensorDictPrimer(primers)]
-    elif hasattr(actor_training, "rnn_spec"):
-        actor_primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        critic_primers = critic_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers = [
-            TensorDictPrimer(actor_primers),
-            TensorDictPrimer(critic_primers),
-        ]
-
     # Define environment kwargs
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
@@ -210,8 +197,8 @@ def run_ppo(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        env.append_transform(get_primers_from_module(actor_training))
+        env.append_transform(get_primers_from_module(critic_training))
         return env
 
     env = create_env_fn()
@@ -414,7 +401,7 @@ def run_ppo(cfg, task):
             log_info.update({f"train/{key}": value.item()})
 
         # Add new experiences to the replay buffer
-        if cfg.experience_replay is True:
+        if cfg.experience_replay:
 
             # MaxValueWriter is not compatible with storages of more than one dimension.
             replay_data.batch_size = [replay_data.batch_size[0]]

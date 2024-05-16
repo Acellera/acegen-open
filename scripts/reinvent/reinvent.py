@@ -27,7 +27,8 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 
 try:
@@ -160,12 +161,6 @@ def run_reinvent(cfg, task):
     # Create RL environment
     ####################################################################################################################
 
-    # For RNNs, create a transform to populate initial tensordict with recurrent states equal to 0.0
-    rhs_primers = []
-    if hasattr(actor_training, "rnn_spec"):
-        primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers.append(TensorDictPrimer(primers))
-
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
         "end_token": vocabulary.end_token_index,
@@ -179,8 +174,7 @@ def run_reinvent(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        env.append_transform(get_primers_from_module(actor_training))
         return env
 
     env = create_env_fn()
@@ -301,7 +295,7 @@ def run_reinvent(cfg, task):
         optim.step()
 
         # Then add new experiences to the replay buffer
-        if cfg.experience_replay is True:
+        if cfg.experience_replay:
 
             replay_data = data.clone()
 
@@ -320,7 +314,8 @@ def run_reinvent(cfg, task):
             # Add data to the replay buffer
             reward = replay_data.get(("next", "reward"))
             replay_data.set("priority", reward)
-            experience_replay_buffer.extend(replay_data)
+            if len(replay_data) > 0:
+                experience_replay_buffer.extend(replay_data)
 
         # Log info
         if logger:
