@@ -299,7 +299,7 @@ and then add it to the models dictionary:
 It is also possible to use the model without modifying the internal code of ACEGEN.
 For that, we can define in our own script what we call a factory, a methods that returns the necessary tuple expected by the  `models` dictionary.
 
-    def my_model_fectory():
+    def example_model_fectory():
         return (
             create_gpt2_actor,
             None,
@@ -309,13 +309,13 @@ For that, we can define in our own script what we call a factory, a methods that
             None,
         )
 
-In any config file, we can then provide the path to our factory to the config parameter `custom_model_factory`
+In any config file, we can then provide the path to our factory to the config parameter `example_model_factory`
 
 e.g. config_denovo.yaml
 
     ...
-    model: my_model
+    model: example_model
     custom_model_factory: my_module.custom_model_factory
     ...
 
-And the script will automatically import and call `custom_model_factory` to get the model.
+And the script will automatically import and call `example_model_factory` to get the model.
