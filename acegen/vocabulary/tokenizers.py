@@ -37,7 +37,7 @@ except ImportError as err:
     SAFE_ERR = err
 
 
-class SMILESTokenizer:
+class SMILESTokenizerChEMBL:
     """Deals with the tokenization and untokenization of SMILES."""
 
     GRAMMAR = "SMILES"
@@ -84,7 +84,7 @@ class SMILESTokenizer:
         return smi
 
 
-class SMILESTokenizer3:
+class SMILESTokenizerGuacaMol:
     """Deals with the tokenization and untokenization of SMILES."""
 
     GRAMMAR = "SMILES"
@@ -130,7 +130,7 @@ class SMILESTokenizer3:
         return smi
 
 
-class SMILESTokenizer2:
+class SMILESTokenizerEnamine:
     """Deals with the tokenization and untokenization of SMILES."""
 
     GRAMMER = "SMILES"

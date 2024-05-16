@@ -21,9 +21,9 @@ from acegen.models.lstm import (
 )
 from acegen.models.utils import adapt_state_dict
 from acegen.vocabulary.tokenizers import (
-    SMILESTokenizer,
-    SMILESTokenizer2,
-    SMILESTokenizer3,
+    SMILESTokenizerChEMBL,
+    SMILESTokenizerEnamine,
+    SMILESTokenizerGuacaMol,
 )
 
 
@@ -42,44 +42,31 @@ def extract(path):
         return path
 
 
-def default_gru_model_factory(*args, **kwargs):
-    return (
+models = {
+    "gru": (
         create_gru_actor,
         create_gru_critic,
         create_gru_actor_critic,
         resources.files("acegen.priors") / "chembl_filtered_vocabulary.txt",
         resources.files("acegen.priors") / "gru_chembl_filtered.ckpt",
-        SMILESTokenizer(),
-    )
-
-
-def default_lstm_model_factory(*args, **kwargs):
-    return (
+        SMILESTokenizerChEMBL(),
+    ),
+    "lstm": (
         create_lstm_actor,
         create_lstm_critic,
         create_lstm_actor_critic,
         resources.files("acegen.priors") / "chembl_vocabulary.txt",
         resources.files("acegen.priors") / "lstm_chembl.ckpt",
-        SMILESTokenizer(),
-    )
-
-
-def default_gpt2_model_factory(*args, **kwargs):
-    return (
+        SMILESTokenizerChEMBL(),
+    ),
+    "gpt2": (
         create_gpt2_actor,
         create_gpt2_critic,
         create_gpt2_actor_critic,
         resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
         extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt"),
-        SMILESTokenizer2(),
-    )
-
-
-# Default models
-models = {
-    "gru": default_gru_model_factory,
-    "lstm": default_lstm_model_factory,
-    "gpt2": default_gpt2_model_factory,
+        SMILESTokenizerEnamine(),
+    ),
 }
 
 

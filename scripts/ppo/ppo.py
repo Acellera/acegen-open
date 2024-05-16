@@ -47,6 +47,7 @@ except ImportError as err:
 # hydra outputs saved in /tmp
 os.chdir("/tmp")
 
+
 @hydra.main(
     config_path=".",
     config_name="config_denovo",
