@@ -145,9 +145,7 @@ def run_ahc(cfg, task):
     # Create models
     ####################################################################################################################
 
-    ckpt_path = cfg.get("model_weights", ckpt_path)
-    ckpt = torch.load(ckpt_path)
-
+    ckpt = torch.load(ckpt_path, map_location=device)
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
