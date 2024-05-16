@@ -6,6 +6,7 @@ from acegen.vocabulary import SMILESVocabulary
 from torchrl.collectors import RandomPolicy
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
 from torchrl.envs.utils import step_mdp
+from torchrl.modules.utils import get_primers_from_module
 from utils import get_default_devices
 
 try:
@@ -273,9 +274,8 @@ def test_sample_promptsmiles(
         batch_size=batch_size,
     )
     env = TransformedEnv(env)
-    primers = policy_train.rnn_spec.expand(batch_size)
-    env.append_transform(TensorDictPrimer(primers))
     env.append_transform(InitTracker())
+    env.append_transform(get_primers_from_module(policy_train))
 
     # Sample smiles
     smiles = generate_complete_smiles(
