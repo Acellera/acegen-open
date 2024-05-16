@@ -14,6 +14,7 @@ tokenizer: SMILESTokenizer # SMILESTokenizer, SMILESTokenizer2, DeepSMILESTokeni
 
 # Model configuration
 model: gru # gru, lstm, or gpt2
+custom_model_factory: null # Path to a custom model factory (e.g. my_module.create_model)
 
 # Training configuration
 lr: 0.0001

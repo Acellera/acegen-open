@@ -126,15 +126,15 @@ def run_a2c(cfg, task):
     )
 
     # Get model and vocabulary checkpoints
-    if cfg.model not in models and cfg.get("model_factory", None) is not None:
+    if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
         register_model(cfg.model, cfg.model_factory)
     else:
         raise ValueError(
-            f"Model {cfg.model} not found. For custom models, create and register a model factory."
+            f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
         )
 
     (create_actor, create_critic, create_shared, voc_path, ckpt_path, tokenizer) = (
-        models[cfg.model](cfg)
+        models[cfg.model]
     )
 
     # Create vocabulary
