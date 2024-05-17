@@ -1,6 +1,6 @@
 
 <p align="center">
-  <img src="./acegen/images/acegen_logo.jpeg" alt="Alt Text" />
+  <img src="./acegen/images/acegen_logo.jpeg" alt="Alt Text" width="300" />
 </p>
 
 # AceGen: A TorchRL-based toolkit for reinforcement learning in generative chemistry
