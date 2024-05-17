@@ -319,3 +319,10 @@ e.g. config_denovo.yaml
     ...
 
 And the script will automatically import and call `example_model_factory` to get the model.
+
+---
+
+## Testing a custom model
+
+To make sure your custom model is correct, take a look at the tests we have for `create_gpt2_actor` and `create_gpt2_critic`
+in `/tests/test_gpt2_model.py`. Doing similar tests for your custom model shuold guarantee a seamless integration with ACEGEN scripts.
