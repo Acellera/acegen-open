@@ -1,5 +1,5 @@
-from typing import Callable
 from importlib import import_module
+from typing import Callable
 
 from numpy import ndarray
 from torch import Tensor
@@ -21,7 +21,7 @@ def check_scoring_function(scoring_function):
         )
 
     # Check it accepts a single smiles and returns a number, list, tensor or array
-    if not isinstance(scoring_function("CCO"), (float, list, Tensor, ndarray)):
+    if not isinstance(scoring_function(["CCO"]), (float, list, Tensor, ndarray)):
         raise ValueError(
             f"scoring_function must return a float, list, array or tensor, got {type(scoring_function('CCO'))}"
         )

@@ -16,7 +16,11 @@ import yaml
 
 from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.scoring_functions import custom_scoring_functions, Task, register_custom_scoring_function
+from acegen.scoring_functions import (
+    custom_scoring_functions,
+    register_custom_scoring_function,
+    Task,
+)
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict.utils import isin
@@ -109,7 +113,6 @@ def main(cfg: "DictConfig"):
                 )
                 run_reinvent(cfg, task)
         elif cfg.get("custom_task", None):
-            import ipdb; ipdb.set_trace()
             if cfg.custom_task not in custom_scoring_functions:
                 register_custom_scoring_function(cfg.custom_task, cfg.custom_task)
             task = Task(
