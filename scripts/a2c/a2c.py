@@ -13,7 +13,7 @@ import torch
 import tqdm
 import yaml
 
-from acegen.models import adapt_state_dict, models
+from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.scoring_functions import custom_scoring_functions, Task
 from acegen.vocabulary import SMILESVocabulary
@@ -125,18 +125,20 @@ def run_a2c(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Get model and vocabulary checkpoints
-    if cfg.model in models:
-        (
-            create_actor,
-            create_critic,
-            create_shared,
-            voc_path,
-            ckpt_path,
-            tokenizer,
-        ) = models[cfg.model]
-    else:
-        raise ValueError(f"Unknown model type: {cfg.model}")
+    # If custom model, register it
+    if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
+        register_model(cfg.model, cfg.model_factory)
+
+    # Check if model is available
+    if cfg.model not in models:
+        raise ValueError(
+            f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
+        )
+
+    # Get model
+    (create_actor, create_critic, create_shared, voc_path, ckpt_path, tokenizer) = (
+        models[cfg.model]
+    )
 
     # Create vocabulary
     ####################################################################################################################
@@ -159,7 +161,7 @@ def run_a2c(cfg, task):
         critic_training, critic_inference = create_critic(len(vocabulary))
 
     # Load pretrained weights
-    ckpt = torch.load(ckpt_path)
+    ckpt = torch.load(ckpt_path, map_location=device)
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )

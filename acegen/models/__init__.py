@@ -1,6 +1,6 @@
 import logging
 import tarfile
-from importlib import resources
+from importlib import import_module, resources
 from pathlib import Path
 
 from acegen.models.gpt2 import (
@@ -20,9 +20,9 @@ from acegen.models.lstm import (
 )
 from acegen.models.utils import adapt_state_dict
 from acegen.vocabulary.tokenizers import (
-    SMILESTokenizer,
-    SMILESTokenizer2,
-    SMILESTokenizer3,
+    SMILESTokenizerChEMBL,
+    SMILESTokenizerEnamine,
+    SMILESTokenizerGuacaMol,
 )
 
 
@@ -48,15 +48,7 @@ models = {
         create_gru_actor_critic,
         resources.files("acegen.priors") / "chembl_filtered_vocabulary.txt",
         resources.files("acegen.priors") / "gru_chembl_filtered.ckpt",
-        SMILESTokenizer(),
-    ),
-    "gru_guacamol": (
-        create_gru_actor,
-        create_gru_critic,
-        create_gru_actor_critic,
-        resources.files("acegen.priors") / "gru_guacamol_vocabulary.ckpt",
-        resources.files("acegen.priors") / "gru_guacamol.ckpt",
-        SMILESTokenizer3(),
+        SMILESTokenizerChEMBL(),
     ),
     "lstm": (
         create_lstm_actor,
@@ -64,7 +56,7 @@ models = {
         create_lstm_actor_critic,
         resources.files("acegen.priors") / "chembl_vocabulary.txt",
         resources.files("acegen.priors") / "lstm_chembl.ckpt",
-        SMILESTokenizer(),
+        SMILESTokenizerChEMBL(),
     ),
     "gpt2": (
         create_gpt2_actor,
@@ -72,6 +64,19 @@ models = {
         create_gpt2_actor_critic,
         resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
         extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt"),
-        SMILESTokenizer2(),
+        SMILESTokenizerEnamine(),
     ),
 }
+
+
+def register_model(name, factory):
+    """Register a model factory.
+
+    The factory can be a function or a string in the form "module.factory".
+
+
+    """
+    if isinstance(factory, str):
+        m, f = factory.rsplit(".", 1)
+        factory = getattr(import_module(m), f)
+    models[name] = factory

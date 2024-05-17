@@ -11,7 +11,7 @@ import numpy as np
 import torch
 
 from acegen.data import chem_utils, load_dataset, MolBloomDataset, SMILESDataset
-from acegen.models import models as model_mapping
+from acegen.models import models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from tensordict.utils import remove_duplicates
@@ -87,10 +87,16 @@ def main(cfg: "DictConfig"):
     )
 
     logging.info("\nCreating model...")
-    if cfg.model in model_mapping:
-        create_model, _, _, _, _, _ = model_mapping[cfg.model]
-    else:
-        raise ValueError(f"Unknown model type {cfg.model}")
+    # If custom model, register it
+    if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
+        register_model(cfg.model, cfg.model_factory)
+    # Check if model is available
+    if cfg.model not in models:
+        raise ValueError(
+            f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
+        )
+    # Get model
+    create_model, _, _, _, _, _ = models[cfg.model]
 
     actor_training, actor_inference = create_model(vocabulary_size=len(vocabulary))
     actor_training.to(device)
