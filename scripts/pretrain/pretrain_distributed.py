@@ -142,12 +142,15 @@ def main(cfg: "DictConfig"):
     )
 
     logging.info("\nCreating model...")
+    # If custom model, register it
     if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
         register_model(cfg.model, cfg.model_factory)
-    else:
+    # Check if model is available
+    if cfg.model not in models:
         raise ValueError(
             f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
         )
+    # Get model
     create_model, _, _, _, _, _ = models[cfg.model]
 
     actor_training, actor_inference = create_model(vocabulary_size=len(vocabulary))

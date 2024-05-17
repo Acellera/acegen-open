@@ -125,14 +125,17 @@ def run_a2c(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Get model and vocabulary checkpoints
+    # If custom model, register it
     if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
         register_model(cfg.model, cfg.model_factory)
-    else:
+
+    # Check if model is available
+    if cfg.model not in models:
         raise ValueError(
             f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
         )
 
+    # Get model
     (create_actor, create_critic, create_shared, voc_path, ckpt_path, tokenizer) = (
         models[cfg.model]
     )
