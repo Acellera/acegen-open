@@ -73,8 +73,15 @@ def register_model(name, factory):
     """Register a model factory.
 
     The factory can be a function or a string in the form "module.factory".
+    Running the factory should return a tuple with the following elements:
+    - create_actor: a function that creates the actor model
+    - create_critic: a function that creates the critic model (optional)
+    - create_actor_critic: a function that creates the actor-critic model (optional)
+    - vocabulary: a path to the vocabulary file
+    - checkpoint: a path to the model checkpoint
+    - tokenizer: a tokenizer instance (optional)
 
-
+    For more details, see the tutorial in acegen-open/tutorials/adding_custom_model.md.
     """
     if isinstance(factory, str):
         m, f = factory.rsplit(".", 1)
