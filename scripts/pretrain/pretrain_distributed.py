@@ -69,7 +69,7 @@ def print_master(msg):
 
 
 @hydra.main(
-    config_path=str(resources.files("acegen.scripts.pretrain")),
+    config_path=".",
     config_name="config",
     version_base="1.2",
 )
