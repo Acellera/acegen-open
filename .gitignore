@@ -164,3 +164,4 @@ results/
 logs_*
 
 *.DS_Store*
+*gpt2_enamine_real.ckpt*

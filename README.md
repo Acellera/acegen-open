@@ -57,6 +57,7 @@ To install TorchRL, run
 To install AceGen, run (use `pip install -e ./` for develop mode)
 
     pip3 install tqdm wandb hydra-core
+    git clone https://github.com/Acellera/acegen-open.git
     cd acegen-open
     pip install ./
 
