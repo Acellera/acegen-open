@@ -1,4 +1,5 @@
 from typing import Callable
+from importlib import import_module
 
 from numpy import ndarray
 from torch import Tensor
@@ -50,5 +51,8 @@ def register_custom_scoring_function(name, scoring_function):
         >>> register_custom_scoring_function("my_scoring_function", my_scoring_function)
         >>> custom_scoring_functions["my_scoring_function"]
     """
+    if isinstance(scoring_function, str):
+        m, f = scoring_function.rsplit(".", 1)
+        scoring_function = getattr(import_module(m), f)
     check_scoring_function(scoring_function)
     custom_scoring_functions[name] = scoring_function

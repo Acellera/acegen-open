@@ -31,9 +31,9 @@ Once our QED scoring function is defined, we need to add it to the `custom_scori
 ```python
 from acegen.scoring_functions import custom_scoring_functions
 
-# custom_scoring_functions = {
-#    "QED": QED,
-#}
+custom_scoring_functions = {
+   "QED": QED,
+}
 
 for k, v in custom_scoring_functions.items():
     print(k, ":" , v)
