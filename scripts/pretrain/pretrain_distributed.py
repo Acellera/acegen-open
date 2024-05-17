@@ -23,6 +23,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
 
@@ -167,11 +168,7 @@ def main(cfg: "DictConfig"):
     )
     test_env = TransformedEnv(test_env)
     test_env.append_transform(InitTracker())
-    if hasattr(actor_inference, "rnn_spec"):
-        # Create a transform to populate initial tensordict with rnn recurrent states equal to 0.0
-        primers = actor_inference.rnn_spec.expand(cfg.num_test_smiles)
-        rhs_primer = TensorDictPrimer(primers)
-        test_env.append_transform(rhs_primer)
+    test_env.append_transform(get_primers_from_module(actor_inference))
 
     logging.info("\nCreating test scoring function...")
 
