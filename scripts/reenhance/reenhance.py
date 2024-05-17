@@ -242,6 +242,8 @@ def run_reinforce(cfg, task):
         eps=cfg.eps,
         weight_decay=cfg.weight_decay,
     )
+    if cfg.get("lr_annealing", False):
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=5000//cfg.num_envs, eta_min=0.0001)
 
     # Create logger
     ####################################################################################################################
@@ -293,7 +295,7 @@ def run_reinforce(cfg, task):
         log_info = {}
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += done.sum().item()
+        total_done += cfg.num_envs # done.sum().item()
         pbar.update(done.sum().item())
 
         # Save info about smiles lengths and rewards
@@ -322,10 +324,7 @@ def run_reinforce(cfg, task):
             cfg.experience_replay
             and len(experience_replay_buffer) > cfg.replay_batch_size
         ):
-            replay_batch = experience_replay_buffer.sample()
-            _ = replay_batch.pop('priority')
-            _ = replay_batch.pop('index')
-            _ = replay_batch.pop('prior_log_prob')
+            replay_batch = experience_replay_buffer.sample().exclude("priority", "index", "prior_log_prob", "_weight")
             data = torch.cat((data, replay_batch), 0)
 
         # Compute loss
@@ -345,6 +344,13 @@ def run_reinforce(cfg, task):
         optim.zero_grad()
         loss.backward()
         optim.step()
+        if cfg.get("lr_annealing", None) & (total_done < 5000):
+            log_info.update(
+                {
+                    "train/lr": scheduler.get_last_lr()[0],
+                }
+            )
+            scheduler.step()
 
         # Then add new experiences to the replay buffer
         if cfg.experience_replay is True:
@@ -396,8 +402,12 @@ def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None):
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     
     # Reward reshaping
-    reward = torch.clamp(torch.pow(reward, alpha) + (sigma*prior_likelihood), min=0.0)
-    #reward = torch.pow(reward, alpha) + (sigma*prior_likelihood)+1
+    # Clamp + sigma
+    #reward = torch.clamp(torch.pow(reward, alpha) + (sigma*prior_likelihood), min=0.0)
+    # Clamp ^ exp
+    reward = torch.pow(torch.clamp(reward + sigma*prior_likelihood, min=0.0), alpha)
+    # Add constant
+    #reward = torch.pow(reward, alpha) #+ (sigma*prior_likelihood)+1
 
     # Subtract baselines
     if baseline:
