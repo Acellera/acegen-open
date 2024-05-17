@@ -58,7 +58,7 @@ custom_task: QED
 ...
 ```
 
-## Using a custom scoring function in the training scripts (Option 1)
+## Using a custom scoring function in the training scripts (Option 2)
 
 It is also possible to use the scpring function directly without modifying the internal code of ACEGEN.
 For that, we can provide the path to our factory to the config parameter `custom_task` directly.
