@@ -1,3 +1,4 @@
+from importlib import import_module
 from typing import Callable
 
 from numpy import ndarray
@@ -20,7 +21,7 @@ def check_scoring_function(scoring_function):
         )
 
     # Check it accepts a single smiles and returns a number, list, tensor or array
-    if not isinstance(scoring_function("CCO"), (float, list, Tensor, ndarray)):
+    if not isinstance(scoring_function(["CCO"]), (float, list, Tensor, ndarray)):
         raise ValueError(
             f"scoring_function must return a float, list, array or tensor, got {type(scoring_function('CCO'))}"
         )
@@ -50,5 +51,8 @@ def register_custom_scoring_function(name, scoring_function):
         >>> register_custom_scoring_function("my_scoring_function", my_scoring_function)
         >>> custom_scoring_functions["my_scoring_function"]
     """
+    if isinstance(scoring_function, str):
+        m, f = scoring_function.rsplit(".", 1)
+        scoring_function = getattr(import_module(m), f)
     check_scoring_function(scoring_function)
     custom_scoring_functions[name] = scoring_function
