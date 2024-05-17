@@ -47,7 +47,7 @@ vocab1 = SMILESVocabulary.create_from_dict(chars_dict, start_token="START", end_
 SMILES strings into characters. AceGen already offers some tokenizers, but you can also create your own if you need to.
 The only requirement is that it respects the simple interface defined [here](../acegen/vocabulary/base.py).
 ```python
-from acegen.vocabulary import SMILESTokenizer
+from acegen.vocabulary import SMILESTokenizerChEMBL
 
 smiles_list = [
     "CCO",  # Ethanol (C2H5OH)
@@ -58,7 +58,7 @@ smiles_list = [
 ]
 
 vocab2 = SMILESVocabulary.create_from_smiles(
-    smiles_list, start_token="START", end_token="END", tokenizer=SMILESTokenizer(),
+    smiles_list, start_token="START", end_token="END", tokenizer=SMILESTokenizerChEMBL(),
 )
 ```
 
