@@ -20,7 +20,7 @@ The full paper can be found [here](https://arxiv.org/abs/2405.04657).
 ## Features
 
 - **Multiple Generative Modes:** AceGen facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
-- **RL Algorithms:** AceGen offers task optimization with various reinforcement learning algorithms such as Proximal Policy Optimization (PPO), Advantage Actor-Critic (A2C), Reinvent, and Augmented Hill-Climb (AHC).
+- **RL Algorithms:** AceGen offers task optimization with various reinforcement learning algorithms such as Proximal Policy Optimization (PPO), Advantage Actor-Critic (A2C), Reinforce, Reinvent, and Augmented Hill-Climb (AHC).
 - **Pre-trained Models:** The toolkit offers pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), and GPT-2.
 - **Scoring Functions :** AceGen relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
 - **Customization Support:** AceGen provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
@@ -83,7 +83,8 @@ To learn how to configure constrained molecule generation with AcGen and prompts
 ## Running training scripts
 
 To run the training scripts for denovo generation, run the following commands:
-
+    
+    python scripts/reinforce/reinforce.py --config-name config_denovo
     python scripts/a2c/a2c.py --config-name config_denovo
     python scripts/ppo/ppo.py --config-name config_denovo
     python scripts/reinvent/reinvent.py --config-name config_denovo
@@ -91,6 +92,7 @@ To run the training scripts for denovo generation, run the following commands:
 
 To run the training scripts for scaffold decoration, run the following commands (requires installation of promptsmiles):
 
+    python scripts/reinforce/reinforce.py --config-name config_scaffold
     python scripts/a2c/a2c.py --config-name config_scaffold
     python scripts/ppo/ppo.py --config-name config_scaffold
     python scripts/reinvent/reinvent.py --config-name config_scaffold
@@ -98,6 +100,7 @@ To run the training scripts for scaffold decoration, run the following commands 
 
 To run the training scripts for fragment linking, run the following commands (requires installation of promptsmiles):
 
+    python scripts/reinforce/reinforce.py --config-name config_linking
     python scripts/a2c/a2c.py --config-name config_linking
     python scripts/ppo/ppo.py --config-name config_linking
     python scripts/reinvent/reinvent.py --config-name config_linking
