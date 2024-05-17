@@ -1,3 +1,8 @@
+
+<p align="center">
+  <img src="./acegen/images/acegen_logo.jpeg" alt="Alt Text" />
+</p>
+
 # AceGen: A TorchRL-based toolkit for reinforcement learning in generative chemistry
 
 ---
