@@ -116,7 +116,7 @@ To run the training scripts for fragment linking, run the following commands (re
     python scripts/reinvent/reinvent.py --config-name config_linking
     python scripts/ahc/ahc.py --config-name config_linking
 
-#### Advanced usage
+### Advanced usage
 
 Scripts are also available as executables after installation, but both the path and name of the config must be specified. For example,
 
@@ -165,8 +165,6 @@ We provide a variety of default priors that can be selected in the configuration
   - number of parameters: 5,030,400
 - to select set the field `model` to `gpt2` in any configuration file
 
----
-
 ### Integration of custom models
 
 We also encourage users to integrate their own models into AceGen.
@@ -179,33 +177,33 @@ A detailed guide on integrating custom models can be found in this [tutorial](tu
 
 Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. 
 Each algorithm ran 5 times with different seeds, and results were averaged. 
-We used the default configuration for each algorithm, including the GRU model for the prior.
+The default values for each algorithm are those in our de novo configuration files.
 Additionally, for Reinvent we also tested the configuration proposed in the MolOpt paper.
 
 | Task                          | [REINFORCE][3] | [REINVENT][4] | [REINVENT MolOpt][6] | [AHC][5]   | [A2C][2]   | [PPO][1]   | [PPOD][7]  |
 |-------------------------------|----------------|---------------|----------------------|------------|------------|------------|------------|
-| Albuterol_similarity   | 0.68 ± 0.03  | 0.69 ± 0.02 | 0.90 ± 0.01     | 0.77 ± 0.02  | 0.82 ± 0.04  | 0.93 ± 0.02  | **0.94 ± 0.00** |
-| Amlodipine_MPO         | 0.55 ± 0.01  | 0.56 ± 0.01 | 0.65 ± 0.06     | 0.56 ± 0.01  | 0.55 ± 0.01  | 0.58 ± 0.03  | **0.68 ± 0.02** |
-| C7H8N2O2               | 0.83 ± 0.01  | 0.82 ± 0.03 | **0.90 ± 0.02**  | 0.76 ± 0.04  | 0.84 ± 0.04  | 0.89 ± 0.01  | 0.89 ± 0.03  |
-| C9H10N2O2PF2Cl         | 0.70 ± 0.02  | 0.70 ± 0.02 | 0.76 ± 0.03     | 0.68 ± 0.02  | 0.69 ± 0.03  | 0.66 ± 0.02  | **0.79 ± 0.02** |
-| Celecoxxib_rediscovery | 0.63 ± 0.02  | 0.64 ± 0.03 | 0.77 ± 0.02     | 0.72 ± 0.02  | 0.73 ± 0.06  | 0.65 ± 0.12  | **0.82 ± 0.03** |
-| DRD2                    | 0.98 ± 0.00  | 0.97 ± 0.00 | **0.99 ± 0.00** | 0.98 ± 0.01  | 0.98 ± 0.01  | **0.99 ± 0.00** | **0.99 ± 0.00** |
-| Deco_hop                | 0.63 ± 0.00  | 0.63 ± 0.01 | **0.67 ± 0.01** | 0.64 ± 0.01  | 0.62 ± 0.00  | 0.62 ± 0.01  | 0.66 ± 0.02  |
-| Fexofenadine_MPO        | 0.71 ± 0.01  | 0.71 ± 0.00 | **0.80 ± 0.03** | 0.72 ± 0.00  | 0.71 ± 0.00  | 0.73 ± 0.00  | 0.78 ± 0.01  |
-| GSK3B                   | 0.84 ± 0.01  | 0.84 ± 0.02 | **0.92 ± 0.02** | 0.82 ± 0.01  | 0.85 ± 0.02  | 0.90 ± 0.02  | **0.92 ± 0.02** |
-| JNK3                    | 0.75 ± 0.03  | 0.75 ± 0.02 | 0.85 ± 0.04     | 0.75 ± 0.01  | 0.74 ± 0.06  | 0.80 ± 0.04  | **0.87 ± 0.02** |
-| Median_molecules_1      | 0.26 ± 0.00  | 0.24 ± 0.00 | **0.36 ± 0.02** | 0.24 ± 0.00  | 0.31 ± 0.01  | 0.33 ± 0.02  | 0.35 ± 0.02  |
-| Median_molecules_2      | 0.22 ± 0.00  | 0.22 ± 0.00 | 0.28 ± 0.01     | 0.24 ± 0.00  | 0.25 ± 0.01  | 0.25 ± 0.02  | **0.29 ± 0.01** |
-| Mestranol_similarity    | 0.60 ± 0.03  | 0.55 ± 0.04 | 0.85 ± 0.07     | 0.66 ± 0.04  | 0.69 ± 0.07  | 0.75 ± 0.15  | **0.89 ± 0.05** |
-| Osimertinib_MPO         | 0.82 ± 0.01  | 0.82 ± 0.00 | **0.86 ± 0.01** | 0.83 ± 0.00  | 0.81 ± 0.01  | 0.82 ± 0.01  | 0.84 ± 0.00  |
-| Perindopril_MPO         | 0.48 ± 0.01  | 0.47 ± 0.00 | **0.54 ± 0.01** | 0.47 ± 0.01  | 0.48 ± 0.00  | 0.50 ± 0.01  | 0.53 ± 0.00  |
-| QED                     | **0.94 ± 0.00**| **0.94 ± 0.00** | **0.94 ± 0.00** | **0.94 ± 0.00** | **0.94 ± 0.00** | **0.94 ± 0.00** | **0.94 ± 0.00** |
-| Scaffold_hop              | 0.80 ± 0.00  | 0.79 ± 0.00 | **0.86 ± 0.02** | 0.80 ± 0.01  | 0.80 ± 0.00  | 0.80 ± 0.02  | 0.84 ± 0.03  |
-| Sitagliptin_MPO           | 0.34 ± 0.02  | 0.33 ± 0.01 | 0.38 ± 0.03     | 0.33 ± 0.02  | **0.39 ± 0.02** | 0.32 ± 0.02 | **0.39 ± 0.02** |
-| Thiothixene_rediscovery   | 0.41 ± 0.01  | 0.41 ± 0.00 | 0.56 ± 0.04     | 0.45 ± 0.02  | 0.48 ± 0.04  | 0.48 ± 0.06  | **0.58 ± 0.09** |
-| Troglitazone_rediscovery  | 0.31 ± 0.02  | 0.31 ± 0.02 | 0.47 ± 0.05     | 0.34 ± 0.01  | 0.35 ± 0.02  | 0.46 ± 0.07  | **0.52 ± 0.06** |
-| Valsartan_smarts          | **0.03 ± 0.00** | 0.02 ± 0.00 | 0.02 ± 0.00     | 0.02 ± 0.00  | 0.02 ± 0.00  | **0.03 ± 0.00** | **0.03 ± 0.00** |
-| Zaleplon_MPO              | 0.47 ± 0.01  | 0.47 ± 0.01 | **0.52 ± 0.01** | 0.48 ± 0.01  | 0.47 ± 0.01  | 0.50 ± 0.02  | **0.52 ± 0.01** |
+| Albuterol_similarity   | 0.68  | 0.69 | 0.90     | 0.77  | 0.82  | 0.93  | **0.94** |
+| Amlodipine_MPO         | 0.55  | 0.56 | 0.65     | 0.56  | 0.55  | 0.58  | **0.68** |
+| C7H8N2O2               | 0.83  | 0.82 | **0.90**  | 0.76  | 0.84  | 0.89  | 0.89  |
+| C9H10N2O2PF2Cl         | 0.70  | 0.70 | 0.76     | 0.68  | 0.69  | 0.66  | **0.79** |
+| Celecoxxib_rediscovery | 0.63  | 0.64 | 0.77     | 0.72  | 0.73  | 0.65  | **0.82** |
+| DRD2                    | 0.98  | 0.97 | **0.99** | 0.98  | 0.98  | **0.99** | **0.99** |
+| Deco_hop                | 0.63  | 0.63 | **0.67** | 0.64  | 0.62  | 0.62  | 0.66  |
+| Fexofenadine_MPO        | 0.71  | 0.71 | **0.80** | 0.72  | 0.71  | 0.73  | 0.78  |
+| GSK3B                   | 0.84  | 0.84 | **0.92** | 0.82  | 0.85  | 0.90  | **0.92** |
+| JNK3                    | 0.75  | 0.75 | 0.85     | 0.75  | 0.74  | 0.80  | **0.87** |
+| Median_molecules_1      | 0.26  | 0.24 | **0.36** | 0.24  | 0.31  | 0.33  | 0.35  |
+| Median_molecules_2      | 0.22  | 0.22 | 0.28     | 0.24  | 0.25  | 0.25  | **0.29** |
+| Mestranol_similarity    | 0.60  | 0.55 | 0.85     | 0.66  | 0.69  | 0.75  | **0.89** |
+| Osimertinib_MPO         | 0.82  | 0.82 | **0.86** | 0.83  | 0.81  | 0.82  | 0.84  |
+| Perindopril_MPO         | 0.48  | 0.47 | **0.54** | 0.47  | 0.48  | 0.50  | 0.53  |
+| QED                     | **0.94**| **0.94** | **0.94** | **0.94** | **0.94** | **0.94** | **0.94** |
+| Scaffold_hop              | 0.80  | 0.79 | **0.86** | 0.80  | 0.80  | 0.80  | 0.84  |
+| Sitagliptin_MPO           | 0.34  | 0.33 | 0.38     | 0.33  | **0.39** | 0.32 | **0.39** |
+| Thiothixene_rediscovery   | 0.41  | 0.41 | 0.56     | 0.45  | 0.48  | 0.48  | **0.58** |
+| Troglitazone_rediscovery  | 0.31  | 0.31 | 0.47     | 0.34  | 0.35  | 0.46  | **0.52** |
+| Valsartan_smarts          | **0.03** | 0.02 | 0.02     | 0.02  | 0.02  | **0.03** | **0.03** |
+| Zaleplon_MPO              | 0.47  | 0.47 | **0.52** | 0.48  | 0.47  | 0.50  | **0.52** |
 | **Total**                 | **13.67**    | **13.60**   | **15.65**       | **13.91**    | **14.27**    | **14.65**    | **15.80**    |
 
 
