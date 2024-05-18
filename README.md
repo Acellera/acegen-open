@@ -9,7 +9,7 @@
 
 ## Overview
 
-AceGen is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. AceGen harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
+ACEGEN is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. ACEGEN harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
 
 ![Alt Text](./acegen/images/train_zaleplon.png)
 
@@ -19,11 +19,11 @@ The full paper can be found [here](https://arxiv.org/abs/2405.04657).
 
 ## Features
 
-- **Multiple Generative Modes:** AceGen facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
-- **RL Algorithms:** AceGen offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
+- **Multiple Generative Modes:** ACEGEN facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
+- **RL Algorithms:** ACEGEN offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
 - **Pre-trained Models:** The toolkit offers pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), and GPT-2.
-- **Scoring Functions :** AceGen relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
-- **Customization Support:** AceGen provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
+- **Scoring Functions :** ACEGEN relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
+- **Customization Support:** ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
 
 ---
 
@@ -57,9 +57,9 @@ To install TorchRL, run
     cd rl
     python setup.py install
 
-### Install AceGen
+### Install ACEGEN
 
-To install AceGen, run (use `pip install -e ./` for develop mode)
+To install ACEGEN, run (use `pip install -e ./` for develop mode)
 
     pip3 install tqdm wandb hydra-core
     git clone https://github.com/Acellera/acegen-open.git
@@ -136,7 +136,7 @@ Alternatively, you can set the `molscore` parameter to the name of a valid MolSc
 (such as MolOpt, GuacaMol, etc.) to automatically execute each task in the benchmark. For further details on MolScore, 
 please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) repository.
 
-Alternatively, users can define their own custom scoring functions and use them in the AceGen scripts by following the 
+Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the 
 instructions in this [tutorial](tutorials/adding_custom_scoring_function.md).
 
 ---
@@ -167,7 +167,7 @@ We provide a variety of default priors that can be selected in the configuration
 
 ### Integration of custom models
 
-We also encourage users to integrate their own models into AceGen.
+We also encourage users to integrate their own models into ACEGEN.
 
 A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
 
