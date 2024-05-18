@@ -62,7 +62,7 @@ total_smiles: 10_000 # Total number of SMILES to generate
 
 ## Scoring function
 
-This section is also common to all scripts. ACEGEN uses [molscore][https://github.com/MorganCThomas/MolScore] by default to define scoring functions to guide the generative agents with reinforcement learning. However, `molscore` is only an optional dependency. The `custom_task` also allows to directly use a custom scoring function defined by the user. Check our [tutorial](tutorials/adding_custom_model.md) to learn how to define and use your own scoring function.
+This section is also common to all scripts. ACEGEN uses [molscore](https://github.com/MorganCThomas/MolScore) by default to define scoring functions to guide the generative agents with reinforcement learning. However, `molscore` is only an optional dependency. The `custom_task` also allows to directly use a custom scoring function defined by the user. Check our [tutorial](tutorials/adding_custom_model.md) to learn how to define and use your own scoring function.
 
 ```yaml
 # Scoring function
@@ -107,7 +107,7 @@ weight_decay: 0.0
 
 ## Algorithm configuration
 
-This section varies for each algorithm and allows you to define its hyperparameters. Please refer to the paper for each algorithm to learn how to modify them. Links to the papers are provided in the [README.md][https://github.com/Acellera/acegen-open] file.
+This section varies for each algorithm and allows you to define its hyperparameters. Please refer to the paper for each algorithm to learn how to modify them. Links to the papers are provided in the [README.md](https://github.com/Acellera/acegen-open) file.
 
 ```yaml
 # Reinvent configuration
