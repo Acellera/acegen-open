@@ -212,12 +212,12 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ---
 
-## De Novo results example
+## De Novo generation example: docking in the 5-HT2A
 
 ![Alt Text](./acegen/images/acagen_de_novo.png)
 
 ---
 
-## Decorative result example (AHC algorithm)
+## Scaffold constrained generation example: BACE1 docking with AHC algorithm
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
