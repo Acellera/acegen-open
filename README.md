@@ -11,8 +11,6 @@
 
 ACEGEN is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. ACEGEN harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
 
-![Alt Text](./acegen/images/train_zaleplon.png)
-
 The full paper can be found [here](https://arxiv.org/abs/2405.04657).
 
 ---
@@ -24,10 +22,6 @@ The full paper can be found [here](https://arxiv.org/abs/2405.04657).
 - **Pre-trained Models:** The toolkit offers pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), and GPT-2.
 - **Scoring Functions :** ACEGEN relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
 - **Customization Support:** ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
-
----
-
-![Alt Text](./acegen/images/chem_zaleplon.png)
 
 ---
 
@@ -214,3 +208,16 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 [5]: https://jcheminf.biomedcentral.com/articles/10.1186/s13321-022-00646-z
 [6]: https://arxiv.org/pdf/2206.12411.pdf
 [7]: https://arxiv.org/abs/2007.03328
+
+
+---
+
+## De Novo results example
+
+![Alt Text](./acegen/images/acagen_de_novo.png)
+
+---
+
+## Decorative result example
+
+![Alt Text](./acegen/images/acagen_decorative.png)
