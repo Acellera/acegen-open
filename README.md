@@ -220,4 +220,4 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ## Decorative result example
 
-![Alt Text](./acegen/images/acagen_decorative.png)
+![Alt Text](./acegen/images/acegen_decorative.png)
