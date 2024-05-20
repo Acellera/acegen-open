@@ -218,6 +218,6 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ---
 
-## Decorative result example
+## Decorative result example (AHC algorithm)
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
