@@ -33,12 +33,17 @@ def extract(path):
         if tar_path.exists():
             logging.info("Extracting model checkpoint...")
             with tarfile.open(tar_path, "r:gz") as tar:
-                tar.extractall()
+                tar.extractall(path=path.parent)
                 return path
         else:
             raise FileNotFoundError(f"File {path} not found.")
     else:
         return path
+
+
+# extracting big model files only if they are not already extracted
+if not Path("gpt2_enamine_real.ckpt").exists():
+    extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt.tar.gz")
 
 
 models = {
@@ -63,7 +68,7 @@ models = {
         create_gpt2_critic,
         create_gpt2_actor_critic,
         resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
-        extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt"),
+        resources.files("acegen.priors") / "gpt2_enamine_real.ckpt",
         SMILESTokenizerEnamine(),
     ),
 }
