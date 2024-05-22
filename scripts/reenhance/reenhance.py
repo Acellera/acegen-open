@@ -335,10 +335,16 @@ def run_reinforce(cfg, task):
             alpha=cfg.get("alpha", 1),
             sigma=cfg.get("sigma", 0.0),
             baseline=baseline,
+            entropy_coef=cfg.get("entropy_coef", 0.0),
             )
 
         # Average loss over the batch
         loss = loss.mean()
+
+        # Add regularizer that penalizes high likelihood for the entire sequence
+        if cfg.get("likely_penalty", False):
+            loss_p = -(1 / agent_likelihood).mean()
+            loss += cfg.get("likely_penalty_coef", 5e3) * loss_p
 
         # Calculate gradients and make an update to the network weights
         optim.zero_grad()
@@ -370,9 +376,10 @@ def run_reinforce(cfg, task):
                 replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
-            reward = replay_data.get(("next", "reward"))
-            replay_data.set("priority", reward)
-            experience_replay_buffer.extend(replay_data)
+            if len(replay_data) > 1:
+                reward = replay_data.get(("next", "reward"))
+                replay_data.set("priority", reward)
+                experience_replay_buffer.extend(replay_data)
 
         # Log info
         if logger:
@@ -388,7 +395,7 @@ def get_log_prob(data, model):
     return log_prob, dist
 
 
-def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None):
+def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0):
 
     mask = data.get("mask").squeeze(-1)
 
@@ -421,6 +428,9 @@ def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None):
     #kl_div = kl_divergence(agent_dist, prior_dist)
     #kl_div = (kl_div * mask.squeeze()).sum(-1)
     #loss += kl_div * sigma
+
+    # Add Entropy loss term
+    loss -= entropy_coef * (agent_dist.entropy() * mask.squeeze()).mean(-1)
 
     return data, loss, agent_likelihood
 
