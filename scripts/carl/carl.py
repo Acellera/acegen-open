@@ -410,12 +410,7 @@ def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     
     # Reward reshaping
-    # Clamp + sigma
-    #reward = torch.clamp(torch.pow(reward, alpha) + (sigma*prior_likelihood), min=0.0)
-    # Clamp ^ exp
     reward = torch.pow(torch.clamp(reward + sigma*prior_likelihood, min=0.0), alpha)
-    # Add constant
-    #reward = torch.pow(reward, alpha) #+ (sigma*prior_likelihood)+1
 
     # Subtract baselines
     if baseline:
