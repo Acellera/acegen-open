@@ -90,6 +90,7 @@ def main(cfg: "DictConfig"):
                 )
                 for task in MSB:
                     run_reinforce(cfg, task)
+                    task.write_scores()
             else:
                 # Save molscore output. Also redirect output to save_dir
                 cfg.molscore = shutil.copy(cfg.molscore, save_dir)
