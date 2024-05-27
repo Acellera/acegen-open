@@ -33,6 +33,7 @@ weight_decay: 0.0
 
 # DPO configuration
 beta: 0.1
+num_updates: 1
 
 # Data replay configuration
 experience_replay: True

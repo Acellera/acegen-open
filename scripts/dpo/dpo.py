@@ -259,35 +259,37 @@ def run_dpo(cfg, task):
         sscore, sscore_idxs = (
             data_next["reward"][done].squeeze(-1).sort(descending=True)
         )
-        (
-            loss,
-            prefered_relative_logprob,
-            disprefered_relative_logprob,
-            reward_margins,
-        ) = compute_loss(
-            positive_data=data[sscore_idxs.data[: int(cfg.num_envs * 0.5)]],
-            negative_data=data[sscore_idxs.data[int(cfg.num_envs * 0.5) :]],
-            model=actor_training,
-            prior=prior,
-            beta=cfg.beta,
-        )
 
-        log_info.update(
-            {
-                "train/loss": loss.item(),
-                "train/prefered_relative_logprob": prefered_relative_logprob,
-                "train/disprefered_relative_logprob": disprefered_relative_logprob,
-                "train/reward_margin": reward_margins,
-            }
-        )
+        for i in range(cfg.num_updates):
+            (
+                loss,
+                prefered_relative_logprob,
+                disprefered_relative_logprob,
+                reward_margins,
+            ) = compute_loss(
+                positive_data=data[sscore_idxs.data[: int(cfg.num_envs * 0.5)]],
+                negative_data=data[sscore_idxs.data[int(cfg.num_envs * 0.5) :]],
+                model=actor_training,
+                prior=prior,
+                beta=cfg.beta,
+            )
 
-        # Average loss over the batch
-        loss = loss.mean()
+            log_info.update(
+                {
+                    "train/loss": loss.item(),
+                    "train/prefered_relative_logprob": prefered_relative_logprob,
+                    "train/disprefered_relative_logprob": disprefered_relative_logprob,
+                    "train/reward_margin": reward_margins,
+                }
+            )
 
-        # Calculate gradients and make an update to the network weights
-        optim.zero_grad()
-        loss.backward()
-        optim.step()
+            # Average loss over the batch
+            loss = loss.mean()
+
+            # Calculate gradients and make an update to the network weights
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
 
         # Log info
         if logger:
