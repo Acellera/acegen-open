@@ -1,6 +1,6 @@
 # Logging configuration
 experiment_name: acegen
-agent_name: reinforce
+agent_name: dpo
 log_dir: results # Directory to save the results
 logger_backend: null  # wandb, tensorboard, or null
 seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
