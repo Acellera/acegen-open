@@ -217,11 +217,11 @@ def main(cfg: "DictConfig"):
                                 "mols", wandb.Image(image), step=total_smiles
                             )
                         logger.log_scalar(
-                            "lr", lr_scheduler.get_lr()[0], step=total_smiles
+                            "lr", lr_scheduler.get_last_lr()[0], step=total_smiles
                         )
 
-            # Decay learning rate
-            lr_scheduler.step()
+                # Decay learning rate
+                lr_scheduler.step()
 
         save_path = Path(cfg.model_log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
         torch.save(actor_training.state_dict(), save_path)
