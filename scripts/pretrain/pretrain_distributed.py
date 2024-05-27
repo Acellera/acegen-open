@@ -226,6 +226,9 @@ def main(cfg: "DictConfig"):
                 actor_optimizer.step()
                 actor_losses[step] = loss_actor.item()
 
+                # Decay learning rate
+                lr_scheduler.step()
+
             # Generate test smiles
             smiles = generate_complete_smiles(test_env, actor_inference, max_length=100)
             num_valid_smiles = valid_smiles(
@@ -241,9 +244,6 @@ def main(cfg: "DictConfig"):
                     "num_test_unique_smiles", len(unique_smiles), step=epoch
                 )
                 logger.log_scalar("lr", lr_scheduler.get_lr()[0], step=epoch)
-
-            # Decay learning rate
-            lr_scheduler.step()
 
         save_path = Path(cfg.model_log_dir) / f"pretrained_actor_epoch_{epoch}.pt"
         torch.save(actor_training.state_dict(), save_path)
