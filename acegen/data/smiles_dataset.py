@@ -1,5 +1,6 @@
 import logging
 import os
+import gzip
 from pathlib import Path
 
 import numpy as np
@@ -22,9 +23,14 @@ except ImportError:
 def load_dataset(file_path):
     """Reads a list of SMILES from file_path."""
     smiles_list = []
-    with open(file_path, "r") as f:
-        for line in tqdm(f, desc="Load Samples"):
-            smiles_list.append(line.split()[0])
+    if any(["gz" in ext for ext in os.path.basename(file_path).split(".")[1:]]):
+        with gzip.open(file_path) as f:
+            for line in tqdm(f, desc="Load Samples"):
+                smiles_list.append(line.decode("utf-8").split()[0])
+    else:
+        with open(file_path, "r") as f:
+            for line in tqdm(f, desc="Load Samples"):
+                smiles_list.append(line.split()[0])
 
     return smiles_list
 
