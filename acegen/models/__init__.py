@@ -33,7 +33,7 @@ def extract(path):
         if tar_path.exists():
             logging.info("Extracting model checkpoint...")
             with tarfile.open(tar_path, "r:gz") as tar:
-                tar.extractall(path=path.parent)
+                tar.extractall(path=tar_path.parent)
                 return path
         else:
             raise FileNotFoundError(f"File {path} not found.")
@@ -42,8 +42,8 @@ def extract(path):
 
 
 # extracting big model files only if they are not already extracted
-if not Path("gpt2_enamine_real.ckpt").exists():
-    extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt.tar.gz")
+if not (resources.files("acegen.priors") / "gpt2_enamine_real.ckpt").exists():
+    extract(resources.files("acegen.priors") / "gpt2_enamine_real.ckpt")
 
 
 models = {
