@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 
 from rdkit.Chem import AllChem as Chem, Draw
@@ -37,12 +38,19 @@ def fraction_valid(mol_list):
 def randomize_smiles(smiles, random_type="restricted"):
     """Randomize a SMILES string using restricted or unrestricted randomization."""
     mol = get_mol(smiles)
-    if random_type == "restricted":
-        return Chem.MolToSmiles(mol, doRandom=True, canonical=True)
-    elif random_type == "unrestricted":
-        return Chem.MolToSmiles(mol, doRandom=True, canonical=False)
+    if mol:
+        if random_type == "restricted":
+            new_atom_order = list(range(mol.GetNumAtoms()))
+            np.random.shuffle(new_atom_order)
+            random_mol = Chem.RenumberAtoms(mol, newOrder=new_atom_order)
+            return Chem.MolToSmiles(random_mol, canonical=False)
+        elif random_type == "unrestricted":
+            return Chem.MolToSmiles(mol, doRandom=True, canonical=False)
+        else:
+            raise ValueError(f"Invalid randomization type: {random_type}")
     else:
-        raise ValueError(f"Invalid randomization type: {random_type}")
+        warnings.warning(f"Could not randomize SMILES string: {smiles}")
+        return smiles
 
 
 def draw(mol_list, molsPerRow=5, subImgSize=(300, 300)):
