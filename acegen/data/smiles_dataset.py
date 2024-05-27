@@ -1,6 +1,6 @@
+import gzip
 import logging
 import os
-import gzip
 from pathlib import Path
 
 import numpy as np
