@@ -259,7 +259,12 @@ def run_dpo(cfg, task):
         sscore, sscore_idxs = (
             data_next["reward"][done].squeeze(-1).sort(descending=True)
         )
-        loss, prefered_relative_logprob, disprefered_relative_logprob, reward_accuracies, reward_margins = compute_loss(
+        (
+            loss,
+            prefered_relative_logprob,
+            disprefered_relative_logprob,
+            reward_margins,
+        ) = compute_loss(
             positive_data=data[sscore_idxs.data[: int(cfg.num_envs * 0.5)]],
             negative_data=data[sscore_idxs.data[int(cfg.num_envs * 0.5) :]],
             model=actor_training,
@@ -272,8 +277,7 @@ def run_dpo(cfg, task):
                 "train/loss": loss.item(),
                 "train/prefered_relative_logprob": prefered_relative_logprob,
                 "train/disprefered_relative_logprob": disprefered_relative_logprob,
-                "train/reward_accuracy": reward_accuracies,
-                "train/reward_margin": reward_margins
+                "train/reward_margin": reward_margins,
             }
         )
 
@@ -298,7 +302,7 @@ def get_log_prob(data, model):
     return log_prob
 
 
-def compute_loss(positive_data, negative_data, model, prior, beta = 0.1):
+def compute_loss(positive_data, negative_data, model, prior, beta=0.1):
 
     # Shuffle positive data
     row_indices = torch.randperm(positive_data.size(0))
@@ -307,21 +311,29 @@ def compute_loss(positive_data, negative_data, model, prior, beta = 0.1):
     # Compute positive log-likelihoods
     pos_mask = positive_data.get("mask").squeeze(-1)
     pos_agent_likelihood = (get_log_prob(positive_data, model) * pos_mask).sum(-1)
-    pos_prior_likelihood  = (get_log_prob(positive_data, prior) * pos_mask).sum(-1)
+    pos_prior_likelihood = (get_log_prob(positive_data, prior) * pos_mask).sum(-1)
 
     # Compute negative log-likelihoods
     neg_mask = negative_data.get("mask").squeeze(-1)
     neg_agent_likelihood = (get_log_prob(negative_data, model) * pos_mask).sum(-1)
-    neg_prior_likelihood  = (get_log_prob(negative_data, prior) * pos_mask).sum(-1)
+    neg_prior_likelihood = (get_log_prob(negative_data, prior) * pos_mask).sum(-1)
 
     # Compute loss
     prefered_relative_logprob = pos_agent_likelihood - pos_prior_likelihood
     disprefered_relative_logprob = neg_agent_likelihood - neg_prior_likelihood
-    reward_accuracies = (prefered_relative_logprob > disprefered_relative_logprob).float().mean(dim=-1)
-    reward_margins = (prefered_relative_logprob - disprefered_relative_logprob).mean(dim=-1)
-    loss = - torch.nn.functional.logsigmoid(beta * (prefered_relative_logprob - disprefered_relative_logprob)).mean(dim=-1)
+    reward_margins = (prefered_relative_logprob - disprefered_relative_logprob).mean(
+        dim=-1
+    )
+    loss = -torch.nn.functional.logsigmoid(
+        beta * (prefered_relative_logprob - disprefered_relative_logprob)
+    ).mean(dim=-1)
 
-    return loss, prefered_relative_logprob.mean(dim=-1), disprefered_relative_logprob.mean(dim=-1), reward_accuracies, reward_margins
+    return (
+        loss,
+        prefered_relative_logprob.mean(dim=-1),
+        disprefered_relative_logprob.mean(dim=-1),
+        reward_margins,
+    )
 
 
 if __name__ == "__main__":
