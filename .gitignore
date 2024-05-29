@@ -161,6 +161,7 @@ cython_debug/
 
 # RESULTS AND LOGS
 results/
-logs_ppo/
+logs_*
 
 *.DS_Store*
+*gpt2_enamine_real.ckpt*

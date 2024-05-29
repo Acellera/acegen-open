@@ -1,9 +1,7 @@
-from copy import deepcopy
 from typing import Optional
 
 import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from torchrl.data.tensor_specs import CompositeSpec, UnboundedContinuousTensorSpec
 from torchrl.envs import ExplorationType
 from torchrl.modules import ActorValueOperator, GRUModule, MLP, ProbabilisticActor
 
@@ -154,14 +152,7 @@ def create_gru_actor(
         recurrent_state,
         python_based,
     )
-    spec = CompositeSpec(
-        **{
-            recurrent_state: UnboundedContinuousTensorSpec(
-                shape=torch.Size([gru.gru.num_layers, gru.gru.hidden_size]),
-                dtype=torch.float32,
-            )
-        }
-    )
+
     actor_inference_model = TensorDictSequential(embedding, gru, head)
     actor_training_model = TensorDictSequential(
         embedding,
@@ -186,9 +177,6 @@ def create_gru_actor(
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
-
-    actor_training_model.rnn_spec = spec
-    actor_inference_model.rnn_spec = deepcopy(spec)
 
     return actor_training_model, actor_inference_model
 
@@ -243,21 +231,10 @@ def create_gru_critic(
         python_based,
     )
 
-    spec = CompositeSpec(
-        **{
-            recurrent_state: UnboundedContinuousTensorSpec(
-                shape=torch.Size([gru.gru.num_layers, gru.gru.hidden_size]),
-                dtype=torch.float32,
-            )
-        }
-    )
-
     critic_inference_model = TensorDictSequential(embedding, gru, head)
     critic_training_model = TensorDictSequential(
         embedding, gru.set_recurrent_mode(True), head
     )
-    critic_training_model.rnn_spec = spec
-    critic_inference_model.rnn_spec = deepcopy(spec)
     return critic_training_model, critic_inference_model
 
 
@@ -318,15 +295,6 @@ def create_gru_actor_critic(
         python_based,
     )
 
-    spec = CompositeSpec(
-        **{
-            recurrent_state: UnboundedContinuousTensorSpec(
-                shape=torch.Size([gru.gru.num_layers, gru.gru.hidden_size]),
-                dtype=torch.float32,
-            )
-        }
-    )
-
     actor_head = ProbabilisticActor(
         module=actor_head,
         in_keys=["logits"],
@@ -364,10 +332,5 @@ def create_gru_actor_critic(
     critic_inference = actor_critic_inference.get_value_operator()
     actor_training = actor_critic_training.get_policy_operator()
     critic_training = actor_critic_training.get_value_operator()
-
-    actor_training.rnn_spec = spec
-    actor_inference.rnn_spec = deepcopy(spec)
-    critic_training.rnn_spec = deepcopy(spec)
-    critic_inference.rnn_spec = deepcopy(spec)
 
     return actor_training, actor_inference, critic_training, critic_inference

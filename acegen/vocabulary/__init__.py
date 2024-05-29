@@ -4,9 +4,9 @@ from acegen.vocabulary.tokenizers import (
     DeepSMILESTokenizer,
     SAFETokenizer,
     SELFIESTokenizer,
-    SMILESTokenizer,
-    SMILESTokenizer2,
-    SMILESTokenizer3,
+    SMILESTokenizerChEMBL,
+    SMILESTokenizerEnamine,
+    SMILESTokenizerGuacaMol,
 )
 from acegen.vocabulary.vocabulary import SMILESVocabulary
 
@@ -15,7 +15,7 @@ tokenizer_options = {
     "DeepSMILESTokenizer": DeepSMILESTokenizer,
     "SAFETokenizer": SAFETokenizer,
     "SELFIESTokenizer": SELFIESTokenizer,
-    "SMILESTokenizer": SMILESTokenizer,
-    "SMILESTokenizer2": SMILESTokenizer2,
-    "SMILESTokenizer3": SMILESTokenizer3,
+    "SMILESTokenizerChEMBL": SMILESTokenizerChEMBL,
+    "SMILESTokenizerEnamine": SMILESTokenizerEnamine,
+    "SMILESTokenizerGuacaMol": SMILESTokenizerGuacaMol,
 }

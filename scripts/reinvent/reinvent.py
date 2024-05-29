@@ -16,7 +16,11 @@ import yaml
 
 from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.scoring_functions import custom_scoring_functions, Task
+from acegen.scoring_functions import (
+    custom_scoring_functions,
+    register_custom_scoring_function,
+    Task,
+)
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict.utils import isin
@@ -27,7 +31,8 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 
 try:
@@ -108,6 +113,8 @@ def main(cfg: "DictConfig"):
                 )
                 run_reinvent(cfg, task)
         elif cfg.get("custom_task", None):
+            if cfg.custom_task not in custom_scoring_functions:
+                register_custom_scoring_function(cfg.custom_task, cfg.custom_task)
             task = Task(
                 name=cfg.custom_task,
                 scoring_function=custom_scoring_functions[cfg.custom_task],
@@ -126,13 +133,18 @@ def run_reinvent(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Get model and vocabulary checkpoints
-    if cfg.model not in models and cfg.model_factory is not None:
+    # If custom model, register it
+    if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
         register_model(cfg.model, cfg.model_factory)
-    else:
-        raise ValueError(f"Model {cfg.model} not found. For custom models, create and register a model factory.")
 
-    create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model](cfg)
+    # Check if model is available
+    if cfg.model not in models:
+        raise ValueError(
+            f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
+        )
+
+    # Get model
+    (create_actor, _, _, voc_path, ckpt_path, tokenizer) = models[cfg.model]
 
     # Create vocabulary
     ####################################################################################################################
@@ -142,9 +154,7 @@ def run_reinvent(cfg, task):
     # Create models
     ####################################################################################################################
 
-    ckpt_path = cfg.get("model_weights", ckpt_path)
-    ckpt = torch.load(ckpt_path)
-    
+    ckpt = torch.load(ckpt_path, map_location=device)
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
@@ -157,12 +167,6 @@ def run_reinvent(cfg, task):
 
     # Create RL environment
     ####################################################################################################################
-
-    # For RNNs, create a transform to populate initial tensordict with recurrent states equal to 0.0
-    rhs_primers = []
-    if hasattr(actor_training, "rnn_spec"):
-        primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers.append(TensorDictPrimer(primers))
 
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
@@ -177,8 +181,7 @@ def run_reinvent(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        env.append_transform(get_primers_from_module(actor_training))
         return env
 
     env = create_env_fn()
@@ -316,9 +319,9 @@ def run_reinvent(cfg, task):
                 replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
-            reward = replay_data.get(("next", "reward"))
-            replay_data.set("priority", reward)
             if len(replay_data) > 0:
+                reward = replay_data.get(("next", "reward"))
+                replay_data.set("priority", reward)
                 experience_replay_buffer.extend(replay_data)
 
         # Log info

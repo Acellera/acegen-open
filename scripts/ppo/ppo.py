@@ -15,7 +15,11 @@ import yaml
 
 from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.scoring_functions import custom_scoring_functions, Task
+from acegen.scoring_functions import (
+    custom_scoring_functions,
+    register_custom_scoring_function,
+    Task,
+)
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict import TensorDict
@@ -28,11 +32,11 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import ExplorationType, InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
-
 
 try:
     import molscore
@@ -43,6 +47,9 @@ try:
 except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
+
+# hydra outputs saved in /tmp
+os.chdir("/tmp")
 
 
 @hydra.main(
@@ -109,6 +116,8 @@ def main(cfg: "DictConfig"):
                 )
                 run_ppo(cfg, task)
         elif cfg.get("custom_task", None):
+            if cfg.custom_task not in custom_scoring_functions:
+                register_custom_scoring_function(cfg.custom_task, cfg.custom_task)
             task = Task(
                 name=cfg.custom_task,
                 scoring_function=custom_scoring_functions[cfg.custom_task],
@@ -127,21 +136,20 @@ def run_ppo(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Get model and vocabulary checkpoints
-    if cfg.model not in models and cfg.model_factory is not None:
+    # If custom model, register it
+    if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
         register_model(cfg.model, cfg.model_factory)
-    else:
-        raise ValueError(f"Model {cfg.model} not found. For custom models, create and register a model factory.")
 
-    (
-        create_actor,
-        create_critic,
-        create_shared,
-        voc_path,
-        ckpt_path,
-        tokenizer
-    ) = models[cfg.model](cfg)
+    # Check if model is available
+    if cfg.model not in models:
+        raise ValueError(
+            f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
+        )
 
+    # Get model
+    (create_actor, create_critic, create_shared, voc_path, ckpt_path, tokenizer) = (
+        models[cfg.model]
+    )
 
     # Create vocabulary
     ####################################################################################################################
@@ -164,9 +172,8 @@ def run_ppo(cfg, task):
         critic_training, critic_inference = create_critic(len(vocabulary))
 
     # Load pretrained weights
-    ckpt_path = cfg.get("model_weights", ckpt_path)
     ckpt = torch.load(ckpt_path, map_location=device)
-    
+
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )
@@ -184,19 +191,6 @@ def run_ppo(cfg, task):
     # Create RL environment
     ####################################################################################################################
 
-    rhs_primers = []
-    # if rnn's, create a transform to populate initial tensordict with recurrent states equal to 0.0
-    if cfg.shared_nets and hasattr(actor_training, "rnn_spec"):
-        primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers = [TensorDictPrimer(primers)]
-    elif hasattr(actor_training, "rnn_spec"):
-        actor_primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        critic_primers = critic_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers = [
-            TensorDictPrimer(actor_primers),
-            TensorDictPrimer(critic_primers),
-        ]
-
     # Define environment kwargs
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
@@ -212,8 +206,8 @@ def run_ppo(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        env.append_transform(get_primers_from_module(actor_training))
+        env.append_transform(get_primers_from_module(critic_training))
         return env
 
     env = create_env_fn()
