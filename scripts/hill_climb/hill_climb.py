@@ -278,7 +278,7 @@ def run_hill_climb(cfg, task):
         )
         data = data[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
 
-        data, loss = compute_loss(data, actor_training)
+        loss = compute_loss(data, actor_training)
 
         # Compute experience replay loss
         if (
@@ -286,7 +286,7 @@ def run_hill_climb(cfg, task):
             and len(experience_replay_buffer) > cfg.replay_batch_size
         ):
             replay_batch = experience_replay_buffer.sample()
-            _, replay_loss = compute_loss(replay_batch, actor_training)
+            replay_loss = compute_loss(replay_batch, actor_training)
             loss = torch.cat((loss, replay_loss), 0)
 
         # Average loss over the batch
@@ -338,7 +338,7 @@ def compute_loss(data, model):
     mask = data.get("mask").squeeze(-1)
     agent_log_prob = get_log_prob(data, model)
     agent_likelihood = (agent_log_prob * mask).sum(-1)
-    loss = - agent_likelihood.mean()
+    loss = -agent_likelihood
 
     return loss
 
