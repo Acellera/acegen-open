@@ -8,6 +8,12 @@ from acegen.models.gpt2 import (
     create_gpt2_actor_critic,
     create_gpt2_critic,
 )
+from acegen.models.llama2 import (
+    create_llama2_actor,
+    create_llama2_actor_critic,
+    create_llama2_critic,
+)
+
 from acegen.models.gru import (
     create_gru_actor,
     create_gru_actor_critic,
@@ -69,6 +75,14 @@ models = {
         create_gpt2_actor_critic,
         resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
         resources.files("acegen.priors") / "gpt2_enamine_real.ckpt",
+        SMILESTokenizerEnamine(),
+    ),
+    "llama2": (
+        create_llama2_actor,
+        create_llama2_critic,
+        create_llama2_actor_critic,
+        resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
+        resources.files("acegen.priors") / "llama2_enamine_real.ckpt",
         SMILESTokenizerEnamine(),
     ),
 }
