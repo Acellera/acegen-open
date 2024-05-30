@@ -206,7 +206,7 @@ def generate_complete_smiles(
                     replace_mask_value=vocabulary.end_token_index,
                     device=env_device,
                 )
-                # Add final complete smiles for logging
+                # Add final complete smiles for logging and scoring
                 _output_data.set(
                     "promptsmiles",
                     enc_smiles[-1][:, :-1].to(env_device),
@@ -249,7 +249,7 @@ def generate_complete_smiles(
                     failed_mask.unsqueeze(-1).expand_as(output_data["action"]), 0
                 )
 
-            # Add final completed promptsmiles for logging
+            # Add final completed promptsmiles for logging and scoring
             output_data.set(
                 "promptsmiles",
                 enc_smiles[-1][:, :-1].to(env_device),
@@ -266,7 +266,7 @@ def generate_complete_smiles(
 
         # Compute rewards
         if scoring_function:
-            smiles = output_data.get("action").cpu()
+            smiles = output_data.get("promptsmiles").cpu()
             next_output_data = output_data.get("next")
             done = next_output_data.get("done").squeeze(-1)
             smiles_str = [vocabulary.decode(smi.numpy()) for smi in smiles]
