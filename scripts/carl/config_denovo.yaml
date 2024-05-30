@@ -1,7 +1,7 @@
 # Logging configuration
 experiment_name: MolOpt_reward_shaping
-agent_name: reenhance_likely1e2
-log_dir: results/reenhance_likely1e2
+agent_name: carl_pract2
+log_dir: results/carl_pract2
 logger_backend: wandb # csv, wandb, tensorboard, or null
 seed: [101, 102, 103, 104, 105]
 
@@ -10,7 +10,7 @@ num_envs: 128 # Number of smiles to generate in parallel
 total_smiles: 10_000
 
 # Scoring function
-molscore: MolOpt
+molscore: MolOpt-DF
 molscore_include: []
 custom_task: null # Requires molscore to be set to null
 
@@ -29,18 +29,18 @@ eps: 1.0e-08
 weight_decay: 0.0
 
 # Hill-Climb
-topk: 1.0
+topk: 0.5
 
 # Reinforce configuration
-alpha: 1 # 1 Reinforce
-sigma: 0.0 # 0.001 # No prior=0, 0.001 - 0.005 for prior
-baseline: null # null, mab or loo
-likely_penalty: True
+alpha: 5 # 1 Reinforce
+sigma: 0.005 # 0.001 # No prior=0, 0.001 - 0.005 for prior
+baseline: mab # null, mab or loo
+likely_penalty: False
 likely_penalty_coef: 100
 entropy_coef: 0.0 # Default 0.01
 
 # Data replay configuration
-experience_replay: False
+experience_replay: True
 replay_sampler: uniform # uniform, prioritized
 replay_buffer_size: 100
 replay_batch_size: 10
