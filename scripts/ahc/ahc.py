@@ -181,7 +181,8 @@ def run_ahc(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        env.append_transform(get_primers_from_module(actor_training))
+        if hasattr(actor_training, "rnn_spec"):
+            env.append_transform(get_primers_from_module(actor_training))
         return env
 
     env = create_env_fn()

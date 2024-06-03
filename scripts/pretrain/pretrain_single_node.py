@@ -113,7 +113,8 @@ def main(cfg: "DictConfig"):
     )
     test_env = TransformedEnv(test_env)
     test_env.append_transform(InitTracker())
-    test_env.append_transform(get_primers_from_module(actor_inference))
+    if hasattr(actor_inference, "rnn_spec"):
+        test_env.append_transform(get_primers_from_module(actor_inference))
 
     logging.info("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
