@@ -179,7 +179,11 @@ def run_reinforce(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        env.append_transform(get_primers_from_module(actor_training) or [])
+        (
+            env.append_transform(primers)
+            if (primers := get_primers_from_module(actor_inference))
+            else None
+        )
         return env
 
     env = create_env_fn()
