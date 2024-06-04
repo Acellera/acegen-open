@@ -19,7 +19,8 @@ class Mamba(nn.Module):
     def __init__(self, config=None):
         if not _has_mamba:
             raise RuntimeError(
-                "mamba-ssm library not found, please install with pip install mamba-ssm==1.2.2 (dependencies include: cuda, causal-conv1d>=1.2.0)."
+                "mamba-ssm library not found, please install with pip install mamba-ssm==1.2.2 "
+                "(dependencies include: cuda, causal-conv1d>=1.2.0)."
             ) from MAMBA_ERR
 
         super(Mamba, self).__init__()

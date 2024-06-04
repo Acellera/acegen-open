@@ -99,7 +99,7 @@ def test_mamba_critic(
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
 @pytest.mark.parametrize("critic_value_per_action", [True, False])
-def test_gpt2_actor_critic(
+def test_mamba_actor_critic(
     vocabulary_size,
     device,
     critic_value_per_action,
