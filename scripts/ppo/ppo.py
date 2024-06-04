@@ -206,16 +206,10 @@ def run_ppo(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        (
+        if primers := get_primers_from_module(actor_inference):
             env.append_transform(primers)
-            if (primers := get_primers_from_module(actor_inference))
-            else None
-        )
-        (
+        if primers := get_primers_from_module(critic_inference):
             env.append_transform(primers)
-            if (primers := get_primers_from_module(critic_inference))
-            else None
-        )
         return env
 
     env = create_env_fn()

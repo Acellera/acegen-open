@@ -113,11 +113,8 @@ def main(cfg: "DictConfig"):
     )
     test_env = TransformedEnv(test_env)
     test_env.append_transform(InitTracker())
-    (
+    if primers := get_primers_from_module(actor_inference):
         test_env.append_transform(primers)
-        if (primers := get_primers_from_module(actor_inference))
-        else None
-    )
 
     logging.info("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)

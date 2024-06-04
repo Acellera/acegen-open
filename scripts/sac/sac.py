@@ -188,16 +188,10 @@ def main(cfg: "DictConfig"):
         )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        (
+        if primers := get_primers_from_module(actor_inference):
             env.append_transform(primers)
-            if (primers := get_primers_from_module(actor_inference))
-            else None
-        )
-        (
+        if primers := get_primers_from_module(critic_inference):
             env.append_transform(primers)
-            if (primers := get_primers_from_module(critic_inference))
-            else None
-        )
         return env
 
     # tests env
