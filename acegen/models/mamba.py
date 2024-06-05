@@ -16,6 +16,8 @@ except ImportError as err:
 
 
 class Mamba(nn.Module):
+    """Mamba model for language modelling. This model is a simple wrapper around the Mamba MixerModel."""
+
     def __init__(self, config=None):
         if not _has_mamba:
             raise RuntimeError(
@@ -67,6 +69,8 @@ class Mamba(nn.Module):
 
 @dataclass
 class MambaConfig:
+    """Simple data class for mamba configuration."""
+
     vocab_size: int
     n_embd: int = 128
     n_layer: int = 24
