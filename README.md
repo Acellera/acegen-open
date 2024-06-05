@@ -151,13 +151,19 @@ We provide a variety of default priors that can be selected in the configuration
 - A Long Short-Term Memory (LSTM) model
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
   - number of parameters: 5,807,909
-    - to select set the field `model` to `lstm` in any configuration file
+  - to select set the field `model` to `lstm` in any configuration file
  
 
 - A GPT-2 model (requires installation of HuggingFace's `transformers` library)
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
   - number of parameters: 5,030,400
-- to select set the field `model` to `gpt2` in any configuration file
+  - to select set the field `model` to `gpt2` in any configuration file
+
+
+- A Mamba model (requires installation of mamba-ssm library)
+  - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - number of parameters: 2,809,216
+  - to select set the field `model` to `mamba` in any configuration file
 
 ### Integration of custom models
 
