@@ -18,6 +18,11 @@ from acegen.models.lstm import (
     create_lstm_actor_critic,
     create_lstm_critic,
 )
+from acegen.models.mamba import (
+    create_mamba_actor,
+    create_mamba_actor_critic,
+    create_mamba_critic,
+)
 from acegen.models.utils import adapt_state_dict
 from acegen.vocabulary.tokenizers import (
     SMILESTokenizerChEMBL,
@@ -70,6 +75,14 @@ models = {
         resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
         resources.files("acegen.priors") / "gpt2_enamine_real.ckpt",
         SMILESTokenizerEnamine(),
+    ),
+    "mamba": (
+        create_mamba_actor,
+        create_mamba_critic,
+        create_mamba_actor_critic,
+        resources.files("acegen.priors") / "mamba_chembl_filtered_vocabulary.ckpt",
+        resources.files("acegen.priors") / "mamba_chembl_filtered.ckpt",
+        SMILESTokenizerChEMBL(),
     ),
 }
 
