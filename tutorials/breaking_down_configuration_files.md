@@ -67,7 +67,7 @@ This section is also common to all scripts. ACEGEN uses [molscore](https://githu
 ```yaml
 # Scoring function
 molscore_mode: single # single (run a single objective), benchmark (run multiple), or curriculum (run a sequence)
-molscore_task: # task configuration path (JSON), benchmark (preset only), or curriculum task (preset only)
+molscore_task: null # task configuration path (JSON), benchmark (preset only), or curriculum task (preset only)
 molscore_kwargs:
   include: [] # Allows to define only a subset of the benchmark scoring function (e.g. ["Albuterol_similarity"])
   # Other available kwargs
