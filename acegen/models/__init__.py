@@ -8,16 +8,16 @@ from acegen.models.gpt2 import (
     create_gpt2_actor_critic,
     create_gpt2_critic,
 )
-from acegen.models.llama2 import (
-    create_llama2_actor,
-    create_llama2_actor_critic,
-    create_llama2_critic,
-)
 
 from acegen.models.gru import (
     create_gru_actor,
     create_gru_actor_critic,
     create_gru_critic,
+)
+from acegen.models.llama2 import (
+    create_llama2_actor,
+    create_llama2_actor_critic,
+    create_llama2_critic,
 )
 from acegen.models.lstm import (
     create_lstm_actor,

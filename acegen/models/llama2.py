@@ -14,7 +14,8 @@ try:
 except ImportError as err:
     _has_transformers = False
     TRANSFORMERS_ERR = err
-    
+
+
 class Llama2(nn.Module):
     """Llama2 model for language modeling. This model is a simple wrapper around the HuggingFace Llama22Model."""
 
@@ -67,6 +68,7 @@ class Llama2(nn.Module):
 
         return out
 
+
 def define_llama2_configuration(
     vocabulary_size: int,
     n_positions: int = 2048,
@@ -90,6 +92,7 @@ def define_llama2_configuration(
     config.hidden_size = n_embd
     config.attention_dropout = attn_pdrop
     return config
+
 
 def create_llama2_actor(
     vocabulary_size: int,
@@ -155,6 +158,7 @@ def create_llama2_actor(
     )
     return probabilistic_policy_training, probabilistic_policy_inference
 
+
 def create_llama2_critic(
     vocabulary_size: int,
     n_positions: int = 2048,
@@ -204,6 +208,7 @@ def create_llama2_critic(
     critic_training = TensorDictSequential(lm_training, lm_head)
     critic_inference = TensorDictSequential(lm_inference, lm_head)
     return critic_training, critic_inference
+
 
 def create_llama2_actor_critic(
     vocabulary_size: int,
