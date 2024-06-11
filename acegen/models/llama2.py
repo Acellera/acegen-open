@@ -129,7 +129,7 @@ def create_llama2_actor(
 
     # Define final layer and also make it a TensorDictModule
     lm_head = TensorDictModule(
-        nn.Linear(config.n_embd, vocabulary_size, bias=False),
+        nn.Linear(config.hidden_size, vocabulary_size, bias=False),
         in_keys=["features"],
         out_keys=["logits"],
     )
@@ -195,7 +195,7 @@ def create_llama2_critic(
     # Define final layer and also make it a TensorDictModule
     lm_head = TensorDictModule(
         nn.Linear(
-            config.n_embd,
+            config.hidden_size,
             vocabulary_size if critic_value_per_action else 1,
             bias=False,
         ),
@@ -246,7 +246,7 @@ def create_llama2_actor_critic(
 
     # Define actor head and also make it a TensorDictModule and Probabilistic
     actor_head = TensorDictModule(
-        nn.Linear(config.n_embd, vocabulary_size, bias=False),
+        nn.Linear(config.hidden_size, vocabulary_size, bias=False),
         in_keys=["features"],
         out_keys=["logits"],
     )
@@ -262,7 +262,7 @@ def create_llama2_actor_critic(
     # Define critic head and also make it a TensorDictModule
     critic_head = TensorDictModule(
         nn.Linear(
-            config.n_embd,
+            config.hidden_size,
             vocabulary_size if critic_value_per_action else 1,
             bias=False,
         ),

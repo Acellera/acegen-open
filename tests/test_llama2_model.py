@@ -28,8 +28,8 @@ def test_llama2_actor(vocabulary_size, device, sequence_length=5, batch_size=10)
     # Create the model and a data batch
     training_actor, inference_actor = create_llama2_actor(
         vocabulary_size,
-        n_head=2,
-        n_layer=2,
+        n_head=4,
+        n_layer=4,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
@@ -67,8 +67,8 @@ def test_llama2_critic(
     training_critic, inference_critic = create_llama2_critic(
         vocabulary_size,
         critic_value_per_action=critic_value_per_action,
-        n_head=2,
-        n_layer=2,
+        n_head=4,
+        n_layer=4,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
@@ -115,8 +115,8 @@ def test_llama2_actor_critic(
     ) = create_llama2_actor_critic(
         vocabulary_size,
         critic_value_per_action=critic_value_per_action,
-        n_head=2,
-        n_layer=2,
+        n_head=4,
+        n_layer=4,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
