@@ -65,8 +65,8 @@ For that, we can provide the path to our factory to the config parameter `custom
 
 ```yaml
 ...
-molscore: null
-molscore_include: null
+molscore_mode: null
+molscore_task: null
 custom_task: myproject.my_scoring_funcions.QED
 ...
 ```
