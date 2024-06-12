@@ -15,7 +15,7 @@ if [ -z "$N_RUN" ]; then
   N_RUN=1
 fi
 if [ -z "$ACEGEN_MODEL" ]; then
-  echo "ACEGEN_MODEL is not set. Setting to default value of gru. Choose from [gru, lstm, gpt2]"
+  echo "ACEGEN_MODEL is not set. Setting to default value of gru."
   ACEGEN_MODEL="gru"
 fi
 
@@ -24,9 +24,6 @@ python $PYTHONPATH/scripts/ppo/ppo.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
-  molscore=MolOpt \
-  experience_replay=False \
-  molscore_include=[Albuterol_similarity] \
   seed=$N_RUN \
   log_dir="$agent_name"_seed"$N_RUN" \
   model=$ACEGEN_MODEL

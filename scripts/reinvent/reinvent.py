@@ -14,9 +14,13 @@ import torch
 import tqdm
 import yaml
 
-from acegen.models import adapt_state_dict, models
+from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.scoring_functions import custom_scoring_functions, Task
+from acegen.scoring_functions import (
+    custom_scoring_functions,
+    register_custom_scoring_function,
+    Task,
+)
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict.utils import isin
@@ -27,12 +31,13 @@ from torchrl.data import (
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 
 try:
     import molscore
-    from molscore import MolScoreBenchmark
+    from molscore import MolScoreBenchmark, MolScoreCurriculum
     from molscore.manager import MolScore
 
     _has_molscore = True
@@ -74,7 +79,7 @@ def main(cfg: "DictConfig"):
             yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
         # Define training task and run
-        if cfg.get("molscore", None):
+        if cfg.get("molscore_task", None):
 
             if not _has_molscore:
                 raise RuntimeError(
@@ -82,32 +87,48 @@ def main(cfg: "DictConfig"):
                     "To install MolScore, use: `pip install MolScore`"
                 ) from MOLSCORE_ERR
 
-            if cfg.molscore in MolScoreBenchmark.presets:
-                MSB = MolScoreBenchmark(
-                    model_name=cfg.agent_name,
-                    model_parameters=dict(cfg),
-                    benchmark=cfg.molscore,
-                    budget=cfg.total_smiles,
-                    output_dir=os.path.abspath(save_dir),
-                    add_benchmark_dir=False,
-                    include=cfg.molscore_include,
-                )
-                for task in MSB:
-                    run_reinvent(cfg, task)
-            else:
+            if cfg.molscore_mode == "single":
                 # Save molscore output. Also redirect output to save_dir
-                cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-                data = json.load(open(cfg.molscore, "r"))
-                json.dump(data, open(cfg.molscore, "w"), indent=4)
+                cfg.molscore_task = shutil.copy(cfg.molscore_task, save_dir)
+                data = json.load(open(cfg.molscore_task, "r"))
+                json.dump(data, open(cfg.molscore_task, "w"), indent=4)
                 task = MolScore(
                     model_name=cfg.agent_name,
-                    task_config=cfg.molscore,
+                    task_config=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
                     add_run_dir=False,
+                    **cfg.get("molscore_kwargs", {}),
                 )
                 run_reinvent(cfg, task)
+
+            if cfg.molscore_mode == "benchmark":
+                MSB = MolScoreBenchmark(
+                    model_name=cfg.agent_name,
+                    model_parameters=dict(cfg),
+                    benchmark=cfg.molscore_task,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    add_benchmark_dir=False,
+                    **cfg.get("molscore_kwargs", {}),
+                )
+                for task in MSB:
+                    run_reinvent(cfg, task)
+
+            if cfg.molscore_mode == "curriculum":
+                task = MolScoreCurriculum(
+                    model_name=cfg.agent_name,
+                    model_parameters=dict(cfg),
+                    benchmark=cfg.molscore_task,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    **cfg.get("molscore_kwargs", {}),
+                )
+                run_reinvent(cfg, task)
+
         elif cfg.get("custom_task", None):
+            if cfg.custom_task not in custom_scoring_functions:
+                register_custom_scoring_function(cfg.custom_task, cfg.custom_task)
             task = Task(
                 name=cfg.custom_task,
                 scoring_function=custom_scoring_functions[cfg.custom_task],
@@ -115,6 +136,7 @@ def main(cfg: "DictConfig"):
                 output_dir=save_dir,
             )
             run_reinvent(cfg, task)
+
         else:
             raise ValueError("No scoring function specified.")
 
@@ -126,11 +148,18 @@ def run_reinvent(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Get model and vocabulary checkpoints
-    if cfg.model in models:
-        create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model]
-    else:
-        raise ValueError(f"Unknown model type: {cfg.model}")
+    # If custom model, register it
+    if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
+        register_model(cfg.model, cfg.model_factory)
+
+    # Check if model is available
+    if cfg.model not in models:
+        raise ValueError(
+            f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
+        )
+
+    # Get model
+    (create_actor, _, _, voc_path, ckpt_path, tokenizer) = models[cfg.model]
 
     # Create vocabulary
     ####################################################################################################################
@@ -140,8 +169,7 @@ def run_reinvent(cfg, task):
     # Create models
     ####################################################################################################################
 
-    ckpt = torch.load(ckpt_path)
-
+    ckpt = torch.load(ckpt_path, map_location=device)
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
@@ -154,12 +182,6 @@ def run_reinvent(cfg, task):
 
     # Create RL environment
     ####################################################################################################################
-
-    # For RNNs, create a transform to populate initial tensordict with recurrent states equal to 0.0
-    rhs_primers = []
-    if hasattr(actor_training, "rnn_spec"):
-        primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers.append(TensorDictPrimer(primers))
 
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
@@ -174,8 +196,8 @@ def run_reinvent(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        if primers := get_primers_from_module(actor_inference):
+            env.append_transform(primers)
         return env
 
     env = create_env_fn()
@@ -313,9 +335,9 @@ def run_reinvent(cfg, task):
                 replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
-            reward = replay_data.get(("next", "reward"))
-            replay_data.set("priority", reward)
             if len(replay_data) > 0:
+                reward = replay_data.get(("next", "reward"))
+                replay_data.set("priority", reward)
                 experience_replay_buffer.extend(replay_data)
 
         # Log info

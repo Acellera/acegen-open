@@ -7,7 +7,7 @@ from acegen.models.gru import (
 )
 from acegen.models.utils import adapt_state_dict
 from tensordict import TensorDict
-from torchrl.envs import TensorDictPrimer
+from torchrl.modules.utils import get_primers_from_module
 from utils import get_default_devices
 
 
@@ -189,8 +189,7 @@ def test_create_tensordict_primer(
         vocabulary_size,
     )
 
-    primers = training_actor.rnn_spec.expand(10)
-    rhs_primer = TensorDictPrimer(primers)
+    rhs_primer = get_primers_from_module(training_actor)
     assert "recurrent_state" in rhs_primer.primers.keys()
 
 

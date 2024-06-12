@@ -1,4 +1,4 @@
-# Tutorial: Integrating Custom Models in AceGen
+# Tutorial: Integrating Custom Models in ACEGEN
 
 ---
 
@@ -203,11 +203,11 @@ def create_gpt2_actor(
     return probabilistic_policy_training, probabilistic_policy_inference
 ```
 
-## How to make the custom model available in the training scripts
+## How to make the custom model available in the training scripts (Option 1)
 
 Available models to the training scripts are defined in `/acegen/__init__.py` as a mapping to tuples with the following format:
 
-    model_mapping = {
+    models = {
         "example_model": (
             create_actor_method: Callable # A method to create the actor model
             create_critic_method: Callable # A method to create the critic model (Optional)
@@ -218,11 +218,11 @@ Available models to the training scripts are defined in `/acegen/__init__.py` as
         )
     }
 
-New models can be added by creating a new tuple and appending it to the model_mapping dictionary. Then the model can be
+New models can be added by creating a new tuple and appending it to the `models` dictionary. Then the model can be
 selected in any configuration file by setting the `model` parameter to the name of the model. In the case of our example, 
 adding the models would look like this:
 
-    model_mapping = {
+    models = {
         "gpt2": (
             create_gpt2_actor,
             None,
@@ -235,7 +235,7 @@ adding the models would look like this:
 
 Here we have assigned vocabulary and weights files from out set of priors to the model. We could, however, use others.  
 Now, we can already use the model in the Reinvent and AHC training scripts for de novo molecule generation.
-For decorative and linking tasks, we would need to define a tokenizer. We can use, for example, the SMILEStokenizer2()
+For decorative and linking tasks, we would need to define a tokenizer. We can use, for example, the SMILEStokenizerEnamine()
 from AceGen that is compatible with enamine_real_vocabulary.txt.
 Finally, the PPO and A2C training scripts require a critic model. It would be similar to the actor model, but without the
 ProbabilisticActor wrapper. Let's see how to define it:
@@ -281,9 +281,9 @@ def create_gpt2_critic(
     return critic_training, critic_inference
 ```
 
-and then add it to the model_mapping dictionary:
+and then add it to the models dictionary:
 
-    model_mapping = {
+    models = {
         "gpt2": (
             create_gpt2_actor,
             create_gpt2_critic,
@@ -293,3 +293,36 @@ and then add it to the model_mapping dictionary:
             SMILEStokenizer2(), # Constratined generation tasks require a tokenizer
         )
     }
+
+## How to make the custom model available in the training scripts (Option 2)
+
+It is also possible to use the model without modifying the internal code of ACEGEN.
+For that, we can define in our own script what we call a factory, a methods that returns the necessary tuple expected by the  `models` dictionary.
+
+    def example_model_fectory():
+        return (
+            create_gpt2_actor,
+            None,
+            None,
+            Path(__file__).resolve().parent.parent.parent / "priors" / "enamine_real_vocabulary.txt",
+            Path(__file__).resolve().parent.parent.parent / "priors" / "gpt2_enamine_real.ckpt",
+            None,
+        )
+
+In any config file, we can then provide the path to our factory to the config parameter `example_model_factory`
+
+e.g. config_denovo.yaml
+
+    ...
+    model: example_model
+    custom_model_factory: my_module.custom_model_factory
+    ...
+
+And the script will automatically import and call `example_model_factory` to get the model.
+
+---
+
+## Testing a custom model
+
+To make sure your custom model is correct, take a look at the tests we have for `create_gpt2_actor` and `create_gpt2_critic`
+in `/tests/test_gpt2_model.py`. Doing similar tests for your custom model shuold guarantee a seamless integration with ACEGEN scripts.

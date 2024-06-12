@@ -1,17 +1,19 @@
 # Logging configuration
 experiment_name: acegen
 agent_name: ppo
-log_dir: results
+log_dir: results # Directory to save the results
 logger_backend: null  # wandb, tensorboard, or null
 seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
 
 # Environment configuration
 num_envs: 64 # Number of smiles to generate in parallel
-total_smiles: 10_000
+total_smiles: 10_000  # Total number of smiles to generate
 
 # Scoring function
-molscore: MolOpt
-molscore_include: ["Celecoxxib_rediscovery"]
+molscore_mode: benchmark # single, benchmark, or curriculum
+molscore_task: MolOpt # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
+molscore_kwargs:
+  include: ["Celecoxxib_rediscovery"]
 custom_task: null # Requires molscore to be set to null
 
 # Promptsmiles configuration
@@ -20,11 +22,12 @@ promptsmiles_optimize: True
 promptsmiles_shuffle: True
 promptsmiles_multi: False
 
-# Architecture configuration
+# Model architecture
 shared_nets: False
-model: gru # gru, lstm, or gpt2
+model: gru # gru, lstm, gpt2 or mamba
 # The default prior varies for each model. Refer to the README file in the root directory for more information.
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
+custom_model_factory: null # Path to a custom model factory (e.g. my_module.create_model)
 
 # Optimizer configuration
 lr: 0.0005
