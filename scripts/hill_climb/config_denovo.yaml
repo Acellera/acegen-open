@@ -6,7 +6,7 @@ logger_backend: null  # wandb, tensorboard, or null
 seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
 
 # Environment configuration
-num_envs: 128 # Number of smiles to generate in parallel
+num_envs: 1024 # Number of smiles to generate in parallel
 total_smiles: 10_000 # Total number of smiles to generate
 
 # Scoring function
@@ -30,6 +30,8 @@ weight_decay: 0.0
 
 # Algorithm configuration (not additional parameters for hill_climb)
 topk: 0.5
+num_mini_batches: 2 # Number of mini-batches to split the collected data into
+num_epochs: 1 # Number of times the collected data is reused
 
 # Data replay configuration
 experience_replay: False

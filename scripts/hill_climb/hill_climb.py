@@ -24,6 +24,11 @@ from acegen.scoring_functions import (
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict.utils import isin
+from torch.utils.data.sampler import (
+    BatchSampler,
+    SequentialSampler,
+    SubsetRandomSampler,
+)
 
 from torchrl.data import (
     LazyTensorStorage,
@@ -274,29 +279,38 @@ def run_hill_climb(cfg, task):
             )
 
         # Sort data by reward and keep topk
-        sscore, sscore_idxs = (
-            data_next["reward"][done].squeeze(-1).sort(descending=True)
-        )
+        _, sscore_idxs = data_next["reward"][done].squeeze(-1).sort(descending=True)
         data = data[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
 
-        loss = compute_loss(data, actor_training)
+        for _ in range(cfg.num_epochs):
 
-        # Compute experience replay loss
-        if (
-            cfg.experience_replay
-            and len(experience_replay_buffer) > cfg.replay_batch_size
-        ):
-            replay_batch = experience_replay_buffer.sample()
-            replay_loss = compute_loss(replay_batch, actor_training)
-            loss = torch.cat((loss, replay_loss), 0)
+            # Sampler to create mini-batches
+            sampler = BatchSampler(
+                SubsetRandomSampler(range(len(data))),
+                len(data) // cfg.num_mini_batches,
+                drop_last=True,
+            )
 
-        # Average loss over the batch
-        loss = loss.mean()
+            for idxs in sampler:
 
-        # Calculate gradients and make an update to the network weights
-        optim.zero_grad()
-        loss.backward()
-        optim.step()
+                loss = compute_loss(data[idxs], actor_training)
+
+                # Compute experience replay loss
+                if (
+                    cfg.experience_replay
+                    and len(experience_replay_buffer) > cfg.replay_batch_size
+                ):
+                    replay_batch = experience_replay_buffer.sample()
+                    replay_loss = compute_loss(replay_batch, actor_training)
+                    loss = torch.cat((loss, replay_loss), 0)
+
+                # Average loss over the batch
+                loss = loss.mean()
+
+                # Calculate gradients and make an update to the network weights
+                optim.zero_grad()
+                loss.backward()
+                optim.step()
 
         # Then add new experiences to the replay buffer
         if cfg.experience_replay:
