@@ -272,11 +272,9 @@ def run_dpo(cfg, task):
 
         # Rank the rewards, the top 50% molecules will be considered positive samples
         # The rest will be the negative samples
-        sscore, sscore_idxs = (
-            data_next["reward"][done].squeeze(-1).sort(descending=True)
-        )
+        _, sscore_idxs = data_next["reward"][done].squeeze(-1).sort(descending=True)
 
-        for i in range(cfg.num_updates):
+        for _ in range(cfg.num_epochs):
             (
                 loss,
                 prefered_relative_logprob,
