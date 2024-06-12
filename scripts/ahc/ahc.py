@@ -113,7 +113,7 @@ def main(cfg: "DictConfig"):
                     **cfg.get("molscore_kwargs", {}),
                 )
                 for task in MSB:
-                    run_a2c(cfg, task)
+                    run_ahc(cfg, task)
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -231,7 +231,7 @@ def run_ahc(cfg, task):
     if cfg.logger_backend:
         experiment_name = f"{cfg.agent_name}"
         try:
-            experiment_name += f"_{task.configs.get('task')}"
+            experiment_name += f"_{task.cfg.get('task')}"
         except AttributeError:
             experiment_name += "_custom_task"
         logger = get_logger(
