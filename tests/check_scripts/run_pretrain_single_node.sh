@@ -39,5 +39,3 @@ if [ $exit_status -eq 0 ]; then
 else
   echo "${agent_name}_${SLURM_JOB_ID}=error" >> report.log
 fi
-
-mv "$agent_name"_seed"$N_RUN"* slurm_logs/
