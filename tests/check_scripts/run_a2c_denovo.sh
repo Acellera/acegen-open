@@ -24,8 +24,6 @@ python $PYTHONPATH/scripts/a2c/a2c.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
-  molscore=MolOpt \
-  molscore_include=[Albuterol_similarity] \
   seed=$N_RUN \
   log_dir="$agent_name"_seed"$N_RUN" \
   model=$ACEGEN_MODEL
