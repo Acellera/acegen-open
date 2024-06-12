@@ -187,11 +187,11 @@ def main(cfg: "DictConfig"):
     )
 
     logger = None
-    if cfg.logger_backend:
+    if cfg.logger_backend and master:
         logging.info("\nCreating logger...")
         logger = get_logger(
             cfg.logger_backend,
-            logger_name=Path.cwd(),
+            logger_name=cfg.model_log_dir,
             experiment_name=cfg.agent_name,
             wandb_kwargs={
                 "config": dict(cfg),
