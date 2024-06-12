@@ -65,7 +65,7 @@ def main(cfg: "DictConfig"):
     # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-    save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
+    save_dir = f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
     os.makedirs(save_dir, exist_ok=True)
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
