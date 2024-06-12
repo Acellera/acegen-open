@@ -25,8 +25,8 @@ python $PYTHONPATH/scripts/pretrain/pretrain_single_node.py \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
   seed=$N_RUN \
-  model_log_dir="$agent_name"_seed"$N_RUN" \
-  dataset_log_dir="$agent_name"_seed"$N_RUN" \
+  model_log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
+  dataset_log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
   epochs=10 \
   train_dataset_path=$PYTHONPATH/tests/data/smiles_test_set \
   model=$ACEGEN_MODEL

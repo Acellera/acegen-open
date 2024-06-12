@@ -26,7 +26,7 @@ python $PYTHONPATH/scripts/ppo/ppo.py --config-name config_scaffold \
   agent_name="$agent_name" \
   experience_replay=False \
   seed=$N_RUN \
-  log_dir="$agent_name"_seed"$N_RUN" \
+  log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
   model=$ACEGEN_MODEL
 
 # Capture the exit status of the Python command

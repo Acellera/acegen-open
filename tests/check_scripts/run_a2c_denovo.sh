@@ -25,7 +25,7 @@ python $PYTHONPATH/scripts/a2c/a2c.py \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
   seed=$N_RUN \
-  log_dir="$agent_name"_seed"$N_RUN" \
+  log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
   model=$ACEGEN_MODEL
 
 # Capture the exit status of the Python command
@@ -37,4 +37,3 @@ else
   echo "${agent_name}_${SLURM_JOB_ID}=error" >> report.log
 fi
 
-mv "$agent_name"_seed"$N_RUN"* slurm_logs/
