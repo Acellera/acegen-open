@@ -32,4 +32,5 @@ weight_decay: 0.0
 
 # DPO configuration
 beta: 0.1 # parameter controlling strength of KL penalty
+num_mini_batches: 1 # Number of mini-batches to split the collected data into
 num_epochs: 1 # Number of times the collected data is reused

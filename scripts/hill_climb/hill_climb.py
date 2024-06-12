@@ -24,11 +24,7 @@ from acegen.scoring_functions import (
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict.utils import isin
-from torch.utils.data.sampler import (
-    BatchSampler,
-    SequentialSampler,
-    SubsetRandomSampler,
-)
+from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
 from torchrl.data import (
     LazyTensorStorage,

@@ -23,6 +23,7 @@ from acegen.scoring_functions import (
 )
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
+from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
@@ -273,37 +274,51 @@ def run_dpo(cfg, task):
         # Rank the rewards, the top 50% molecules will be considered positive samples
         # The rest will be the negative samples
         _, sscore_idxs = data_next["reward"][done].squeeze(-1).sort(descending=True)
+        positive_data = data[sscore_idxs.data[: int(cfg.num_envs * 0.5)]]
+        negative_data = data[sscore_idxs.data[int(cfg.num_envs * 0.5) :]]
 
         for _ in range(cfg.num_epochs):
-            (
-                loss,
-                prefered_relative_logprob,
-                disprefered_relative_logprob,
-                reward_margins,
-            ) = compute_loss(
-                positive_data=data[sscore_idxs.data[: int(cfg.num_envs * 0.5)]],
-                negative_data=data[sscore_idxs.data[int(cfg.num_envs * 0.5) :]],
-                model=actor_training,
-                prior=prior,
-                beta=cfg.beta,
+
+            # Sampler to create mini-batches
+            sampler = BatchSampler(
+                SubsetRandomSampler(range(len(positive_data))),
+                len(positive_data) // cfg.num_mini_batches,
+                drop_last=True,
             )
 
-            log_info.update(
-                {
-                    "train/loss": loss.item(),
-                    "train/prefered_relative_logprob": prefered_relative_logprob,
-                    "train/disprefered_relative_logprob": disprefered_relative_logprob,
-                    "train/reward_margin": reward_margins,
-                }
-            )
+            for idxs in sampler:
 
-            # Average loss over the batch
-            loss = loss.mean()
+                (
+                    loss,
+                    prefered_relative_logprob,
+                    disprefered_relative_logprob,
+                    reward_margins,
+                ) = compute_loss(
+                    positive_data=positive_data[idxs],
+                    negative_data=negative_data[idxs],
+                    model=actor_training,
+                    prior=prior,
+                    beta=cfg.beta,
+                )
 
-            # Calculate gradients and make an update to the network weights
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
+                log_info.update(
+                    {
+                        "train/loss": loss.item(),
+                        "train/prefered_relative_logprob": prefered_relative_logprob,
+                        "train/disprefered_relative_logprob": (
+                            disprefered_relative_logprob
+                        ),
+                        "train/reward_margin": reward_margins,
+                    }
+                )
+
+                # Average loss over the batch
+                loss = loss.mean()
+
+                # Calculate gradients and make an update to the network weights
+                optim.zero_grad()
+                loss.backward()
+                optim.step()
 
         # Log info
         if logger:
@@ -319,10 +334,6 @@ def get_log_prob(data, model):
 
 
 def compute_loss(positive_data, negative_data, model, prior, beta=0.1):
-
-    # Shuffle positive data
-    row_indices = torch.randperm(positive_data.size(0))
-    positive_data = positive_data[row_indices]
 
     # Compute positive log-likelihoods
     pos_mask = positive_data.get("mask").squeeze(-1)
