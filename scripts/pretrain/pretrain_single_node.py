@@ -28,12 +28,6 @@ try:
 except:
     _has_wandb = False
 
-logging.basicConfig(
-    level=logging.INFO,
-    filename="pretraining.log",
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-
 # hydra outputs saved in /tmp
 os.chdir("/tmp")
 

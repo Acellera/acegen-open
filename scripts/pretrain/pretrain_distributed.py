@@ -27,12 +27,6 @@ from torchrl.record.loggers import get_logger
 from tqdm import tqdm
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    filename="pretraining.log",
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-
 # hydra outputs saved in /tmp
 os.chdir("/tmp")
 
