@@ -17,7 +17,6 @@ from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from rdkit import Chem
 from tensordict.utils import remove_duplicates
-from tokenizer import Tokenizer
 from torch.distributed import barrier, destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
@@ -108,7 +107,7 @@ def main(cfg: "DictConfig"):
     # Load vocabulary from a file
     vocabulary = SMILESVocabulary()
     vocabulary.load_state_dict(torch.load(save_path))
-    vocabulary.tokenizer = Tokenizer()
+    vocabulary.tokenizer = tokenizer_options[cfg.tokenizer]()
 
     logging.info("\nPreparing dataset and dataloader...")
     if master:
