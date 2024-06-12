@@ -17,12 +17,12 @@ The full paper can be found [here](https://arxiv.org/abs/2405.04657).
 
 ## Features
 
-- **Multiple Generative Modes:** ACEGEN facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
-- **RL Algorithms:** ACEGEN offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
-- **Other Algorithms:** ACEGEN also includes [Direct Preference Optimization (DPO)][8] and Hill Climbing.
-- **Pre-trained Models:** ACEGEN contains pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), GPT-2, LLama2 and Mamba.
-- **Scoring Functions :** ACEGEN defaults to MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules. MolScore allows to train agents on single scoring functions, on entire benchmarks containing multiple scoring functions (e.g., MolOpt, GuacaMol), or using curriculum learning where the same agent is optimized on a sequence of different scoring functions.
-- **Customization Support:** ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
+- _**Multiple Generative Modes:**_ ACEGEN facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
+- _**RL Algorithms:**_ ACEGEN offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
+- _**Other Algorithms:**_ ACEGEN also includes [Direct Preference Optimization (DPO)][8] and Hill Climbing.
+- _**Pre-trained Models:**_ ACEGEN contains pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), GPT-2, LLama2 and Mamba.
+- _**Scoring Functions :**_ ACEGEN defaults to MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules. MolScore allows to train agents on single scoring functions, on entire benchmarks containing multiple scoring functions (e.g., MolOpt, GuacaMol), or using curriculum learning where the same agent is optimized on a sequence of different scoring functions.
+- _**Customization Support:**_ ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
 
 ---
 
