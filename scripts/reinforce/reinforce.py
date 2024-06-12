@@ -37,7 +37,7 @@ from torchrl.record.loggers import get_logger
 
 try:
     import molscore
-    from molscore import MolScoreBenchmark
+    from molscore import MolScoreBenchmark, MolScoreCurriculum
     from molscore.manager import MolScore
 
     _has_molscore = True
@@ -229,7 +229,7 @@ def run_reinforce(cfg, task):
     if cfg.logger_backend:
         experiment_name = f"{cfg.agent_name}"
         try:
-            experiment_name += f"_{task.configs.get('task')}"
+            experiment_name += f"_{task.cfg.get('task')}"
         except AttributeError:
             experiment_name += "_custom_task"
         logger = get_logger(

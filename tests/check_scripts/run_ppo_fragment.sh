@@ -15,7 +15,7 @@ if [ -z "$N_RUN" ]; then
   N_RUN=1
 fi
 if [ -z "$ACEGEN_MODEL" ]; then
-  echo "ACEGEN_MODEL is not set. Setting to default value of gru. Choose from [gru, lstm, gpt2]"
+  echo "ACEGEN_MODEL is not set. Setting to default value of gru."
   ACEGEN_MODEL="gru"
 fi
 
