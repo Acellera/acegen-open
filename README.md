@@ -161,7 +161,7 @@ We provide a variety of default priors that can be selected in the configuration
   - to select set the field `model` to `gpt2` in any configuration file
 
 
-- A Mamba model (requires installation of mamba-ssm library)
+- A Mamba model (requires installation of `mamba-ssm` library)
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
   - number of parameters: 2,809,216
   - to select set the field `model` to `mamba` in any configuration file
