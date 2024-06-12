@@ -23,7 +23,15 @@ from acegen.scoring_functions import (
 )
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
+from tensordict.utils import isin
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
+
+from torchrl.data import (
+    LazyTensorStorage,
+    PrioritizedSampler,
+    TensorDictMaxValueWriter,
+    TensorDictReplayBuffer,
+)
 from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
@@ -72,7 +80,7 @@ def main(cfg: "DictConfig"):
             yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
         # Define training task and run
-        if cfg.get("molscore_task", None):
+        if cfg.get("molscore", None):
 
             if not _has_molscore:
                 raise RuntimeError(
@@ -80,45 +88,31 @@ def main(cfg: "DictConfig"):
                     "To install MolScore, use: `pip install MolScore`"
                 ) from MOLSCORE_ERR
 
-            if cfg.molscore_mode == "single":
-                # Save molscore output. Also redirect output to save_dir
-                cfg.molscore_task = shutil.copy(cfg.molscore_task, save_dir)
-                data = json.load(open(cfg.molscore_task, "r"))
-                json.dump(data, open(cfg.molscore_task, "w"), indent=4)
-                task = MolScore(
-                    model_name=cfg.agent_name,
-                    task_config=cfg.molscore_task,
-                    budget=cfg.total_smiles,
-                    output_dir=os.path.abspath(save_dir),
-                    add_run_dir=False,
-                    **cfg.get("molscore_kwargs", {}),
-                )
-                run_dpo(cfg, task)
-
-            if cfg.molscore_mode == "benchmark":
+            if cfg.molscore in MolScoreBenchmark.presets:
                 MSB = MolScoreBenchmark(
                     model_name=cfg.agent_name,
                     model_parameters=dict(cfg),
-                    benchmark=cfg.molscore_task,
+                    benchmark=cfg.molscore,
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
                     add_benchmark_dir=False,
-                    **cfg.get("molscore_kwargs", {}),
+                    include=cfg.molscore_include,
                 )
                 for task in MSB:
-                    run_dpo(cfg, task)
-
-            if cfg.molscore_mode == "curriculum":
-                task = MolScoreCurriculum(
+                    run_hill_climb(cfg, task)
+            else:
+                # Save molscore output. Also redirect output to save_dir
+                cfg.molscore = shutil.copy(cfg.molscore, save_dir)
+                data = json.load(open(cfg.molscore, "r"))
+                json.dump(data, open(cfg.molscore, "w"), indent=4)
+                task = MolScore(
                     model_name=cfg.agent_name,
-                    model_parameters=dict(cfg),
-                    benchmark=cfg.molscore_task,
+                    task_config=cfg.molscore,
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
-                    **cfg.get("molscore_kwargs", {}),
+                    add_run_dir=False,
                 )
-                run_dpo(cfg, task)
-
+                run_hill_climb(cfg, task)
         elif cfg.get("custom_task", None):
             if cfg.custom_task not in custom_scoring_functions:
                 register_custom_scoring_function(cfg.custom_task, cfg.custom_task)
@@ -128,13 +122,12 @@ def main(cfg: "DictConfig"):
                 budget=cfg.total_smiles,
                 output_dir=save_dir,
             )
-            run_dpo(cfg, task)
-
+            run_hill_climb(cfg, task)
         else:
             raise ValueError("No scoring function specified.")
 
 
-def run_dpo(cfg, task):
+def run_hill_climb(cfg, task):
 
     # Get available device
     device = (
@@ -171,8 +164,6 @@ def run_dpo(cfg, task):
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
 
-    prior = deepcopy(actor_training)
-
     # Create RL environment
     ####################################################################################################################
 
@@ -194,6 +185,18 @@ def run_dpo(cfg, task):
         return env
 
     env = create_env_fn()
+
+    # Create replay buffer
+    ####################################################################################################################
+
+    storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
+    experience_replay_buffer = TensorDictReplayBuffer(
+        storage=storage,
+        sampler=PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0),
+        batch_size=cfg.replay_batch_size,
+        writer=TensorDictMaxValueWriter(rank_key="priority"),
+        priority_key="priority",
+    )
 
     # Create optimizer
     ####################################################################################################################
@@ -248,7 +251,7 @@ def run_dpo(cfg, task):
             promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
             promptsmiles_multi=cfg.get("promptsmiles_multi", False),
             promptsmiles_scan=cfg.get("promptsmiles_scan", False),
-            remove_duplicates=False,
+            remove_duplicates=True,
         )
 
         log_info = {}
@@ -271,46 +274,31 @@ def run_dpo(cfg, task):
                 }
             )
 
-        # Rank the rewards, the top 50% molecules will be considered positive samples
-        # The rest will be the negative samples
+        # Sort data by reward and keep topk
         _, sscore_idxs = data_next["reward"][done].squeeze(-1).sort(descending=True)
-        positive_data = data[sscore_idxs.data[: int(cfg.num_envs * 0.5)]]
-        negative_data = data[sscore_idxs.data[int(cfg.num_envs * 0.5) :]]
+        data = data[sscore_idxs.data[: int(cfg.num_envs * cfg.topk)]]
 
         for _ in range(cfg.num_epochs):
 
             # Sampler to create mini-batches
             sampler = BatchSampler(
-                SubsetRandomSampler(range(len(positive_data))),
-                len(positive_data) // cfg.num_mini_batches,
+                SubsetRandomSampler(range(len(data))),
+                len(data) // cfg.num_mini_batches,
                 drop_last=True,
             )
 
             for idxs in sampler:
 
-                (
-                    loss,
-                    prefered_relative_logprob,
-                    disprefered_relative_logprob,
-                    reward_margins,
-                ) = compute_loss(
-                    positive_data=positive_data[idxs],
-                    negative_data=negative_data[idxs],
-                    model=actor_training,
-                    prior=prior,
-                    beta=cfg.beta,
-                )
+                loss = compute_loss(data[idxs], actor_training)
 
-                log_info.update(
-                    {
-                        "train/loss": loss.item(),
-                        "train/prefered_relative_logprob": prefered_relative_logprob,
-                        "train/disprefered_relative_logprob": (
-                            disprefered_relative_logprob
-                        ),
-                        "train/reward_margin": reward_margins,
-                    }
-                )
+                # Compute experience replay loss
+                if (
+                    cfg.experience_replay
+                    and len(experience_replay_buffer) > cfg.replay_batch_size
+                ):
+                    replay_batch = experience_replay_buffer.sample()
+                    replay_loss = compute_loss(replay_batch, actor_training)
+                    loss = torch.cat((loss, replay_loss), 0)
 
                 # Average loss over the batch
                 loss = loss.mean()
@@ -319,6 +307,29 @@ def run_dpo(cfg, task):
                 optim.zero_grad()
                 loss.backward()
                 optim.step()
+
+        # Then add new experiences to the replay buffer
+        if cfg.experience_replay:
+
+            replay_data = data.clone()
+
+            # MaxValueWriter is not compatible with storages of more than one dimension.
+            replay_data.batch_size = [replay_data.batch_size[0]]
+
+            # Remove SMILES that are already in the replay buffer
+            if len(experience_replay_buffer) > 0:
+                is_duplicated = isin(
+                    input=replay_data,
+                    key="action",
+                    reference=experience_replay_buffer[:],
+                )
+                replay_data = replay_data[~is_duplicated]
+
+            # Add data to the replay buffer
+            if len(replay_data) > 0:
+                reward = replay_data.get(("next", "reward"))
+                replay_data.set("priority", reward)
+                experience_replay_buffer.extend(replay_data)
 
         # Log info
         if logger:
@@ -333,34 +344,12 @@ def get_log_prob(data, model):
     return log_prob
 
 
-def compute_loss(positive_data, negative_data, model, prior, beta=0.1):
-
-    # Compute positive log-likelihoods
-    pos_mask = positive_data.get("mask").squeeze(-1)
-    pos_agent_likelihood = (get_log_prob(positive_data, model) * pos_mask).sum(-1)
-    pos_prior_likelihood = (get_log_prob(positive_data, prior) * pos_mask).sum(-1)
-
-    # Compute negative log-likelihoods
-    neg_mask = negative_data.get("mask").squeeze(-1)
-    neg_agent_likelihood = (get_log_prob(negative_data, model) * pos_mask).sum(-1)
-    neg_prior_likelihood = (get_log_prob(negative_data, prior) * pos_mask).sum(-1)
-
-    # Compute loss
-    prefered_relative_logprob = pos_agent_likelihood - pos_prior_likelihood
-    disprefered_relative_logprob = neg_agent_likelihood - neg_prior_likelihood
-    reward_margins = (prefered_relative_logprob - disprefered_relative_logprob).mean(
-        dim=-1
-    )
-    loss = -torch.nn.functional.logsigmoid(
-        beta * (prefered_relative_logprob - disprefered_relative_logprob)
-    ).mean(dim=-1)
-
-    return (
-        loss,
-        prefered_relative_logprob.mean(dim=-1),
-        disprefered_relative_logprob.mean(dim=-1),
-        reward_margins,
-    )
+def compute_loss(data, model):
+    mask = data.get("mask").squeeze(-1)
+    agent_log_prob = get_log_prob(data, model)
+    agent_likelihood = (agent_log_prob * mask).sum(-1)
+    loss = -agent_likelihood
+    return loss
 
 
 if __name__ == "__main__":

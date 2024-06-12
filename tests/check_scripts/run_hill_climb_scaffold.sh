@@ -1,15 +1,15 @@
 #!/bin/bash
 
-#SBATCH --job-name=ppo_denovo
+#SBATCH --job-name=hill_climb_scaffold
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/ppo_denovo%j.txt
-#SBATCH --error=slurm_errors/ppo_denovo%j.txt
+#SBATCH --output=slurm_logs/hill_climb_scaffold%j.txt
+#SBATCH --error=slurm_errors/hill_climb_scaffold%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
-agent_name="ppo_denovo"
+agent_name="hill_climb_scaffold"
 if [ -z "$N_RUN" ]; then
   echo "N_RUN is not set. Setting to default value of 1."
   N_RUN=1
@@ -20,7 +20,7 @@ if [ -z "$ACEGEN_MODEL" ]; then
 fi
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/ppo/ppo.py \
+python $PYTHONPATH/scripts/hill_climb/hill_climb.py --config-name config_scaffold \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \

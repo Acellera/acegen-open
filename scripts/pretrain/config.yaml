@@ -12,7 +12,7 @@ recompute_dataset: True # if False and dataset_log_dir contains a dataset, it wi
 dataset_log_dir: /tmp/pretrain # if recomputing dataset, save it here
 
 # Model configuration
-model: gru # gru, lstm, or gpt2
+model: gru # gru, lstm, gpt2 or mamba
 custom_model_factory: null # Path to a custom model factory (e.g. my_module.create_model)
 model_log_dir: test #/tmp/pretrain # save model here
 
