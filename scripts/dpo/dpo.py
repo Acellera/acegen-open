@@ -4,6 +4,7 @@ import json
 import os
 import random
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 import hydra
@@ -22,20 +23,8 @@ from acegen.scoring_functions import (
 )
 from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
-from tensordict import TensorDict
-from tensordict.utils import isin
-from torch.distributions.kl import kl_divergence
-from torchrl.data import (
-    LazyTensorStorage,
-    PrioritizedSampler,
-    SamplerWithoutReplacement,
-    TensorDictMaxValueWriter,
-    TensorDictReplayBuffer,
-)
 from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
-from torchrl.objectives import ClipPPOLoss
-from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
 
 try:
@@ -103,7 +92,7 @@ def main(cfg: "DictConfig"):
                     add_run_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_ppo(cfg, task)
+                run_dpo(cfg, task)
 
             if cfg.molscore_mode == "benchmark":
                 MSB = MolScoreBenchmark(
@@ -116,7 +105,7 @@ def main(cfg: "DictConfig"):
                     **cfg.get("molscore_kwargs", {}),
                 )
                 for task in MSB:
-                    run_ppo(cfg, task)
+                    run_dpo(cfg, task)
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -127,7 +116,7 @@ def main(cfg: "DictConfig"):
                     output_dir=os.path.abspath(save_dir),
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_ppo(cfg, task)
+                run_dpo(cfg, task)
 
         elif cfg.get("custom_task", None):
             if cfg.custom_task not in custom_scoring_functions:
@@ -138,13 +127,13 @@ def main(cfg: "DictConfig"):
                 budget=cfg.total_smiles,
                 output_dir=save_dir,
             )
-            run_ppo(cfg, task)
+            run_dpo(cfg, task)
 
         else:
             raise ValueError("No scoring function specified.")
 
 
-def run_ppo(cfg, task):
+def run_dpo(cfg, task):
 
     # Get available device
     device = (
@@ -162,9 +151,7 @@ def run_ppo(cfg, task):
         )
 
     # Get model
-    (create_actor, create_critic, create_shared, voc_path, ckpt_path, tokenizer) = (
-        models[cfg.model]
-    )
+    (create_actor, _, _, voc_path, ckpt_path, tokenizer) = models[cfg.model]
 
     # Create vocabulary
     ####################################################################################################################
@@ -174,39 +161,20 @@ def run_ppo(cfg, task):
     # Create models
     ####################################################################################################################
 
-    # Create actor and critic networks
-    if cfg.shared_nets:
-        (
-            actor_training,
-            actor_inference,
-            critic_training,
-            critic_inference,
-        ) = create_shared(vocabulary_size=len(vocabulary))
-    else:
-        actor_training, actor_inference = create_actor(len(vocabulary))
-        critic_training, critic_inference = create_critic(len(vocabulary))
-
-    # Load pretrained weights
     ckpt = torch.load(ckpt_path, map_location=device)
-
+    actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )
-
     actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
-    critic_training = critic_training.to(device)
 
-    # Define prior
-    prior, _ = create_actor(len(vocabulary))
-    prior = prior.to(device)
-    prior.load_state_dict(adapt_state_dict(ckpt, prior.state_dict()))
+    prior = deepcopy(actor_training)
 
     # Create RL environment
     ####################################################################################################################
 
-    # Define environment kwargs
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
         "end_token": vocabulary.end_token_index,
@@ -215,7 +183,6 @@ def run_ppo(cfg, task):
         "device": device,
     }
 
-    # Define environment creation function
     def create_env_fn():
         """Create a single RL rl_env."""
         env = SMILESEnv(**env_kwargs)
@@ -223,64 +190,15 @@ def run_ppo(cfg, task):
         env.append_transform(InitTracker())
         if primers := get_primers_from_module(actor_inference):
             env.append_transform(primers)
-        if primers := get_primers_from_module(critic_inference):
-            env.append_transform(primers)
         return env
 
     env = create_env_fn()
 
-    # Create loss module
-    ####################################################################################################################
-
-    adv_module = GAE(
-        gamma=cfg.gamma,
-        lmbda=cfg.lmbda,
-        value_network=critic_training,
-        average_gae=False,
-        shifted=True,
-    )
-    loss_module = ClipPPOLoss(
-        actor=actor_training,
-        critic=critic_training,
-        critic_coef=cfg.critic_coef,
-        entropy_coef=cfg.entropy_coef,
-        clip_epsilon=cfg.ppo_clip,
-        loss_critic_type="l2",
-        normalize_advantage=True,
-        reduction="none",
-    )
-
-    # Create data storage
-    ####################################################################################################################
-
-    mini_batch_size = cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay)
-    buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(
-            cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay),
-            device=device,
-        ),
-        sampler=SamplerWithoutReplacement(),
-        batch_size=mini_batch_size,
-        prefetch=4,
-    )
-
-    # Create replay buffer
-    ####################################################################################################################
-
-    storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
-    experience_replay_buffer = TensorDictReplayBuffer(
-        storage=storage,
-        sampler=PrioritizedSampler(storage.max_size, alpha=0.9, beta=1.0),
-        batch_size=cfg.replay_batch_size,
-        writer=TensorDictMaxValueWriter(rank_key="priority"),
-        priority_key="priority",
-    )
-
-    # Create Optimizer
+    # Create optimizer
     ####################################################################################################################
 
     optim = torch.optim.Adam(
-        loss_module.parameters(),
+        actor_training.parameters(),
         lr=cfg.lr,
         eps=cfg.eps,
         weight_decay=cfg.weight_decay,
@@ -312,12 +230,7 @@ def run_ppo(cfg, task):
     ####################################################################################################################
 
     total_done = 0
-    kl_coef = cfg.kl_coef
-    ppo_epochs = cfg.ppo_epochs
-    max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = (cfg.num_envs + cfg.replay_batch_size) // mini_batch_size
-    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
     while not task.finished:
 
@@ -334,17 +247,16 @@ def run_ppo(cfg, task):
             promptsmiles_shuffle=cfg.get("promptsmiles_shuffle", True),
             promptsmiles_multi=cfg.get("promptsmiles_multi", False),
             promptsmiles_scan=cfg.get("promptsmiles_scan", False),
-            remove_duplicates=True,
+            remove_duplicates=False,
         )
 
-        # Update progress bar
+        log_info = {}
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
+        total_done += done.sum().item()
         pbar.update(done.sum().item())
 
-        # Register smiles lengths and real rewards
-        log_info = {}
-        total_done += done.sum().item()
+        # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]
         episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
         if len(episode_rewards) > 0:
@@ -358,98 +270,86 @@ def run_ppo(cfg, task):
                 }
             )
 
-        # Get data to be potentially added to the replay buffer later
-        replay_data = data.clone()
+        # Rank the rewards, the top 50% molecules will be considered positive samples
+        # The rest will be the negative samples
+        _, sscore_idxs = data_next["reward"][done].squeeze(-1).sort(descending=True)
 
-        for j in range(ppo_epochs):
+        for _ in range(cfg.num_epochs):
+            (
+                loss,
+                prefered_relative_logprob,
+                disprefered_relative_logprob,
+                reward_margins,
+            ) = compute_loss(
+                positive_data=data[sscore_idxs.data[: int(cfg.num_envs * 0.5)]],
+                negative_data=data[sscore_idxs.data[int(cfg.num_envs * 0.5) :]],
+                model=actor_training,
+                prior=prior,
+                beta=cfg.beta,
+            )
 
-            # Compute experience replay loss
-            if (
-                cfg.experience_replay
-                and len(experience_replay_buffer) > cfg.replay_batch_size
-            ):
-                replay_batch = experience_replay_buffer.sample()
-                replay_batch = replay_batch.exclude(
-                    "_weight", "index", "priority", inplace=True
-                )
-                extended_data = torch.cat([data, replay_batch], dim=0)
-            else:
-                extended_data = data
+            log_info.update(
+                {
+                    "train/loss": loss.item(),
+                    "train/prefered_relative_logprob": prefered_relative_logprob,
+                    "train/disprefered_relative_logprob": disprefered_relative_logprob,
+                    "train/reward_margin": reward_margins,
+                }
+            )
 
-            # Compute advantage
-            with torch.no_grad():
-                extended_data = adv_module(extended_data)
+            # Average loss over the batch
+            loss = loss.mean()
 
-            # Add extended_data to PPO buffer
-            buffer.extend(extended_data)
+            # Calculate gradients and make an update to the network weights
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
 
-            for i, batch in enumerate(buffer):
-
-                # PPO loss
-                mask = batch.get("mask").squeeze(-1)
-                loss = loss_module(batch)
-                loss = loss.named_apply(
-                    lambda name, value: (
-                        (value * mask).mean()
-                        if name.startswith("loss_")
-                        else value
-                        # (value * mask).sum(-1).mean(-1) if name.startswith("loss_") else value
-                    ),
-                    batch_size=[],
-                )
-                loss_sum = (
-                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-                )
-                losses[j, i] = loss.select(
-                    "loss_critic", "loss_entropy", "loss_objective"
-                ).detach()
-
-                # Add KL loss term
-                with torch.no_grad():
-                    prior_dist = prior.get_dist(batch)
-                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
-                loss_sum += kl_div * kl_coef
-                losses[j, i] = TensorDict(
-                    {"kl_div": kl_div.detach().item()}, batch_size=[]
-                )
-
-                # Update policy
-                loss_sum.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    loss_module.parameters(), max_norm=max_grad_norm
-                )
-                optim.step()
-                optim.zero_grad()
-
-        losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
-        for key, value in losses_mean.items():
-            log_info.update({f"train/{key}": value.item()})
-
-        # Add new experiences to the replay buffer
-        if cfg.experience_replay:
-
-            # MaxValueWriter is not compatible with storages of more than one dimension.
-            replay_data.batch_size = [replay_data.batch_size[0]]
-
-            # Remove SMILES that are already in the replay buffer
-            if len(experience_replay_buffer) > 0:
-                is_duplicated = isin(
-                    input=replay_data,
-                    key="action",
-                    reference=experience_replay_buffer[:],
-                )
-                replay_data = replay_data[~is_duplicated]
-
-            # Add data to the replay buffer
-            if len(replay_data) > 0:
-                reward = replay_data.get(("next", "reward"))
-                replay_data.set("priority", reward)
-                experience_replay_buffer.extend(replay_data)
-
+        # Log info
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done)
+
+
+def get_log_prob(data, model):
+    actions = data.get("action")
+    model_in = data.select(*model.in_keys, strict=False)
+    log_prob = model.get_dist(model_in).log_prob(actions)
+    return log_prob
+
+
+def compute_loss(positive_data, negative_data, model, prior, beta=0.1):
+
+    # Shuffle positive data
+    row_indices = torch.randperm(positive_data.size(0))
+    positive_data = positive_data[row_indices]
+
+    # Compute positive log-likelihoods
+    pos_mask = positive_data.get("mask").squeeze(-1)
+    pos_agent_likelihood = (get_log_prob(positive_data, model) * pos_mask).sum(-1)
+    pos_prior_likelihood = (get_log_prob(positive_data, prior) * pos_mask).sum(-1)
+
+    # Compute negative log-likelihoods
+    neg_mask = negative_data.get("mask").squeeze(-1)
+    neg_agent_likelihood = (get_log_prob(negative_data, model) * pos_mask).sum(-1)
+    neg_prior_likelihood = (get_log_prob(negative_data, prior) * pos_mask).sum(-1)
+
+    # Compute loss
+    prefered_relative_logprob = pos_agent_likelihood - pos_prior_likelihood
+    disprefered_relative_logprob = neg_agent_likelihood - neg_prior_likelihood
+    reward_margins = (prefered_relative_logprob - disprefered_relative_logprob).mean(
+        dim=-1
+    )
+    loss = -torch.nn.functional.logsigmoid(
+        beta * (prefered_relative_logprob - disprefered_relative_logprob)
+    ).mean(dim=-1)
+
+    return (
+        loss,
+        prefered_relative_logprob.mean(dim=-1),
+        disprefered_relative_logprob.mean(dim=-1),
+        reward_margins,
+    )
 
 
 if __name__ == "__main__":
