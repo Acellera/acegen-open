@@ -104,6 +104,9 @@ To run the training scripts for denovo generation, run the following commands:
     python scripts/ppo/ppo.py --config-name config_denovo
     python scripts/reinvent/reinvent.py --config-name config_denovo
     python scripts/ahc/ahc.py --config-name config_denovo
+    python scripts/dpo/dpo.py --config-name config_denovo
+    python scripts/hill_climb/hill_climb.py --config-name config_denovo
+
 
 To run the training scripts for scaffold decoration, run the following commands (requires installation of promptsmiles):
 
@@ -112,6 +115,8 @@ To run the training scripts for scaffold decoration, run the following commands 
     python scripts/ppo/ppo.py --config-name config_scaffold
     python scripts/reinvent/reinvent.py --config-name config_scaffold
     python scripts/ahc/ahc.py --config-name config_scaffold
+    python scripts/dpo/dpo.py --config-name config_scaffold
+    python scripts/hill_climb/hill_climb.py --config-name config_scaffold
 
 To run the training scripts for fragment linking, run the following commands (requires installation of promptsmiles):
 
@@ -120,6 +125,8 @@ To run the training scripts for fragment linking, run the following commands (re
     python scripts/ppo/ppo.py --config-name config_linking
     python scripts/reinvent/reinvent.py --config-name config_linking
     python scripts/ahc/ahc.py --config-name config_linking
+    python scripts/dpo/dpo.py --config-name config_linking
+    python scripts/hill_climb/hill_climb.py --config-name config_linking
 
 ### Advanced usage
 
