@@ -37,7 +37,7 @@ from torchrl.record.loggers import get_logger
 
 try:
     import molscore
-    from molscore import MolScoreBenchmark
+    from molscore import MolScoreBenchmark, MolScoreCurriculum
     from molscore.manager import MolScore
 
     _has_molscore = True
