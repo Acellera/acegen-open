@@ -55,6 +55,7 @@ scripts=(
     run_ppo_denovo.sh
     run_ppod_denovo.sh
     run_dpo_denovo.sh
+    run_hill_climb_denovo.sh
 
     run_reinforce_scaffold.sh
     run_reinvent_scaffold.sh
@@ -63,6 +64,7 @@ scripts=(
     run_ppo_scaffold.sh
     run_ppod_scaffold.sh
     run_dpo_scaffold.sh
+    run_hill_climb_scaffold.sh
 
     run_reinforce_fragment.sh
     run_reinvent_fragment.sh
@@ -71,6 +73,7 @@ scripts=(
     run_ppo_fragment.sh
     run_ppod_fragment.sh
     run_dpo_fragment.sh
+    run_hill_climb_fragment.sh
 )
 
 # Remove the previous logs and errors
