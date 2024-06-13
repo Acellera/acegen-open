@@ -17,7 +17,6 @@ from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.vocabulary import SMILESVocabulary, tokenizer_options
 from rdkit import Chem
 from tensordict.utils import remove_duplicates
-from tokenizer import Tokenizer
 from torch.distributed import barrier, destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
@@ -27,12 +26,6 @@ from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
 
-
-logging.basicConfig(
-    level=logging.INFO,
-    filename="pretraining.log",
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
 
 # hydra outputs saved in /tmp
 os.chdir("/tmp")
@@ -108,7 +101,7 @@ def main(cfg: "DictConfig"):
     # Load vocabulary from a file
     vocabulary = SMILESVocabulary()
     vocabulary.load_state_dict(torch.load(save_path))
-    vocabulary.tokenizer = Tokenizer()
+    vocabulary.tokenizer = tokenizer_options[cfg.tokenizer]()
 
     logging.info("\nPreparing dataset and dataloader...")
     if master:
@@ -188,11 +181,11 @@ def main(cfg: "DictConfig"):
     )
 
     logger = None
-    if cfg.logger_backend:
+    if cfg.logger_backend and master:
         logging.info("\nCreating logger...")
         logger = get_logger(
             cfg.logger_backend,
-            logger_name=Path.cwd(),
+            logger_name=cfg.model_log_dir,
             experiment_name=cfg.agent_name,
             wandb_kwargs={
                 "config": dict(cfg),

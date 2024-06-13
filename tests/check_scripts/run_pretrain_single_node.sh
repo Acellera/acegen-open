@@ -25,8 +25,8 @@ python $PYTHONPATH/scripts/pretrain/pretrain_single_node.py \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
   seed=$N_RUN \
-  model_log_dir="$agent_name"_seed"$N_RUN" \
-  dataset_log_dir="$agent_name"_seed"$N_RUN" \
+  model_log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
+  dataset_log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
   epochs=10 \
   train_dataset_path=$PYTHONPATH/tests/data/smiles_test_set \
   model=$ACEGEN_MODEL
@@ -39,5 +39,3 @@ if [ $exit_status -eq 0 ]; then
 else
   echo "${agent_name}_${SLURM_JOB_ID}=error" >> report.log
 fi
-
-mv "$agent_name"_seed"$N_RUN"* slurm_logs/

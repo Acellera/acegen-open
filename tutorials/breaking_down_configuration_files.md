@@ -94,7 +94,7 @@ A detailed guide on integrating custom models can be found in this [tutorial](tu
 
 ```yaml
 # Model architecture
-model: gru # gru, lstm, or gpt2
+model: gru # gru, lstm, or gpt2, mamba, llama2, etc
 # The default prior varies for each model. Refer to the README file in the root directory for more information.
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
 custom_model_factory: null # Path to a custom model factory (e.g. my_module.create_model)
