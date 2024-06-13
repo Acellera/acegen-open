@@ -142,14 +142,10 @@ YAML config parameters can also be specified on the command line. For example,
 
 ## Changing the scoring function
 
-To change the scoring function, adjust the `molscore` parameter in any configuration files. Set it to point to a valid 
-MolScore configuration file (e.g.  ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json). 
-Alternatively, you can set the `molscore` parameter to the name of a valid MolScore benchmark 
-(such as MolOpt, GuacaMol, etc.) to automatically execute each task in the benchmark. For further details on MolScore, 
-please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) repository.
+To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows to switch betwewn different scoring modes and scoring objecitves.
+Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explaination. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
 
-Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the 
-instructions in this [tutorial](tutorials/adding_custom_scoring_function.md).
+Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the instructions in this other [tutorial](tutorials/adding_custom_scoring_function.md).
 
 ---
 
