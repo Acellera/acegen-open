@@ -82,7 +82,7 @@ models = {
         create_llama2_critic,
         create_llama2_actor_critic,
         resources.files("acegen.priors") / "enamine_real_vocabulary.txt",
-        resources.files("acegen.priors") / "llama2_enamine_real.ckpt",
+        resources.files("acegen.priors") / "llama2_enamine_real_6B.ckpt",
         SMILESTokenizerEnamine(),
     ),
 }

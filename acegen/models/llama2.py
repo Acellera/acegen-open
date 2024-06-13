@@ -71,9 +71,10 @@ def define_llama2_configuration(
     vocabulary_size: int,
     n_positions: int = 2048,
     n_head: int = 16,
-    n_layer: int = 24,
-    n_embd: int = 128,
-    attn_pdrop: float = 0.1,
+    n_kv_head: int = 4,
+    n_layer: int = 4,
+    n_embd: int = 320,
+    attn_pdrop: float = 0.0,
 ):
     """Define a Llama2 configuration.
 
@@ -86,8 +87,10 @@ def define_llama2_configuration(
     config.vocab_size = vocabulary_size
     config.max_position_embeddings = n_positions
     config.num_attention_heads = n_head
+    config.num_key_value_heads = n_kv_head
     config.num_hidden_layers = n_layer
     config.hidden_size = n_embd
+    config.intermediate_size = 4 * n_embd
     config.attention_dropout = attn_pdrop
     return config
 
@@ -95,9 +98,10 @@ def create_llama2_actor(
     vocabulary_size: int,
     n_positions: int = 2048,
     n_head: int = 16,
-    n_layer: int = 24,
-    n_embd: int = 128,
-    attn_pdrop: float = 0.1,
+    n_kv_head: int = 4,
+    n_layer: int = 4,
+    n_embd: int = 320,
+    attn_pdrop: float = 0.0,
     return_log_prob=True,
 ):
     """Create a Llama2 actor for language modeling."""
@@ -105,6 +109,7 @@ def create_llama2_actor(
         vocabulary_size,
         n_positions,
         n_head,
+        n_kv_head,
         n_layer,
         n_embd,
         attn_pdrop,
@@ -126,7 +131,7 @@ def create_llama2_actor(
 
     # Define final layer and also make it a TensorDictModule
     lm_head = TensorDictModule(
-        nn.Linear(config.n_embd, vocabulary_size, bias=False),
+        nn.Linear(config.hidden_size, vocabulary_size, bias=False),
         in_keys=["features"],
         out_keys=["logits"],
     )
@@ -159,9 +164,10 @@ def create_llama2_critic(
     vocabulary_size: int,
     n_positions: int = 2048,
     n_head: int = 16,
-    n_layer: int = 24,
-    n_embd: int = 128,
-    attn_pdrop: float = 0.1,
+    n_kv_head: int = 4,
+    n_layer: int = 4,
+    n_embd: int = 320,
+    attn_pdrop: float = 0.0,
     critic_value_per_action=False,
 ):
     """Create a Llama2 critic for language modeling."""
@@ -169,6 +175,7 @@ def create_llama2_critic(
         vocabulary_size,
         n_positions,
         n_head,
+        n_kv_head,
         n_layer,
         n_embd,
         attn_pdrop,
@@ -191,7 +198,7 @@ def create_llama2_critic(
     # Define final layer and also make it a TensorDictModule
     lm_head = TensorDictModule(
         nn.Linear(
-            config.n_embd,
+            config.hidden_size,
             vocabulary_size if critic_value_per_action else 1,
             bias=False,
         ),
@@ -209,9 +216,10 @@ def create_llama2_actor_critic(
     vocabulary_size: int,
     n_positions: int = 2048,
     n_head: int = 16,
-    n_layer: int = 24,
-    n_embd: int = 128,
-    attn_pdrop: float = 0.1,
+    n_kv_head: int = 4,
+    n_layer: int = 4,
+    n_embd: int = 320,
+    attn_pdrop: float = 0.0,
     return_log_prob=True,
     critic_value_per_action=False,
 ):
@@ -220,6 +228,7 @@ def create_llama2_actor_critic(
         vocabulary_size,
         n_positions,
         n_head,
+        n_kv_head,
         n_layer,
         n_embd,
         attn_pdrop,
@@ -241,7 +250,7 @@ def create_llama2_actor_critic(
 
     # Define actor head and also make it a TensorDictModule and Probabilistic
     actor_head = TensorDictModule(
-        nn.Linear(config.n_embd, vocabulary_size, bias=False),
+        nn.Linear(config.hidden_size, vocabulary_size, bias=False),
         in_keys=["features"],
         out_keys=["logits"],
     )
@@ -257,7 +266,7 @@ def create_llama2_actor_critic(
     # Define critic head and also make it a TensorDictModule
     critic_head = TensorDictModule(
         nn.Linear(
-            config.n_embd,
+            config.hideen_size,
             vocabulary_size if critic_value_per_action else 1,
             bias=False,
         ),
