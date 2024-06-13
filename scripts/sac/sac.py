@@ -40,6 +40,7 @@ from torchrl.envs import (
     UnsqueezeTransform,
 )
 from torchrl.modules.distributions import OneHotCategorical
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.objectives import DiscreteSACLoss, SoftUpdate
 from torchrl.record.loggers import get_logger
 
@@ -64,7 +65,7 @@ def main(cfg: "DictConfig"):
     # Save config
     current_time = datetime.datetime.now()
     timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-    save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
+    save_dir = f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
     os.makedirs(save_dir, exist_ok=True)
     with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
@@ -156,18 +157,6 @@ def main(cfg: "DictConfig"):
     # Environment
     ####################################################################################################################
 
-    # Create transform to populate initial tensordict with recurrent states equal to 0.0
-    if cfg.shared_nets:
-        primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers = [TensorDictPrimer(primers)]
-    else:
-        actor_primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        critic_primers = critic_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers = [
-            TensorDictPrimer(actor_primers),
-            TensorDictPrimer(critic_primers),
-        ]
-
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
         "end_token": vocabulary.end_token_index,
@@ -199,8 +188,10 @@ def main(cfg: "DictConfig"):
         )
         env.append_transform(StepCounter())
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        if primers := get_primers_from_module(actor_inference):
+            env.append_transform(primers)
+        if primers := get_primers_from_module(critic_inference):
+            env.append_transform(primers)
         return env
 
     # tests env

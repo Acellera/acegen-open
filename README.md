@@ -17,11 +17,22 @@ The full paper can be found [here](https://arxiv.org/abs/2405.04657).
 
 ## Features
 
-- **Multiple Generative Modes:** ACEGEN facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
-- **RL Algorithms:** ACEGEN offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
-- **Pre-trained Models:** The toolkit offers pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), and GPT-2.
-- **Scoring Functions :** ACEGEN relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
-- **Customization Support:** ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
+- __**Multiple Generative Modes:**__ 
+ACEGEN facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
+
+- __**RL Algorithms:**__ 
+ACEGEN offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
+
+- __**Other Algorithms:**__ 
+ACEGEN also includes [Direct Preference Optimization (DPO)][8] and Hill Climbing.
+
+- __**Pre-trained Models:**__ ACEGEN contains pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), GPT-2, LLama2 and Mamba.
+
+- __**Scoring Functions :**__ 
+ACEGEN defaults to MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules. MolScore allows to train agents on single scoring functions, on entire benchmarks containing multiple scoring functions (e.g., MolOpt, GuacaMol), or using curriculum learning where the same agent is optimized on a sequence of different scoring functions.
+
+- __**Customization Support:**__ 
+ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
 
 ---
 
@@ -93,6 +104,9 @@ To run the training scripts for denovo generation, run the following commands:
     python scripts/ppo/ppo.py --config-name config_denovo
     python scripts/reinvent/reinvent.py --config-name config_denovo
     python scripts/ahc/ahc.py --config-name config_denovo
+    python scripts/dpo/dpo.py --config-name config_denovo
+    python scripts/hill_climb/hill_climb.py --config-name config_denovo
+
 
 To run the training scripts for scaffold decoration, run the following commands (requires installation of promptsmiles):
 
@@ -101,6 +115,8 @@ To run the training scripts for scaffold decoration, run the following commands 
     python scripts/ppo/ppo.py --config-name config_scaffold
     python scripts/reinvent/reinvent.py --config-name config_scaffold
     python scripts/ahc/ahc.py --config-name config_scaffold
+    python scripts/dpo/dpo.py --config-name config_scaffold
+    python scripts/hill_climb/hill_climb.py --config-name config_scaffold
 
 To run the training scripts for fragment linking, run the following commands (requires installation of promptsmiles):
 
@@ -109,6 +125,8 @@ To run the training scripts for fragment linking, run the following commands (re
     python scripts/ppo/ppo.py --config-name config_linking
     python scripts/reinvent/reinvent.py --config-name config_linking
     python scripts/ahc/ahc.py --config-name config_linking
+    python scripts/dpo/dpo.py --config-name config_linking
+    python scripts/hill_climb/hill_climb.py --config-name config_linking
 
 ### Advanced usage
 
@@ -151,13 +169,19 @@ We provide a variety of default priors that can be selected in the configuration
 - A Long Short-Term Memory (LSTM) model
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
   - number of parameters: 5,807,909
-    - to select set the field `model` to `lstm` in any configuration file
+  - to select set the field `model` to `lstm` in any configuration file
  
 
 - A GPT-2 model (requires installation of HuggingFace's `transformers` library)
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
   - number of parameters: 5,030,400
-- to select set the field `model` to `gpt2` in any configuration file
+  - to select set the field `model` to `gpt2` in any configuration file
+
+
+- A Mamba model (requires installation of `mamba-ssm` library)
+  - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - number of parameters: 2,809,216
+  - to select set the field `model` to `mamba` in any configuration file
 
 ### Integration of custom models
 
@@ -208,6 +232,7 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 [5]: https://jcheminf.biomedcentral.com/articles/10.1186/s13321-022-00646-z
 [6]: https://arxiv.org/pdf/2206.12411.pdf
 [7]: https://arxiv.org/abs/2007.03328
+[8]: https://arxiv.org/abs/2305.18290
 
 
 ---

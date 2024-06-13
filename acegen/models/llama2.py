@@ -1,5 +1,3 @@
-import warnings
-
 import torch
 import torch.nn as nn
 from tensordict.nn import TensorDictModule, TensorDictSequential
@@ -7,14 +5,14 @@ from torchrl.envs import ExplorationType
 from torchrl.modules import ActorValueOperator, ProbabilisticActor
 
 try:
-    import transformers
     from transformers import LlamaConfig, LlamaModel
 
     _has_transformers = True
 except ImportError as err:
     _has_transformers = False
     TRANSFORMERS_ERR = err
-    
+
+
 class Llama2(nn.Module):
     """Llama2 model for language modeling. This model is a simple wrapper around the HuggingFace Llama22Model."""
 
@@ -23,13 +21,6 @@ class Llama2(nn.Module):
             raise RuntimeError(
                 "transformers library not found, please install with pip install transformers."
             ) from TRANSFORMERS_ERR
-        if transformers.__version__ != "4.24.0":
-            warnings.warn(
-                f"Warning: The current version of transformers library ({transformers.__version__}) "
-                f"may not be compatible with the default weights for the Llama-2 model used in AceGen. "
-                f"If you intend to use the default weights provided in AceGen, please install transformers "
-                f"version 4.24.0 using: `pip install transformers==4.24.0`."
-            )
 
         super(Llama2, self).__init__()
 
@@ -67,6 +58,7 @@ class Llama2(nn.Module):
 
         return out
 
+
 def define_llama2_configuration(
     vocabulary_size: int,
     n_positions: int = 2048,
@@ -93,6 +85,7 @@ def define_llama2_configuration(
     config.intermediate_size = 4 * n_embd
     config.attention_dropout = attn_pdrop
     return config
+
 
 def create_llama2_actor(
     vocabulary_size: int,
@@ -160,6 +153,7 @@ def create_llama2_actor(
     )
     return probabilistic_policy_training, probabilistic_policy_inference
 
+
 def create_llama2_critic(
     vocabulary_size: int,
     n_positions: int = 2048,
@@ -211,6 +205,7 @@ def create_llama2_critic(
     critic_training = TensorDictSequential(lm_training, lm_head)
     critic_inference = TensorDictSequential(lm_inference, lm_head)
     return critic_training, critic_inference
+
 
 def create_llama2_actor_critic(
     vocabulary_size: int,
@@ -266,7 +261,7 @@ def create_llama2_actor_critic(
     # Define critic head and also make it a TensorDictModule
     critic_head = TensorDictModule(
         nn.Linear(
-            config.hideen_size,
+            config.hidden_size,
             vocabulary_size if critic_value_per_action else 1,
             bias=False,
         ),

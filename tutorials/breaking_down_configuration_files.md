@@ -66,8 +66,14 @@ This section is also common to all scripts. ACEGEN uses [molscore](https://githu
 
 ```yaml
 # Scoring function
-molscore: MolOpt # All available benchmarks can be found [here][https://github.com/MorganCThomas/MolScore/tree/develop/molscore/configs]
-molscore_include: null # Allows to define only a subset of the benchmark scoring function (e.g. ["Albuterol_similarity"])
+molscore_mode: single # single (run a single objective), benchmark (run multiple), or curriculum (run a sequence)
+molscore_task: null # task configuration path (JSON), benchmark (preset only), or curriculum task (preset only)
+molscore_kwargs:
+  include: [] # Allows to define only a subset of the benchmark scoring function (e.g. ["Albuterol_similarity"])
+  # Other available kwargs
+  custom_benchmark: null # Path to a directory containing a list of benchmark configuration files or a sequence of objectives for curriculum learning
+  custom_tasks: []  # Individual configuration file paths (JSONs) to be added to the benchmark/curriculum
+  exclude: []  # Names of configuration files to exclude
 custom_task: null # Requires molscore to be set to null.
 ```
 
@@ -88,7 +94,7 @@ A detailed guide on integrating custom models can be found in this [tutorial](tu
 
 ```yaml
 # Model architecture
-model: gru # gru, lstm, or gpt2
+model: gru # gru, lstm, or gpt2, mamba, llama2, etc
 # The default prior varies for each model. Refer to the README file in the root directory for more information.
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
 custom_model_factory: null # Path to a custom model factory (e.g. my_module.create_model)

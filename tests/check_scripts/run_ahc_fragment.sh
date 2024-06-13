@@ -15,7 +15,7 @@ if [ -z "$N_RUN" ]; then
   N_RUN=1
 fi
 if [ -z "$ACEGEN_MODEL" ]; then
-  echo "ACEGEN_MODEL is not set. Setting to default value of gru. Choose from [gru, lstm, gpt2]"
+  echo "ACEGEN_MODEL is not set. Setting to default value of gru."
   ACEGEN_MODEL="gru"
 fi
 
@@ -25,7 +25,7 @@ python $PYTHONPATH/scripts/ahc/ahc.py --config-name config_fragment \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
   seed=$N_RUN \
-  log_dir="$agent_name"_seed"$N_RUN" \
+  log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
   model=$ACEGEN_MODEL
 
 # Capture the exit status of the Python command
@@ -36,5 +36,3 @@ if [ $exit_status -eq 0 ]; then
 else
   echo "${agent_name}_${SLURM_JOB_ID}=error" >> report.log
 fi
-
-mv "$agent_name"_seed"$N_RUN"* slurm_logs/

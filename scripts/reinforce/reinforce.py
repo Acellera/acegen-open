@@ -37,7 +37,7 @@ from torchrl.record.loggers import get_logger
 
 try:
     import molscore
-    from molscore import MolScoreBenchmark
+    from molscore import MolScoreBenchmark, MolScoreCurriculum
     from molscore.manager import MolScore
 
     _has_molscore = True
@@ -70,7 +70,9 @@ def main(cfg: "DictConfig"):
         current_time = datetime.datetime.now()
         timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
         os.chdir(os.path.dirname(__file__))
-        save_dir = f"{cfg.log_dir}/logs_{cfg.agent_name}_{timestamp_str}"
+        save_dir = (
+            f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
+        )
         with open_dict(cfg):
             cfg.save_dir = save_dir
         os.makedirs(save_dir, exist_ok=True)
@@ -79,7 +81,7 @@ def main(cfg: "DictConfig"):
             yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
         # Define training task and run
-        if cfg.get("molscore", None):
+        if cfg.get("molscore_task", None):
 
             if not _has_molscore:
                 raise RuntimeError(
@@ -87,31 +89,45 @@ def main(cfg: "DictConfig"):
                     "To install MolScore, use: `pip install MolScore`"
                 ) from MOLSCORE_ERR
 
-            if cfg.molscore in MolScoreBenchmark.presets:
-                MSB = MolScoreBenchmark(
-                    model_name=cfg.agent_name,
-                    model_parameters=dict(cfg),
-                    benchmark=cfg.molscore,
-                    budget=cfg.total_smiles,
-                    output_dir=os.path.abspath(save_dir),
-                    add_benchmark_dir=False,
-                    include=cfg.molscore_include,
-                )
-                for task in MSB:
-                    run_reinforce(cfg, task)
-            else:
+            if cfg.molscore_mode == "single":
                 # Save molscore output. Also redirect output to save_dir
-                cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-                data = json.load(open(cfg.molscore, "r"))
-                json.dump(data, open(cfg.molscore, "w"), indent=4)
+                cfg.molscore_task = shutil.copy(cfg.molscore_task, save_dir)
+                data = json.load(open(cfg.molscore_task, "r"))
+                json.dump(data, open(cfg.molscore_task, "w"), indent=4)
                 task = MolScore(
                     model_name=cfg.agent_name,
-                    task_config=cfg.molscore,
+                    task_config=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
                     add_run_dir=False,
+                    **cfg.get("molscore_kwargs", {}),
                 )
                 run_reinforce(cfg, task)
+
+            if cfg.molscore_mode == "benchmark":
+                MSB = MolScoreBenchmark(
+                    model_name=cfg.agent_name,
+                    model_parameters=dict(cfg),
+                    benchmark=cfg.molscore_task,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    add_benchmark_dir=False,
+                    **cfg.get("molscore_kwargs", {}),
+                )
+                for task in MSB:
+                    run_reinforce(cfg, task)
+
+            if cfg.molscore_mode == "curriculum":
+                task = MolScoreCurriculum(
+                    model_name=cfg.agent_name,
+                    model_parameters=dict(cfg),
+                    benchmark=cfg.molscore_task,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    **cfg.get("molscore_kwargs", {}),
+                )
+                run_reinforce(cfg, task)
+
         elif cfg.get("custom_task", None):
             if cfg.custom_task not in custom_scoring_functions:
                 register_custom_scoring_function(cfg.custom_task, cfg.custom_task)
@@ -122,6 +138,7 @@ def main(cfg: "DictConfig"):
                 output_dir=save_dir,
             )
             run_reinforce(cfg, task)
+
         else:
             raise ValueError("No scoring function specified.")
 
@@ -179,7 +196,8 @@ def run_reinforce(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        env.append_transform(get_primers_from_module(actor_training))
+        if primers := get_primers_from_module(actor_inference):
+            env.append_transform(primers)
         return env
 
     env = create_env_fn()
@@ -213,7 +231,7 @@ def run_reinforce(cfg, task):
     if cfg.logger_backend:
         experiment_name = f"{cfg.agent_name}"
         try:
-            experiment_name += f"_{task.configs.get('task')}"
+            experiment_name += f"_{task.cfg.get('task')}"
         except AttributeError:
             experiment_name += "_custom_task"
         logger = get_logger(

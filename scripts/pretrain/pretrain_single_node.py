@@ -28,12 +28,6 @@ try:
 except:
     _has_wandb = False
 
-logging.basicConfig(
-    level=logging.INFO,
-    filename="pretraining.log",
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-
 # hydra outputs saved in /tmp
 os.chdir("/tmp")
 
@@ -113,7 +107,8 @@ def main(cfg: "DictConfig"):
     )
     test_env = TransformedEnv(test_env)
     test_env.append_transform(InitTracker())
-    test_env.append_transform(get_primers_from_module(actor_inference))
+    if primers := get_primers_from_module(actor_inference):
+        test_env.append_transform(primers)
 
     logging.info("\nCreating optimizer...")
     actor_optimizer = torch.optim.Adam(actor_training.parameters(), lr=cfg.lr)
@@ -126,7 +121,7 @@ def main(cfg: "DictConfig"):
         logging.info("\nCreating logger...")
         logger = get_logger(
             cfg.logger_backend,
-            logger_name=Path.cwd(),
+            logger_name=cfg.model_log_dir,
             experiment_name=cfg.agent_name,
             wandb_kwargs={
                 "config": dict(cfg),
