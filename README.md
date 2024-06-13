@@ -153,7 +153,7 @@ instructions in this [tutorial](tutorials/adding_custom_scoring_function.md).
 
 ---
 
-## Changing the model architecture
+## Changing the policy prior
 
 ### Available models
 
@@ -179,6 +179,12 @@ We provide a variety of default priors that can be selected in the configuration
 
 
 - A Mamba model (requires installation of `mamba-ssm` library)
+  - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - number of parameters: 2,809,216
+  - to select set the field `model` to `mamba` in any configuration file
+
+
+- A Llama2 model (requires installation of HuggingFace's `transformers` library)
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
   - number of parameters: 2,809,216
   - to select set the field `model` to `mamba` in any configuration file
@@ -246,3 +252,19 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 ## Scaffold constrained generation example: BACE1 docking with AHC algorithm
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
+
+---
+
+## Citation
+
+If you use ACEGEN on your work, please refer to this BibTeX entry to cite it:
+
+```
+@article{bou2024acegen,
+  title={ACEGEN: Reinforcement learning of generative chemical agents for drug discovery},
+  author={Bou, Albert and Thomas, Morgan and Dittert, Sebastian and Navarro Ramírez, Carles and Majewski, Maciej and Wang, Ye and Patel, Shivam and Tresadern, Gary and Ahmad, Mazen and Moens, Vincent and Sherman, Woody and Sciabola, Simone and De Fabritiis, Gianni},
+  eprint={2405.04657},
+  archivePrefix={arXiv},
+  year={2024}
+}
+```
