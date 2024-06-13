@@ -181,9 +181,9 @@ We provide a variety of default priors that can be selected in the configuration
 
 
 - A Llama2 model (requires installation of HuggingFace's `transformers` library)
-  - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
-  - number of parameters: 2,809,216
-  - to select set the field `model` to `mamba` in any configuration file
+  - pre-training dataset: [REAL Database, 6B cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database)
+  - number of parameters: 5,965,760
+  - to select set the field `model` to `llama2` in any configuration file
 
 ### Integration of custom models
 
