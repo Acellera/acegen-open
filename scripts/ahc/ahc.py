@@ -70,7 +70,9 @@ def main(cfg: "DictConfig"):
         current_time = datetime.datetime.now()
         timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
         os.chdir(os.path.dirname(__file__))
-        save_dir = f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
+        save_dir = (
+            f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
+        )
         with open_dict(cfg):
             cfg.save_dir = save_dir
         os.makedirs(save_dir, exist_ok=True)
@@ -113,7 +115,7 @@ def main(cfg: "DictConfig"):
                     **cfg.get("molscore_kwargs", {}),
                 )
                 for task in MSB:
-                    run_a2c(cfg, task)
+                    run_ahc(cfg, task)
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -231,7 +233,7 @@ def run_ahc(cfg, task):
     if cfg.logger_backend:
         experiment_name = f"{cfg.agent_name}"
         try:
-            experiment_name += f"_{task.configs.get('task')}"
+            experiment_name += f"_{task.cfg.get('task')}"
         except AttributeError:
             experiment_name += "_custom_task"
         logger = get_logger(

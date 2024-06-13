@@ -91,7 +91,7 @@ def main(cfg: "DictConfig"):
                     add_run_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_reinvent(cfg, task)
+                run_reinforce(cfg, task)
 
             if cfg.molscore_mode == "benchmark":
                 MSB = MolScoreBenchmark(
@@ -104,7 +104,7 @@ def main(cfg: "DictConfig"):
                     **cfg.get("molscore_kwargs", {}),
                 )
                 for task in MSB:
-                    run_reinvent(cfg, task)
+                    run_reinforce(cfg, task)
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -115,7 +115,7 @@ def main(cfg: "DictConfig"):
                     output_dir=os.path.abspath(save_dir),
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_reinvent(cfg, task)
+                run_reinforce(cfg, task)
 
         elif cfg.get("custom_task", None):
             if cfg.custom_task not in custom_scoring_functions:
@@ -126,7 +126,7 @@ def main(cfg: "DictConfig"):
                 budget=cfg.total_smiles,
                 output_dir=save_dir,
             )
-            run_reinvent(cfg, task)
+            run_reinforce(cfg, task)
 
         else:
             raise ValueError("No scoring function specified.")
