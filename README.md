@@ -257,7 +257,7 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ## Citation
 
-If you use ACEGEN on your work, please refer to this BibTeX entry to cite it:
+If you use ACEGEN in your work, please refer to this BibTeX entry to cite it:
 
 ```
 @article{bou2024acegen,
