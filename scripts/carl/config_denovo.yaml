@@ -10,8 +10,10 @@ num_envs: 128 # Number of smiles to generate in parallel
 total_smiles: 10_000
 
 # Scoring function
-molscore: MolOpt-DF
-molscore_include: []
+molscore_mode: benchmark # single, benchmark, or curriculum
+molscore_task: MolOpt # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
+molscore_kwargs:
+  include: ["Albuterol_similarity"]
 custom_task: null # Requires molscore to be set to null
 
 # Fix the beginning of the generated molecules

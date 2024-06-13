@@ -70,7 +70,7 @@ def main(cfg: "DictConfig"):
             yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
         # Define training task and run
-        if cfg.get("molscore", None):
+        if cfg.get("molscore_task", None):
 
             if not _has_molscore:
                 raise RuntimeError(
@@ -78,35 +78,56 @@ def main(cfg: "DictConfig"):
                     "To install MolScore, use: `pip install MolScore`"
                 ) from MOLSCORE_ERR
 
-            if cfg.molscore in MolScoreBenchmark.presets:
-                MSB = MolScoreBenchmark(
-                    model_name=cfg.agent_name,
-                    model_parameters=dict(cfg),
-                    benchmark=cfg.molscore,
-                    budget=cfg.total_smiles,
-                    output_dir=os.path.abspath(save_dir),
-                    add_benchmark_dir=False,
-                    include=cfg.molscore_include,
-                )
-                for task in MSB:
-                    run_reinforce(cfg, task)
-                    task.write_scores()
-            else:
+            if cfg.molscore_mode == "single":
                 # Save molscore output. Also redirect output to save_dir
-                cfg.molscore = shutil.copy(cfg.molscore, save_dir)
-                data = json.load(open(cfg.molscore, "r"))
-                json.dump(data, open(cfg.molscore, "w"), indent=4)
+                cfg.molscore_task = shutil.copy(cfg.molscore_task, save_dir)
+                data = json.load(open(cfg.molscore_task, "r"))
+                json.dump(data, open(cfg.molscore_task, "w"), indent=4)
                 task = MolScore(
                     model_name=cfg.agent_name,
-                    task_config=cfg.molscore,
+                    task_config=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
                     add_run_dir=False,
+                    **cfg.get("molscore_kwargs", {}),
                 )
-                run_reinforce(cfg, task)
+                run_reinvent(cfg, task)
+
+            if cfg.molscore_mode == "benchmark":
+                MSB = MolScoreBenchmark(
+                    model_name=cfg.agent_name,
+                    model_parameters=dict(cfg),
+                    benchmark=cfg.molscore_task,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    add_benchmark_dir=False,
+                    **cfg.get("molscore_kwargs", {}),
+                )
+                for task in MSB:
+                    run_reinvent(cfg, task)
+
+            if cfg.molscore_mode == "curriculum":
+                task = MolScoreCurriculum(
+                    model_name=cfg.agent_name,
+                    model_parameters=dict(cfg),
+                    benchmark=cfg.molscore_task,
+                    budget=cfg.total_smiles,
+                    output_dir=os.path.abspath(save_dir),
+                    **cfg.get("molscore_kwargs", {}),
+                )
+                run_reinvent(cfg, task)
+
         elif cfg.get("custom_task", None):
-            task = Task(custom_scoring_functions[cfg.custom_task], budget=cfg.total_smiles)
-            run_reinforce(cfg, task)
+            if cfg.custom_task not in custom_scoring_functions:
+                register_custom_scoring_function(cfg.custom_task, cfg.custom_task)
+            task = Task(
+                name=cfg.custom_task,
+                scoring_function=custom_scoring_functions[cfg.custom_task],
+                budget=cfg.total_smiles,
+                output_dir=save_dir,
+            )
+            run_reinvent(cfg, task)
+
         else:
             raise ValueError("No scoring function specified.")
 
