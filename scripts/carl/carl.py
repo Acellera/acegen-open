@@ -11,37 +11,45 @@ import hydra
 import numpy as np
 
 import torch
-from torch.distributions.kl import kl_divergence
 import tqdm
 import yaml
 
-from acegen.models import adapt_state_dict, models
+from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.scoring_functions import custom_scoring_functions, Task
+from acegen.scoring_functions import (
+    custom_scoring_functions,
+    register_custom_scoring_function,
+    Task,
+)
 from acegen.vocabulary import SMILESVocabulary
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from tensordict.utils import isin
+from torch.distributions.kl import kl_divergence
 
 from torchrl.data import (
     LazyTensorStorage,
-    RandomSampler,
     PrioritizedSampler,
+    RandomSampler,
     TensorDictMaxValueWriter,
     TensorDictPrioritizedReplayBuffer,
     TensorDictReplayBuffer,
 )
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
+from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 
 try:
     import molscore
-    from molscore import MolScoreBenchmark
+    from molscore import MolScoreBenchmark, MolScoreCurriculum
     from molscore.manager import MolScore
 
     _has_molscore = True
 except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
+
+# hydra outputs saved in /tmp
+os.chdir("/tmp")
 
 
 @hydra.main(
@@ -55,15 +63,21 @@ def main(cfg: "DictConfig"):
         cfg.seed = [cfg.seed]
 
     for seed in cfg.seed:
-        # Set seeds
+
+        # Set seed
         random.seed(int(seed))
         np.random.seed(int(seed))
         torch.manual_seed(int(seed))
 
-        # Save config
+        # Define save_dir and save config
         current_time = datetime.datetime.now()
         timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-        save_dir = f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
+        os.chdir(os.path.dirname(__file__))
+        save_dir = (
+            f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
+        )
+        with open_dict(cfg):
+            cfg.save_dir = save_dir
         os.makedirs(save_dir, exist_ok=True)
         with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
             cfg_dict = OmegaConf.to_container(cfg, resolve=True)
@@ -139,11 +153,18 @@ def run_reinforce(cfg, task):
         torch.device("cuda:0") if torch.cuda.device_count() > 0 else torch.device("cpu")
     )
 
-    # Get model and vocabulary checkpoints
-    if cfg.model in models:
-        create_actor, _, _, voc_path, ckpt_path, tokenizer = models[cfg.model]
-    else:
-        raise ValueError(f"Unknown model type: {cfg.model}")
+    # If custom model, register it
+    if cfg.model not in models and cfg.get("custom_model_factory", None) is not None:
+        register_model(cfg.model, cfg.model_factory)
+
+    # Check if model is available
+    if cfg.model not in models:
+        raise ValueError(
+            f"Model {cfg.model} not found. For custom models, define a model factory as explain in the tutorials."
+        )
+
+    # Get model
+    (create_actor, _, _, voc_path, ckpt_path, tokenizer) = models[cfg.model]
 
     # Create vocabulary
     ####################################################################################################################
@@ -153,8 +174,7 @@ def run_reinforce(cfg, task):
     # Create models
     ####################################################################################################################
 
-    ckpt = torch.load(ckpt_path)
-
+    ckpt = torch.load(ckpt_path, map_location=device)
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
@@ -167,12 +187,6 @@ def run_reinforce(cfg, task):
 
     # Create RL environment
     ####################################################################################################################
-
-    # For RNNs, create a transform to populate initial tensordict with recurrent states equal to 0.0
-    rhs_primers = []
-    if hasattr(actor_training, "rnn_spec"):
-        primers = actor_training.rnn_spec.expand(cfg.num_envs)
-        rhs_primers.append(TensorDictPrimer(primers))
 
     env_kwargs = {
         "start_token": vocabulary.start_token_index,
@@ -187,8 +201,8 @@ def run_reinforce(cfg, task):
         env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
-        for rhs_primer in rhs_primers:
-            env.append_transform(rhs_primer)
+        if primers := get_primers_from_module(actor_inference):
+            env.append_transform(primers)
         return env
 
     env = create_env_fn()
@@ -197,10 +211,10 @@ def run_reinforce(cfg, task):
     ####################################################################################################################
 
     storage = LazyTensorStorage(cfg.replay_buffer_size, device=device)
-    if cfg.get('replay_sampler', 'prioritized') in ['random', 'uniform']:
+    if cfg.get("replay_sampler", "prioritized") in ["random", "uniform"]:
         replay_sampler = RandomSampler()
-    elif cfg.get('replay_sampler', 'prioritized') == 'prioritized':
-        replay_sampler =  PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0)
+    elif cfg.get("replay_sampler", "prioritized") == "prioritized":
+        replay_sampler = PrioritizedSampler(storage.max_size, alpha=1.0, beta=1.0)
     else:
         raise ValueError(f"Unknown replay sampler: {replay_sampler}")
     experience_replay_buffer = TensorDictReplayBuffer(
@@ -238,7 +252,7 @@ def run_reinforce(cfg, task):
 
         def __init__(self):
             self.mean = None
-        
+
         def update(self, x):
             with torch.no_grad():
                 loo = x.unsqueeze(1).expand(-1, x.size(0))
@@ -265,7 +279,9 @@ def run_reinforce(cfg, task):
         weight_decay=cfg.weight_decay,
     )
     if cfg.get("lr_annealing", False):
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=5000//cfg.num_envs, eta_min=0.0001)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optim, T_max=5000 // cfg.num_envs, eta_min=0.0001
+        )
 
     # Create logger
     ####################################################################################################################
@@ -274,13 +290,12 @@ def run_reinforce(cfg, task):
     if cfg.logger_backend:
         experiment_name = f"{cfg.agent_name}"
         try:
-            experiment_name += f"_{task.configs.get('task')}"
+            experiment_name += f"_{task.cfg.get('task')}"
         except AttributeError:
             experiment_name += "_custom_task"
-
         logger = get_logger(
             cfg.logger_backend,
-            logger_name="reinforce",
+            logger_name=cfg.save_dir,
             experiment_name=experiment_name,
             wandb_kwargs={
                 "config": dict(cfg),
@@ -317,7 +332,7 @@ def run_reinforce(cfg, task):
         log_info = {}
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += cfg.num_envs # done.sum().item()
+        total_done += cfg.num_envs  # done.sum().item()
         pbar.update(done.sum().item())
 
         # Save info about smiles lengths and rewards
@@ -346,7 +361,9 @@ def run_reinforce(cfg, task):
             cfg.experience_replay
             and len(experience_replay_buffer) > cfg.replay_batch_size
         ):
-            replay_batch = experience_replay_buffer.sample().exclude("priority", "index", "prior_log_prob", "_weight")
+            replay_batch = experience_replay_buffer.sample().exclude(
+                "priority", "index", "prior_log_prob", "_weight"
+            )
             data = torch.cat((data, replay_batch), 0)
 
         # Compute loss
@@ -358,7 +375,7 @@ def run_reinforce(cfg, task):
             sigma=cfg.get("sigma", 0.0),
             baseline=baseline,
             entropy_coef=cfg.get("entropy_coef", 0.0),
-            )
+        )
 
         # Average loss over the batch
         loss = loss.mean()
@@ -417,21 +434,23 @@ def get_log_prob(data, model):
     return log_prob, dist
 
 
-def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0):
+def compute_loss(
+    data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0
+):
 
     mask = data.get("mask").squeeze(-1)
 
     with torch.no_grad():
         prior_log_prob, prior_dist = get_log_prob(data, prior)
         data.set("prior_log_prob", prior_log_prob)
-        
+
     agent_log_prob, agent_dist = get_log_prob(data, model)
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     prior_likelihood = (prior_log_prob * mask).sum(-1)
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
-    
+
     # Reward reshaping
-    reward = torch.pow(torch.clamp(reward + sigma*prior_likelihood, min=0.0), alpha)
+    reward = torch.pow(torch.clamp(reward + sigma * prior_likelihood, min=0.0), alpha)
 
     # Subtract baselines
     if baseline:
@@ -439,12 +458,12 @@ def compute_loss(data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_
         reward = reward - baseline.mean
 
     # REINFORCE (negative as we minimize the negative log prob to maximize the policy)
-    loss = - agent_likelihood * reward
+    loss = -agent_likelihood * reward
 
     # Add KL loss term
-    #kl_div = kl_divergence(agent_dist, prior_dist)
-    #kl_div = (kl_div * mask.squeeze()).sum(-1)
-    #loss += kl_div * sigma
+    # kl_div = kl_divergence(agent_dist, prior_dist)
+    # kl_div = (kl_div * mask.squeeze()).sum(-1)
+    # loss += kl_div * sigma
 
     # Add Entropy loss term
     loss -= entropy_coef * (agent_dist.entropy() * mask.squeeze()).mean(-1)
