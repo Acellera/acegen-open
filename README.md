@@ -142,18 +142,14 @@ YAML config parameters can also be specified on the command line. For example,
 
 ## Changing the scoring function
 
-To change the scoring function, adjust the `molscore` parameter in any configuration files. Set it to point to a valid 
-MolScore configuration file (e.g.  ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json). 
-Alternatively, you can set the `molscore` parameter to the name of a valid MolScore benchmark 
-(such as MolOpt, GuacaMol, etc.) to automatically execute each task in the benchmark. For further details on MolScore, 
-please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) repository.
+To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows to switch betwewn different scoring modes and scoring objecitves.
+Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explaination. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
 
-Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the 
-instructions in this [tutorial](tutorials/adding_custom_scoring_function.md).
+Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the instructions in this other [tutorial](tutorials/adding_custom_scoring_function.md).
 
 ---
 
-## Changing the model architecture
+## Changing the policy prior
 
 ### Available models
 
@@ -182,6 +178,12 @@ We provide a variety of default priors that can be selected in the configuration
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
   - number of parameters: 2,809,216
   - to select set the field `model` to `mamba` in any configuration file
+
+
+- A Llama2 model (requires installation of HuggingFace's `transformers` library)
+  - pre-training dataset: [REAL Database, 6B cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database)
+  - number of parameters: 5,965,760
+  - to select set the field `model` to `llama2` in any configuration file
 
 ### Integration of custom models
 
@@ -246,3 +248,19 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 ## Scaffold constrained generation example: BACE1 docking with AHC algorithm
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
+
+---
+
+## Citation
+
+If you use ACEGEN in your work, please refer to this BibTeX entry to cite it:
+
+```
+@article{bou2024acegen,
+  title={ACEGEN: Reinforcement learning of generative chemical agents for drug discovery},
+  author={Bou, Albert and Thomas, Morgan and Dittert, Sebastian and Navarro Ramírez, Carles and Majewski, Maciej and Wang, Ye and Patel, Shivam and Tresadern, Gary and Ahmad, Mazen and Moens, Vincent and Sherman, Woody and Sciabola, Simone and De Fabritiis, Gianni},
+  eprint={2405.04657},
+  archivePrefix={arXiv},
+  year={2024}
+}
+```
