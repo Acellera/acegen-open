@@ -31,6 +31,7 @@ from acegen.models.mamba import (
 )
 from acegen.models.utils import adapt_state_dict
 from acegen.vocabulary.tokenizers import (
+    AsciiSMILESTokenizer,
     SMILESTokenizerChEMBL,
     SMILESTokenizerEnamine,
     SMILESTokenizerGuacaMol,
@@ -88,7 +89,7 @@ models = {
         create_llama2_actor_critic,
         resources.files("acegen.priors") / "ascii.pt",
         resources.files("acegen.priors") / "llama2_enamine_real_6B.ckpt",
-        SMILESTokenizerEnamine(),
+        AsciiSMILESTokenizer(),
     ),
     "mamba": (
         create_mamba_actor,

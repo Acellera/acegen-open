@@ -49,7 +49,7 @@ class Llama2(nn.Module):
 
         out = self.feature_extractor(
             input_ids=sequence,
-            attention_mask=sequence_mask.long(),
+            attention_mask=sequence_mask.long().reshape(*sequence.shape),
         ).last_hidden_state
 
         if self.train_mode is False:  # Data collection, return only last token

@@ -1,6 +1,7 @@
 from acegen.vocabulary.base import Tokenizer, Vocabulary
 from acegen.vocabulary.tokenizers import (
     AISTokenizer,
+    AsciiSMILESTokenizer,
     DeepSMILESTokenizer,
     SAFETokenizer,
     SELFIESTokenizer,
@@ -18,4 +19,5 @@ tokenizer_options = {
     "SMILESTokenizerChEMBL": SMILESTokenizerChEMBL,
     "SMILESTokenizerEnamine": SMILESTokenizerEnamine,
     "SMILESTokenizerGuacaMol": SMILESTokenizerGuacaMol,
+    "AsciiSMILESTokenizer": AsciiSMILESTokenizer,
 }
