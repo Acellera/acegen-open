@@ -184,8 +184,12 @@ def run_reinforce(cfg, task):
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
 
-    population_inference = [actor_inference] + [deepcopy(actor_inference) for _ in range(num_agents - 1)]
-    population_training = [actor_training] + [deepcopy(actor_training) for _ in range(num_agents - 1)]
+    population_inference = [actor_inference] + [
+        deepcopy(actor_inference) for _ in range(num_agents - 1)
+    ]
+    population_training = [actor_training] + [
+        deepcopy(actor_training) for _ in range(num_agents - 1)
+    ]
 
     # Create RL environment
     ####################################################################################################################
@@ -226,7 +230,7 @@ def run_reinforce(cfg, task):
 
     # Create optimizer
     ####################################################################################################################
-    
+
     population_optims = []
     for actor in population_training:
         optim = torch.optim.Adam(
@@ -236,7 +240,7 @@ def run_reinforce(cfg, task):
             weight_decay=cfg.weight_decay,
         )
         population_optims.append(optim)
-    
+
     # Create logger
     ####################################################################################################################
 
@@ -266,9 +270,9 @@ def run_reinforce(cfg, task):
     pbar = tqdm.tqdm(total=cfg.total_smiles)
 
     while not task.finished:
-        
+
         log_info = {}
-        
+
         # Generate data
         population_data = []
         population_loss = []
@@ -359,7 +363,6 @@ def run_reinforce(cfg, task):
                     replay_data.set("priority", reward)
                     experience_replay_buffer.extend(replay_data)
 
-
         # Compute joint loss term, for now do nothing
         # Concatenate all population data
         data_cat = torch.cat(population_data, dim=0)
@@ -379,23 +382,21 @@ def run_reinforce(cfg, task):
         log_probs = torch.stack(log_probs, dim=1)
 
         # Apply the mask and sum the log probabilities
-        masked_log_probs = (log_probs * mask.unsqueeze(1)).sum(dim=0)
+        masked_log_probs = (log_probs * mask.unsqueeze(1)).sum(dim=-1)
 
         # Compute the negative log probabilities
         population_log_prob = -masked_log_probs
 
         # Compute the probability distribution and entropy
-        prob_dist = 1 - torch.nn.functional.softmax(population_log_prob, dim=1)
-        prob_dist = torch.distributions.Categorical(probs=prob_dist)
+        prob_dist = torch.distributions.Categorical(logits=population_log_prob)
         entropy = prob_dist.entropy().mean()
         entropy_loss = entropy_coef * entropy
 
         # Add entropy to the losses
         for i, loss in enumerate(population_loss):
             loss = loss + entropy_loss
-            log_info[f"agent{i}/entropy"] = entropy.item()
+            # log_info[f"agent{i}/entropy"] = entropy.item()
             log_info[f"agent{i}/entropy_loss"] = entropy_loss.item()
-
 
         # Calculate gradients and make an update to all network weights
         for loss, optim in zip(population_loss, population_optims):
