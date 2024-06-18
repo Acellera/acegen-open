@@ -6,14 +6,15 @@ logger_backend: null  # wandb, tensorboard, or null
 seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
 
 # Environment configuration
+num_agents: 4 # Number of agents
 num_envs: 128 # Number of smiles to generate in parallel
 total_smiles: 10_000 # Total number of smiles to generate
 
 # Scoring function
 molscore_mode: benchmark # single, benchmark, or curriculum
-molscore_task: MolOpt # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
+molscore_task: MolExp # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
 molscore_kwargs:
-  include: ["Albuterol_similarity"]
+  include: null
 custom_task: null # Requires molscore to be set to null
 
 # Promptsmiles configuration
@@ -31,8 +32,9 @@ eps: 1.0e-08
 weight_decay: 0.0
 
 # Algorithm configuration (not additional parameters for Reinforce)
+entropy_coef: 0.0
 
 # Data replay configuration
-experience_replay: True
+experience_replay: False
 replay_buffer_size: 100
 replay_batch_size: 10

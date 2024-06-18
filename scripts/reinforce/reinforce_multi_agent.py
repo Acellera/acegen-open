@@ -146,7 +146,8 @@ def main(cfg: "DictConfig"):
 def run_reinforce(cfg, task):
 
     # Define number of agents in the population
-    num_agents = 4
+    num_agents = cfg.get("num_agents", 1)
+    entropy_coef = cfg.get("entropy_coef", 0.0)
 
     # Get available device
     device = (
@@ -333,6 +334,7 @@ def run_reinforce(cfg, task):
 
             # Add loss to the population
             population_loss.append(loss)
+            log_info[f"agent{i}/loss"] = loss.item()
 
             # Add new experiences to the replay buffer
             if cfg.experience_replay:
@@ -359,6 +361,40 @@ def run_reinforce(cfg, task):
 
 
         # Compute joint loss term, for now do nothing
+        # Concatenate all population data
+        data_cat = torch.cat(population_data, dim=0)
+
+        # Extract mask and log probabilities for all actors at once
+        mask = data_cat.get("mask").squeeze(-1)
+
+        # Initialize list for log probabilities
+        log_probs = []
+
+        # Compute log probabilities for each actor
+        for actor in population_training:
+            log_prob = get_log_prob(data_cat, actor)
+            log_probs.append(log_prob)
+
+        # Stack log probabilities into a tensor
+        log_probs = torch.stack(log_probs, dim=1)
+
+        # Apply the mask and sum the log probabilities
+        masked_log_probs = (log_probs * mask.unsqueeze(1)).sum(dim=0)
+
+        # Compute the negative log probabilities
+        population_log_prob = -masked_log_probs
+
+        # Compute the probability distribution and entropy
+        prob_dist = 1 - torch.nn.functional.softmax(population_log_prob, dim=1)
+        prob_dist = torch.distributions.Categorical(probs=prob_dist)
+        entropy = prob_dist.entropy().mean()
+        entropy_loss = entropy_coef * entropy
+
+        # Add entropy to the losses
+        for i, loss in enumerate(population_loss):
+            loss = loss + entropy_loss
+            log_info[f"agent{i}/entropy"] = entropy.item()
+            log_info[f"agent{i}/entropy_loss"] = entropy_loss.item()
 
 
         # Calculate gradients and make an update to all network weights
