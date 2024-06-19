@@ -158,30 +158,35 @@ We provide a variety of default priors that can be selected in the configuration
 - A Gated Recurrent Unit (GRU) model
   - pre-training dataset1 (default): [ChEMBL](https://www.ebi.ac.uk/chembl/)
   - pre-training dataset2: [ZINC250k](https://github.com/wenhao-gao/mol_opt/blob/main/data/zinc.txt.gz)
+  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
   - number of parameters: 4,363,045
   - to select set the field `model` to `gru` in any configuration file
 
 
 - A Long Short-Term Memory (LSTM) model
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
   - number of parameters: 5,807,909
   - to select set the field `model` to `lstm` in any configuration file
  
 
 - A GPT-2 model (requires installation of HuggingFace's `transformers` library)
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
+  - tokenizer: [SMILESTokenizerEnamine](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L133) 
   - number of parameters: 5,030,400
   - to select set the field `model` to `gpt2` in any configuration file
 
 
 - A Mamba model (requires installation of `mamba-ssm` library)
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
   - number of parameters: 2,809,216
   - to select set the field `model` to `mamba` in any configuration file
 
 
 - A Llama2 model (requires installation of HuggingFace's `transformers` library)
   - pre-training dataset: [REAL Database, 6B cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database)
+  - tokenizer: [AsciiSMILESTokenizer](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L524C7-L524C27) 
   - number of parameters: 5,965,760
   - to select set the field `model` to `llama2` in any configuration file
 
