@@ -1,9 +1,9 @@
 # Logging configuration
-experiment_name: MolOpt_reward_shaping
-agent_name: carl_pract2
-log_dir: results/carl_pract2
-logger_backend: wandb # csv, wandb, tensorboard, or null
-seed: [101, 102, 103, 104, 105]
+experiment_name: MolOpt
+agent_name: carl
+log_dir: results
+logger_backend: null # csv, wandb, tensorboard, or null
+seed: 101 # [101, 102, 103, 104, 105]
 
 # Environment configuration
 num_envs: 128 # Number of smiles to generate in parallel
