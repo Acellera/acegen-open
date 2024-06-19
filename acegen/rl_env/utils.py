@@ -273,6 +273,7 @@ def generate_complete_smiles(
             next_output_data["reward"][done] = torch.tensor(
                 scoring_function(smiles_str), device=output_data.device
             ).unsqueeze(-1)
+            output_data.set_non_tensor("SMILES", smiles_str)
 
         # Recompute policy log_prob
         if (
@@ -425,6 +426,7 @@ def generate_complete_smiles(
             next_output_data["reward"][done] = torch.tensor(
                 scoring_function(smiles_str), device=output_data.device
             ).unsqueeze(-1)
+            output_data.set_non_tensor("SMILES", smiles_str)
 
         return output_data
 

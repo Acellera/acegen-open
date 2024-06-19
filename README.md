@@ -17,12 +17,22 @@ The full paper can be found [here](https://arxiv.org/abs/2405.04657).
 
 ## Features
 
-- **Multiple Generative Modes:** ACEGEN facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
-- **RL Algorithms:** ACEGEN offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
-- **Other Algorithms:** ACEGEN also includes [Direct Preference Optimization (DPO)][8] and Hill Climbing.
-- **Pre-trained Models:** ACEGEN contains pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), GPT-2, LLama2 and Mamba.
-- **Scoring Functions :** ACEGEN relies on MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules.
-- **Customization Support:** ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
+- __**Multiple Generative Modes:**__ 
+ACEGEN facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
+
+- __**RL Algorithms:**__ 
+ACEGEN offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
+
+- __**Other Algorithms:**__ 
+ACEGEN also includes [Direct Preference Optimization (DPO)][8] and Hill Climbing.
+
+- __**Pre-trained Models:**__ ACEGEN contains pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), GPT-2, LLama2 and Mamba.
+
+- __**Scoring Functions :**__ 
+ACEGEN defaults to MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules. MolScore allows to train agents on single scoring functions, on entire benchmarks containing multiple scoring functions (e.g., MolOpt, GuacaMol), or using curriculum learning where the same agent is optimized on a sequence of different scoring functions.
+
+- __**Customization Support:**__ 
+ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
 
 ---
 
@@ -94,6 +104,9 @@ To run the training scripts for denovo generation, run the following commands:
     python scripts/ppo/ppo.py --config-name config_denovo
     python scripts/reinvent/reinvent.py --config-name config_denovo
     python scripts/ahc/ahc.py --config-name config_denovo
+    python scripts/dpo/dpo.py --config-name config_denovo
+    python scripts/hill_climb/hill_climb.py --config-name config_denovo
+
 
 To run the training scripts for scaffold decoration, run the following commands (requires installation of promptsmiles):
 
@@ -102,6 +115,8 @@ To run the training scripts for scaffold decoration, run the following commands 
     python scripts/ppo/ppo.py --config-name config_scaffold
     python scripts/reinvent/reinvent.py --config-name config_scaffold
     python scripts/ahc/ahc.py --config-name config_scaffold
+    python scripts/dpo/dpo.py --config-name config_scaffold
+    python scripts/hill_climb/hill_climb.py --config-name config_scaffold
 
 To run the training scripts for fragment linking, run the following commands (requires installation of promptsmiles):
 
@@ -110,6 +125,8 @@ To run the training scripts for fragment linking, run the following commands (re
     python scripts/ppo/ppo.py --config-name config_linking
     python scripts/reinvent/reinvent.py --config-name config_linking
     python scripts/ahc/ahc.py --config-name config_linking
+    python scripts/dpo/dpo.py --config-name config_linking
+    python scripts/hill_climb/hill_climb.py --config-name config_linking
 
 ### Advanced usage
 
@@ -125,18 +142,14 @@ YAML config parameters can also be specified on the command line. For example,
 
 ## Changing the scoring function
 
-To change the scoring function, adjust the `molscore` parameter in any configuration files. Set it to point to a valid 
-MolScore configuration file (e.g.  ../MolScore/molscore/configs/GuacaMol/Albuterol_similarity.json). 
-Alternatively, you can set the `molscore` parameter to the name of a valid MolScore benchmark 
-(such as MolOpt, GuacaMol, etc.) to automatically execute each task in the benchmark. For further details on MolScore, 
-please refer to the [MolScore](https://github.com/MorganCThomas/MolScore) repository.
+To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows to switch betwewn different scoring modes and scoring objecitves.
+Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explaination. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
 
-Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the 
-instructions in this [tutorial](tutorials/adding_custom_scoring_function.md).
+Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the instructions in this other [tutorial](tutorials/adding_custom_scoring_function.md).
 
 ---
 
-## Changing the model architecture
+## Changing the policy prior
 
 ### Available models
 
@@ -145,30 +158,41 @@ We provide a variety of default priors that can be selected in the configuration
 - A Gated Recurrent Unit (GRU) model
   - pre-training dataset1 (default): [ChEMBL](https://www.ebi.ac.uk/chembl/)
   - pre-training dataset2: [ZINC250k](https://github.com/wenhao-gao/mol_opt/blob/main/data/zinc.txt.gz)
+  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
   - number of parameters: 4,363,045
   - to select set the field `model` to `gru` in any configuration file
 
 
 - A Long Short-Term Memory (LSTM) model
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
   - number of parameters: 5,807,909
   - to select set the field `model` to `lstm` in any configuration file
  
 
 - A GPT-2 model (requires installation of HuggingFace's `transformers` library)
   - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
+  - tokenizer: [SMILESTokenizerEnamine](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L133) 
   - number of parameters: 5,030,400
   - to select set the field `model` to `gpt2` in any configuration file
 
 
-- A Mamba model (requires installation of mamba-ssm library)
+- A Mamba model (requires installation of `mamba-ssm` library)
   - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
   - number of parameters: 2,809,216
   - to select set the field `model` to `mamba` in any configuration file
 
+
+- A Llama2 model (requires installation of HuggingFace's `transformers` library)
+  - pre-training dataset: [REAL Database, 6B cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database)
+  - tokenizer: [AsciiSMILESTokenizer](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L524C7-L524C27) 
+  - number of parameters: 5,965,760
+  - to select set the field `model` to `llama2` in any configuration file
+
 ### Integration of custom models
 
-We also encourage users to integrate their own models into ACEGEN.
+Users can also combine their own custom models with ACEGEN.
 
 A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
 
@@ -229,3 +253,19 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 ## Scaffold constrained generation example: BACE1 docking with AHC algorithm
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
+
+---
+
+## Citation
+
+If you use ACEGEN in your work, please refer to this BibTeX entry to cite it:
+
+```
+@article{bou2024acegen,
+  title={ACEGEN: Reinforcement learning of generative chemical agents for drug discovery},
+  author={Bou, Albert and Thomas, Morgan and Dittert, Sebastian and Navarro Ramírez, Carles and Majewski, Maciej and Wang, Ye and Patel, Shivam and Tresadern, Gary and Ahmad, Mazen and Moens, Vincent and Sherman, Woody and Sciabola, Simone and De Fabritiis, Gianni},
+  eprint={2405.04657},
+  archivePrefix={arXiv},
+  year={2024}
+}
+```

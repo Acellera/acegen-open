@@ -519,3 +519,31 @@ class SmiZipTokenizer:
         else:
             smi = ",".join(ntokens)
         return smi
+
+
+class AsciiSMILESTokenizer:
+    """Deals with the tokenization and untokenization of SMILES.
+
+    Uses ASCII characters as tokens.
+    """
+
+    def __init__(self, start_token="^", end_token="$"):
+        self.start_token = start_token
+        self.end_token = end_token
+
+    def tokenize(self, data, with_begin_and_end=True):
+        """Tokenizes a SMILES string."""
+        tokens = list(data)
+        if with_begin_and_end:
+            tokens = [self.start_token] + tokens + [self.end_token]
+        return tokens
+
+    def untokenize(self, tokens):
+        """Untokenizes a SMILES string."""
+        smi = ""
+        for token in tokens:
+            if token == self.end_token:
+                break
+            if token != self.start_token:
+                smi += token
+        return smi
