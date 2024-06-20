@@ -6,7 +6,7 @@ import random
 import shutil
 from copy import deepcopy
 from pathlib import Path
-from itertools import chain
+from itertools import chain, combinations
 
 import hydra
 import numpy as np
@@ -17,6 +17,7 @@ import yaml
 
 from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, SMILESEnv
+from acegen.data.chem_utils import get_fp_hist
 from acegen.scoring_functions import (
     custom_scoring_functions,
     register_custom_scoring_function,
@@ -360,41 +361,66 @@ def run_reinforce(cfg, task):
                     replay_data.set("priority", reward)
                     experience_replay_buffer.extend(replay_data)
 
-        # Compute joint loss term, for now do nothing
-        # Concatenate all population data
-        data_cat = torch.cat(population_data, dim=0)
+        if cfg.get("entropy_coef", False):
+            # Compute joint loss term, for now do nothing
+            # Concatenate all population data
+            data_cat = torch.cat(population_data, dim=0)
 
-        # Extract mask and log probabilities for all actors at once
-        mask = data_cat.get("mask").squeeze(-1)
+            # Extract mask and log probabilities for all actors at once
+            mask = data_cat.get("mask").squeeze(-1)
 
-        # Initialize list for log probabilities
-        log_probs = []
+            # Initialize list for log probabilities
+            log_probs = []
 
-        # Compute log probabilities for each actor
-        for ai, actor in enumerate(population_training):
-            log_prob = get_log_prob(data_cat, actor)
-            log_probs.append(log_prob)
+            # Compute log probabilities for each actor
+            for ai, actor in enumerate(population_training):
+                log_prob = get_log_prob(data_cat, actor)
+                log_probs.append(log_prob)
 
-        # Stack log probabilities into a tensor
-        log_probs = torch.stack(log_probs, dim=1)
+            # Stack log probabilities into a tensor
+            log_probs = torch.stack(log_probs, dim=1)
 
-        # Apply the mask and sum the log probabilities
-        masked_log_probs = (log_probs * mask.unsqueeze(1)).sum(dim=-1)
+            # Apply the mask and sum the log probabilities
+            masked_log_probs = (log_probs * mask.unsqueeze(1)).sum(dim=-1)
 
-        # Compute the negative log probabilities
-        population_log_prob = -masked_log_probs
+            # Compute the negative log probabilities
+            population_log_prob = -masked_log_probs
 
-        # Compute the probability distribution and entropy
-        prob_dist = torch.distributions.Categorical(logits=population_log_prob)
-        entropy = prob_dist.entropy().mean()
-        entropy_loss = entropy_coef * entropy
+            # Compute the probability distribution and entropy
+            prob_dist = torch.distributions.Categorical(logits=population_log_prob)
+            entropy = prob_dist.entropy().mean()
+            entropy_loss = entropy_coef * entropy
 
-        # Add entropy to the losses
-        optim.zero_grad()
-        for loss in population_loss:
-            loss += entropy_loss
+            # Add entropy to the losses and update
             log_info["entropy"] = entropy.item()
             log_info["entropy_loss"] = entropy_loss.item() 
+            for loss in population_loss:
+                loss += entropy_loss
+
+        if cfg.get("chist_coef", False):
+            # Compute the histograms of each agent sample
+            chists = []
+            for data in population_data:
+                SMILES = data.get("SMILES").to('cpu').data
+                chists.append(get_fp_hist(SMILES))
+            
+            # Compute pairwise distances
+            chist_dist = torch.tensor(0)
+            for chist1, chist2 in combinations(chists, 2):
+                dist = torch.abs(chist1 - chist2).sum(0)
+                chist_dist += dist
+            chist_dist.to(device)
+            chist_loss = cfg.chist_coef * chist_dist
+            
+            # Add to losses
+            log_info["chist_dist"] = chist_dist.item()
+            log_info["chist_loss"] = chist_loss.item()
+            for loss in population_loss:
+                loss -= chist_loss
+        
+        # Update
+        optim.zero_grad()
+        for loss in population_loss:
             loss.backward(retain_graph=True)
         optim.step()
 
