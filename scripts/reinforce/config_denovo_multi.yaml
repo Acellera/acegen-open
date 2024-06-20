@@ -1,6 +1,6 @@
 # Logging configuration
 experiment_name: Multi-Agent
-agent_name: reinforce-DF
+agent_name: reinforce
 log_dir: results/multi_agent # Directory to save the results
 logger_backend: wandb  # wandb, tensorboard, or null
 seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
@@ -12,9 +12,9 @@ total_smiles: 20_000 # Total number of smiles to generate
 
 # Scoring function
 molscore_mode: benchmark # single, benchmark, or curriculum
-molscore_task: MolExp-DF # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
+molscore_task: MolExp # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
 molscore_kwargs:
-  include: ["AP-DF"]
+  include: ["AP"]
 custom_task: null # Requires molscore to be set to null
 
 # Promptsmiles configuration
