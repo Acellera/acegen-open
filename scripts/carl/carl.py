@@ -358,7 +358,7 @@ def run_reinforce(cfg, task):
 
         # Apply experience replay
         if (
-            cfg.experience_replay
+            cfg.replay_buffer_size
             and len(experience_replay_buffer) > cfg.replay_batch_size
         ):
             replay_batch = experience_replay_buffer.sample().exclude(
@@ -381,9 +381,8 @@ def run_reinforce(cfg, task):
         loss = loss.mean()
 
         # Add regularizer that penalizes high likelihood for the entire sequence
-        if cfg.get("likely_penalty", False):
-            loss_p = -(1 / agent_likelihood).mean()
-            loss += cfg.get("likely_penalty_coef", 5e3) * loss_p
+        loss_p = -(1 / agent_likelihood).mean()
+        loss += cfg.get("likely_penalty_coef", 5e3) * loss_p
 
         # Calculate gradients and make an update to the network weights
         optim.zero_grad()
@@ -398,7 +397,7 @@ def run_reinforce(cfg, task):
             scheduler.step()
 
         # Then add new experiences to the replay buffer
-        if cfg.experience_replay is True:
+        if cfg.replay_buffer_size is True:
 
             replay_data = data.clone()
 

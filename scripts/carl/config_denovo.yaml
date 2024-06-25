@@ -1,19 +1,19 @@
 # Logging configuration
 experiment_name: MolOpt
 agent_name: carl
-log_dir: results
+log_dir: results/carl_hypopt_max
 logger_backend: null # csv, wandb, tensorboard, or null
-seed: 101 # [101, 102, 103, 104, 105]
+seed: [101, 102, 103, 104, 105]
 
 # Environment configuration
-num_envs: 128 # Number of smiles to generate in parallel
+num_envs: 64 # Number of smiles to generate in parallel
 total_smiles: 10_000
 
 # Scoring function
 molscore_mode: benchmark # single, benchmark, or curriculum
 molscore_task: MolOpt # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
 molscore_kwargs:
-  include: ["Albuterol_similarity"]
+  include: []
 custom_task: null # Requires molscore to be set to null
 
 # Fix the beginning of the generated molecules
@@ -25,25 +25,23 @@ model: gru # gru, lstm, or gpt2
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
 
 # Optimizer configuration
-lr: 0.0001 # default: 0.0001
-lr_annealing: False
+lr: 0.0005 # default: 0.0001
+lr_annealing: True
 eps: 1.0e-08
 weight_decay: 0.0
 
 # Hill-Climb
-topk: 0.5
+topk: 0.25
 
 # Reinforce configuration
-alpha: 5 # 1 Reinforce
-sigma: 0.005 # 0.001 # No prior=0, 0.001 - 0.005 for prior
+alpha: 3 # 1 Reinforce
+sigma: 0.0 # 0.001 # No prior=0, 0.001 - 0.005 for prior
 baseline: mab # null, mab or loo
-likely_penalty: False
-likely_penalty_coef: 100
-entropy_coef: 0.0 # Default 0.01
+likely_penalty_coef: 0 # Default 100, 0 for off
+entropy_coef: 0.0 # Default 0.01, 0 for off
 
 # Data replay configuration
-experience_replay: True
-replay_sampler: uniform # uniform, prioritized
-replay_buffer_size: 100
+replay_sampler: prioritized # uniform, prioritized
+replay_buffer_size: 500
 replay_batch_size: 10
 
