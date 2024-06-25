@@ -1,32 +1,44 @@
 import torch
 import torch.nn as nn
+from packaging.version import Version
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
 from torchrl.modules import ActorValueOperator, ProbabilisticActor
 
 try:
-    from transformers import LlamaConfig, LlamaModel
+    import transformers
 
     _has_transformers = True
+
 except ImportError as err:
     _has_transformers = False
     TRANSFORMERS_ERR = err
+
+
+def check_transformers():
+    """Check installation and version of transformers."""
+    if not _has_transformers:
+        raise RuntimeError(
+            "transformers library not found, please install with pip install transformers --upgrade."
+        ) from TRANSFORMERS_ERR
+    if Version(transformers.__version__) <= Version("4.28.0"):
+        raise RuntimeError(
+            f"Warning: The current version of transformers library ({transformers.__version__}) "
+            f"does not contain Llama. We recommend using the latest version of the transformers library "
+            f"installed using: `pip install transformers --upgrade`."
+        )
 
 
 class Llama2(nn.Module):
     """Llama2 model for language modeling. This model is a simple wrapper around the HuggingFace Llama22Model."""
 
     def __init__(self, config=None):
-        if not _has_transformers:
-            raise RuntimeError(
-                "transformers library not found, please install with pip install transformers."
-            ) from TRANSFORMERS_ERR
-
+        check_transformers()
         super(Llama2, self).__init__()
 
         # Define model
         if config is not None:
-            self.feature_extractor = LlamaModel(config)
+            self.feature_extractor = transformers.LlamaModel(config)
         else:
             self.feature_extractor = None
 
@@ -72,8 +84,11 @@ def define_llama2_configuration(
 
     This function is a simple wrapper around the HuggingFace Llama2Config, allowing to specify relevant parameters.
     """
+    # Check transformers library and version
+    check_transformers()
+
     # Define model
-    config = LlamaConfig()
+    config = transformers.LlamaConfig()
 
     # Adjust model parameters
     config.vocab_size = vocabulary_size
