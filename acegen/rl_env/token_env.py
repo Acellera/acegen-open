@@ -15,9 +15,9 @@ from torchrl.envs import EnvBase
 class TokenEnv(EnvBase):
     """Reinforcement learning environment for token-based generation.
 
-    Given a start token, end token, and length of vocabulary, this environment generates token-based 
-    sequences step-by-step, one token at a time. The environment terminates when the end token is 
-    provided as an action. The environment also terminates if the maximum length of the episodes is 
+    Given a start token, end token, and length of vocabulary, this environment generates token-based
+    sequences step-by-step, one token at a time. The environment terminates when the end token is
+    provided as an action. The environment also terminates if the maximum length of the episodes is
     reached.
 
     Args:
