@@ -36,11 +36,11 @@ vice versa.  There are 3 ways to create a vocabulary in AceGen.
 
 1. Create a vocabulary from a list of characters
 ```python
-from acegen.vocabulary import SMILESVocabulary
+from acegen.vocabulary import Vocabulary
 
 chars = ["START", "END", "(", ")", "1", "=", "C", "N", "O"]
 chars_dict = {char: index for index, char in enumerate(chars)}
-vocab1 = SMILESVocabulary.create_from_dict(chars_dict, start_token="START", end_token="END")
+vocab1 = Vocabulary.create_from_dict(chars_dict, start_token="START", end_token="END")
 ```
 
 2. Create a vocabulary from a list of SMILES strings. This method requires a tokenizer to be know how to split the 
@@ -57,7 +57,7 @@ smiles_list = [
     "CC1=CC=CC=C1",  # Toluene (C7H8)
 ]
 
-vocab2 = SMILESVocabulary.create_from_smiles(
+vocab2 = Vocabulary.create_from_strings(
     smiles_list, start_token="START", end_token="END", tokenizer=SMILESTokenizerChEMBL(),
 )
 ```
@@ -66,7 +66,7 @@ vocab2 = SMILESVocabulary.create_from_smiles(
 load it. 
 ```python
 state_dict = vocab2.state_dict()
-vocab3 = SMILESVocabulary.load_state_dict(state_dict)
+vocab3 = Vocabulary.load_state_dict(state_dict)
 ```
 
 ### Create the environment
@@ -74,9 +74,9 @@ vocab3 = SMILESVocabulary.load_state_dict(state_dict)
 Once we have the vocabulary, creating the environment is straightforward.
 
 ```python
-from acegen.rl_env import SMILESEnv
+from acegen.rl_env import TokenEnv
 
-env =  SMILESEnv(
+env =  TokenEnv(
     start_token=vocab1.start_token_index,
     end_token=vocab1.end_token_index,
     length_vocabulary=len(vocab1),
@@ -215,8 +215,7 @@ TensorDict(
     is_shared=False)
 ```
 
-We can even decode the generated sequences using the vocabulary, but since the policy is random, the sequences will not
-represent valid SMILES strings.
+We can even decode the generated sequences using the vocabulary, but since the policy is random, the sequences will not represent valid SMILES strings.
 
 ```python
 print([vocab1.decode(seq) for seq in rollout["action"].numpy()])

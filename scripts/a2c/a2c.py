@@ -14,13 +14,13 @@ import tqdm
 import yaml
 
 from acegen.models import adapt_state_dict, models, register_model
-from acegen.rl_env import generate_complete_smiles, SMILESEnv
+from acegen.rl_env import generate_complete_smiles, TokenEnv
 from acegen.scoring_functions import (
     custom_scoring_functions,
     register_custom_scoring_function,
     Task,
 )
-from acegen.vocabulary import SMILESVocabulary
+from acegen.vocabulary import Vocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict import TensorDict
 from torch.distributions.kl import kl_divergence
@@ -166,7 +166,7 @@ def run_a2c(cfg, task):
     # Create vocabulary
     ####################################################################################################################
 
-    vocabulary = SMILESVocabulary.load(voc_path, tokenizer=tokenizer)
+    vocabulary = Vocabulary.load(voc_path, tokenizer=tokenizer)
 
     # Create models
     ####################################################################################################################
@@ -213,7 +213,7 @@ def run_a2c(cfg, task):
     # Define environment creation function
     def create_env_fn():
         """Create a single RL rl_env."""
-        env = SMILESEnv(**env_kwargs)
+        env = TokenEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
         if primers := get_primers_from_module(actor_inference):
