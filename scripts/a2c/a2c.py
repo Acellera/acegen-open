@@ -364,7 +364,7 @@ def run_a2c(cfg, task):
             # Add KL loss term
             with torch.no_grad():
                 prior_dist = prior.get_dist(batch)
-                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
             kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
             loss_sum += kl_div * kl_coef
             losses[0] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
