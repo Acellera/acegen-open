@@ -332,15 +332,23 @@ def run_a2c(cfg, task):
             ),
             batch_size=[],
         )
-        loss_sum = loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-        losses = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
 
-        # Add KL loss term
+        # Compute KL loss term
         with torch.no_grad():
             prior_dist = prior.get_dist(batch)
-            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+        kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
         kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
-        loss_sum += kl_div * kl_coef
+
+        # Compute total loss
+        loss_sum = (
+            loss["loss_critic"]
+            + loss["loss_objective"]
+            + loss["loss_entropy"]
+            + kl_div * kl_coef
+        )
+
+        # Store epoch losses in a TensorDict
+        losses = loss.select("loss_critic", "loss_entropy", "loss_objective").detach()
         losses["kl_div"] = kl_div.detach()
 
         # Update policy

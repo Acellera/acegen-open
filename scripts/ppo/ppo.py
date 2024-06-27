@@ -320,7 +320,9 @@ def run_ppo(cfg, task):
             promptsmiles_scan=cfg.get("promptsmiles_scan", False),
             remove_duplicates=True,
         )
-        data.pop("SMILES")  # Non-tensor data can not be concatenated later with replay data
+        data.pop(
+            "SMILES"
+        )  # Non-tensor data can not be concatenated later with replay data
 
         # Get data to be potentially added to the replay buffer later
         replay_data = data.clone()
@@ -348,7 +350,7 @@ def run_ppo(cfg, task):
 
         for j in range(ppo_epochs):
 
-            # Compute experience replay loss
+            # Add replay data to the batch, if applicable
             if (
                 cfg.experience_replay
                 and len(experience_replay_buffer) > cfg.replay_batch_size
@@ -365,7 +367,7 @@ def run_ppo(cfg, task):
             with torch.no_grad():
                 batch = adv_module(batch)
 
-            # PPO loss
+            # Compute PPO loss terms
             mask = batch.get("mask").squeeze(-1)
             loss = loss_module(batch)
             loss = loss.named_apply(
@@ -374,20 +376,25 @@ def run_ppo(cfg, task):
                 ),
                 batch_size=[],
             )
-            loss_sum = (
-                loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-            )
 
-            losses[j, 0] = loss.select(
-                "loss_critic", "loss_entropy", "loss_objective"
-            ).detach()
-
-            # Add KL loss term
+            # Compute KL loss term
             with torch.no_grad():
                 prior_dist = prior.get_dist(batch)
             kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
             kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
-            loss_sum += kl_div * kl_coef
+
+            # Compute total loss
+            loss_sum = (
+                loss["loss_critic"]
+                + loss["loss_objective"]
+                + loss["loss_entropy"]
+                + kl_div * kl_coef
+            )
+
+            # Store epoch losses in a TensorDict
+            losses[j, 0] = loss.select(
+                "loss_critic", "loss_entropy", "loss_objective"
+            ).detach()
             losses[j, 0] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
 
             # Update policy
@@ -398,6 +405,7 @@ def run_ppo(cfg, task):
             optim.step()
             optim.zero_grad()
 
+        # Average epoch losses
         losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
         for key, value in losses_mean.items():
             log_info.update({f"train/{key}": value.item()})

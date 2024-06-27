@@ -26,7 +26,8 @@ python $PYTHONPATH/scripts/ppo/ppo.py \
   agent_name="$agent_name" \
   seed=$N_RUN \
   log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
-  model=$ACEGEN_MODEL
+  model=$ACEGEN_MODEL \
+  experience_replay=False 
 
 # Capture the exit status of the Python command
 exit_status=$?
