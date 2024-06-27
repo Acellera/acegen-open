@@ -320,6 +320,10 @@ def run_ppo(cfg, task):
             promptsmiles_scan=cfg.get("promptsmiles_scan", False),
             remove_duplicates=True,
         )
+        data.pop("SMILES")  # Non-tensor data can not be concatenated later with replay data
+
+        # Get data to be potentially added to the replay buffer later
+        replay_data = data.clone()
 
         # Update progress bar
         data_next = data.get("next")
@@ -341,9 +345,6 @@ def run_ppo(cfg, task):
                     "train/episode_length": episode_length.item(),
                 }
             )
-
-        # Clone data to be potentially added to the replay buffer later
-        replay_data = data.clone()
 
         for j in range(ppo_epochs):
 
