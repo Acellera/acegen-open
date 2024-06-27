@@ -12,7 +12,7 @@ from torchrl.envs import EnvBase
 from torchrl.envs.utils import ExplorationType, step_mdp
 
 from acegen.data.utils import smiles_to_tensordict
-from acegen.vocabulary import SMILESVocabulary, Vocabulary
+from acegen.vocabulary import Vocabulary
 
 try:
     from promptsmiles import FragmentLinker, ScaffoldDecorator
@@ -26,7 +26,7 @@ except ImportError as err:
 @torch.no_grad()
 def generate_complete_smiles(
     environment: EnvBase,
-    vocabulary: SMILESVocabulary,
+    vocabulary: Vocabulary,
     scoring_function: Callable = None,
     policy_sample: Union[
         TensorDictModule, Callable[[TensorDictBase], TensorDictBase]
@@ -53,7 +53,7 @@ def generate_complete_smiles(
 
     Args:
         environment (EnvBase): Environment to sample from.
-        vocabulary (SMILESVocabulary): Vocabulary to use for encoding and decoding SMILES strings,
+        vocabulary (Vocabulary): Vocabulary to use for encoding and decoding SMILES strings,
             necessary for promptsmiles.
         scoring_function (Callable, optional): Scoring function to be used to evaluate the generated SMILES.
         policy_sample (Callable): Policy to be executed in the environment step-by_step of shape (batch_size, 1).
