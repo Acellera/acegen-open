@@ -28,7 +28,6 @@ from torch.distributions.kl import kl_divergence
 from torchrl.data import (
     LazyTensorStorage,
     PrioritizedSampler,
-    SamplerWithoutReplacement,
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
@@ -252,20 +251,6 @@ def run_ppo(cfg, task):
         reduction="none",
     )
 
-    # Create data storage
-    ####################################################################################################################
-
-    mini_batch_size = cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay)
-    buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(
-            cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay),
-            device=device,
-        ),
-        sampler=SamplerWithoutReplacement(),
-        batch_size=mini_batch_size,
-        prefetch=4,
-    )
-
     # Create replay buffer
     ####################################################################################################################
 
@@ -318,8 +303,7 @@ def run_ppo(cfg, task):
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = (cfg.num_envs + cfg.replay_batch_size) // mini_batch_size
-    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
+    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, 1])
 
     while not task.finished:
 
@@ -360,9 +344,6 @@ def run_ppo(cfg, task):
                 }
             )
 
-        # Get data to be potentially added to the replay buffer later
-        replay_data = data.clone()
-
         for j in range(ppo_epochs):
 
             # Compute experience replay loss
@@ -374,55 +355,46 @@ def run_ppo(cfg, task):
                 replay_batch = replay_batch.exclude(
                     "_weight", "index", "priority", inplace=True
                 )
-                extended_data = torch.cat([data, replay_batch], dim=0)
+                batch = torch.cat([data, replay_batch], dim=0)
             else:
-                extended_data = data
+                batch = data
 
             # Compute advantage
             with torch.no_grad():
-                extended_data = adv_module(extended_data)
+                batch = adv_module(batch)
 
-            # Add extended_data to PPO buffer
-            buffer.extend(extended_data)
+            # PPO loss
+            mask = batch.get("mask").squeeze(-1)
+            loss = loss_module(batch)
+            loss = loss.named_apply(
+                lambda name, value: (
+                    (value * mask).mean() if name.startswith("loss_") else value
+                ),
+                batch_size=[],
+            )
+            loss_sum = (
+                loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+            )
 
-            for i, batch in enumerate(buffer):
+            losses[j, 0] = loss.select(
+                "loss_critic", "loss_entropy", "loss_objective"
+            ).detach()
 
-                # PPO loss
-                mask = batch.get("mask").squeeze(-1)
-                loss = loss_module(batch)
-                loss = loss.named_apply(
-                    lambda name, value: (
-                        (value * mask).mean()
-                        if name.startswith("loss_")
-                        else value
-                        # (value * mask).sum(-1).mean(-1) if name.startswith("loss_") else value
-                    ),
-                    batch_size=[],
-                )
-                loss_sum = (
-                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-                )
-                losses[j, i] = loss.select(
-                    "loss_critic", "loss_entropy", "loss_objective"
-                ).detach()
+            # Add KL loss term
+            with torch.no_grad():
+                prior_dist = prior.get_dist(batch)
+            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+            kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
+            loss_sum += kl_div * kl_coef
+            losses[j, 0] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
 
-                # Add KL loss term
-                with torch.no_grad():
-                    prior_dist = prior.get_dist(batch)
-                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-                kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
-                loss_sum += kl_div * kl_coef
-                losses[j, i] = TensorDict(
-                    {"kl_div": kl_div.detach().item()}, batch_size=[]
-                )
-
-                # Update policy
-                loss_sum.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    loss_module.parameters(), max_norm=max_grad_norm
-                )
-                optim.step()
-                optim.zero_grad()
+            # Update policy
+            loss_sum.backward()
+            torch.nn.utils.clip_grad_norm_(
+                loss_module.parameters(), max_norm=max_grad_norm
+            )
+            optim.step()
+            optim.zero_grad()
 
         losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
         for key, value in losses_mean.items():
@@ -430,6 +402,9 @@ def run_ppo(cfg, task):
 
         # Add new experiences to the replay buffer
         if cfg.experience_replay:
+
+            # Get data to be potentially added to the replay buffer later
+            replay_data = data.clone()
 
             # MaxValueWriter is not compatible with storages of more than one dimension.
             replay_data.batch_size = [replay_data.batch_size[0]]
