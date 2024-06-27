@@ -14,13 +14,13 @@ import tqdm
 import yaml
 
 from acegen.models import adapt_state_dict, models, register_model
-from acegen.rl_env import generate_complete_smiles, TokenEnv
+from acegen.rl_env import generate_complete_smiles, SMILESEnv
 from acegen.scoring_functions import (
     custom_scoring_functions,
     register_custom_scoring_function,
     Task,
 )
-from acegen.vocabulary import Vocabulary
+from acegen.vocabulary import SMILESVocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict import TensorDict
 from tensordict.utils import isin
@@ -28,6 +28,7 @@ from torch.distributions.kl import kl_divergence
 from torchrl.data import (
     LazyTensorStorage,
     PrioritizedSampler,
+    SamplerWithoutReplacement,
     TensorDictMaxValueWriter,
     TensorDictReplayBuffer,
 )
@@ -170,7 +171,7 @@ def run_ppo(cfg, task):
     # Create vocabulary
     ####################################################################################################################
 
-    vocabulary = Vocabulary.load(voc_path, tokenizer=tokenizer)
+    vocabulary = SMILESVocabulary.load(voc_path, tokenizer=tokenizer)
 
     # Create models
     ####################################################################################################################
@@ -189,9 +190,11 @@ def run_ppo(cfg, task):
 
     # Load pretrained weights
     ckpt = torch.load(ckpt_path, map_location=device)
+
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )
+
     actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -217,7 +220,7 @@ def run_ppo(cfg, task):
     # Define environment creation function
     def create_env_fn():
         """Create a single RL rl_env."""
-        env = TokenEnv(**env_kwargs)
+        env = SMILESEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
         if primers := get_primers_from_module(actor_inference):
@@ -247,6 +250,20 @@ def run_ppo(cfg, task):
         loss_critic_type="l2",
         normalize_advantage=True,
         reduction="none",
+    )
+
+    # Create data storage
+    ####################################################################################################################
+
+    mini_batch_size = cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay)
+    buffer = TensorDictReplayBuffer(
+        storage=LazyTensorStorage(
+            cfg.num_envs + cfg.replay_batch_size * int(cfg.experience_replay),
+            device=device,
+        ),
+        sampler=SamplerWithoutReplacement(),
+        batch_size=mini_batch_size,
+        prefetch=4,
     )
 
     # Create replay buffer
@@ -301,7 +318,8 @@ def run_ppo(cfg, task):
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, 1])
+    num_mini_batches = (cfg.num_envs + cfg.replay_batch_size) // mini_batch_size
+    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
 
     while not task.finished:
 
@@ -320,12 +338,6 @@ def run_ppo(cfg, task):
             promptsmiles_scan=cfg.get("promptsmiles_scan", False),
             remove_duplicates=True,
         )
-        data.pop(
-            "SMILES"
-        )  # Non-tensor data can not be concatenated later with replay data
-
-        # Get data to be potentially added to the replay buffer later
-        replay_data = data.clone()
 
         # Update progress bar
         data_next = data.get("next")
@@ -348,9 +360,12 @@ def run_ppo(cfg, task):
                 }
             )
 
+        # Get data to be potentially added to the replay buffer later
+        replay_data = data.clone()
+
         for j in range(ppo_epochs):
 
-            # Add replay data to the batch, if applicable
+            # Compute experience replay loss
             if (
                 cfg.experience_replay
                 and len(experience_replay_buffer) > cfg.replay_batch_size
@@ -359,53 +374,56 @@ def run_ppo(cfg, task):
                 replay_batch = replay_batch.exclude(
                     "_weight", "index", "priority", inplace=True
                 )
-                batch = torch.cat([data, replay_batch], dim=0)
+                extended_data = torch.cat([data, replay_batch], dim=0)
             else:
-                batch = data
+                extended_data = data
 
             # Compute advantage
             with torch.no_grad():
-                batch = adv_module(batch)
+                extended_data = adv_module(extended_data)
 
-            # Compute PPO loss terms
-            mask = batch.get("mask").squeeze(-1)
-            loss = loss_module(batch)
-            loss = loss.named_apply(
-                lambda name, value: (
-                    (value * mask).mean() if name.startswith("loss_") else value
-                ),
-                batch_size=[],
-            )
+            # Add extended_data to PPO buffer
+            buffer.extend(extended_data)
 
-            # Compute KL loss term
-            with torch.no_grad():
-                prior_dist = prior.get_dist(batch)
-            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
-            kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
+            for i, batch in enumerate(buffer):
 
-            # Compute total loss
-            loss_sum = (
-                loss["loss_critic"]
-                + loss["loss_objective"]
-                + loss["loss_entropy"]
-                + kl_div * kl_coef
-            )
+                # PPO loss
+                mask = batch.get("mask").squeeze(-1)
+                loss = loss_module(batch)
+                loss = loss.named_apply(
+                    lambda name, value: (
+                        (value * mask).mean()
+                        if name.startswith("loss_")
+                        else value
+                        # (value * mask).sum(-1).mean(-1) if name.startswith("loss_") else value
+                    ),
+                    batch_size=[],
+                )
+                loss_sum = (
+                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                )
+                losses[j, i] = loss.select(
+                    "loss_critic", "loss_entropy", "loss_objective"
+                ).detach()
 
-            # Store epoch losses in a TensorDict
-            losses[j, 0] = loss.select(
-                "loss_critic", "loss_entropy", "loss_objective"
-            ).detach()
-            losses[j, 0] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
+                # Add KL loss term
+                with torch.no_grad():
+                    prior_dist = prior.get_dist(batch)
+                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+                kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
+                loss_sum += kl_div * kl_coef
+                losses[j, i] = TensorDict(
+                    {"kl_div": kl_div.detach().item()}, batch_size=[]
+                )
 
-            # Update policy
-            loss_sum.backward()
-            torch.nn.utils.clip_grad_norm_(
-                loss_module.parameters(), max_norm=max_grad_norm
-            )
-            optim.step()
-            optim.zero_grad()
+                # Update policy
+                loss_sum.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    loss_module.parameters(), max_norm=max_grad_norm
+                )
+                optim.step()
+                optim.zero_grad()
 
-        # Average epoch losses
         losses_mean = losses.apply(lambda x: x.float().mean(), batch_size=[])
         for key, value in losses_mean.items():
             log_info.update({f"train/{key}": value.item()})
