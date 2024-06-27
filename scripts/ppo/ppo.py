@@ -318,8 +318,7 @@ def run_ppo(cfg, task):
     ppo_epochs = cfg.ppo_epochs
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = (cfg.num_envs + cfg.replay_batch_size) // mini_batch_size
-    losses = TensorDict({}, batch_size=[cfg.ppo_epochs, num_mini_batches])
+    losses = TensorDict({}, batch_size=[cfg.ppo_epochs])
 
     while not task.finished:
 
@@ -386,9 +385,9 @@ def run_ppo(cfg, task):
             # Add extended_data to PPO buffer
             buffer.extend(extended_data)
 
-            for i, batch in enumerate(buffer):
+            for batch in buffer:
 
-                # PPO loss
+                # Compute PPO losses
                 mask = batch.get("mask").squeeze(-1)
                 loss = loss_module(batch)
                 loss = loss.named_apply(
@@ -397,22 +396,26 @@ def run_ppo(cfg, task):
                     ),
                     batch_size=[],
                 )
-                loss_sum = (
-                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-                )
-                losses[j, 0] = loss.select(
-                    "loss_critic", "loss_entropy", "loss_objective"
-                ).detach()
 
-                # Add KL loss term
+                # Compute KL loss term
                 with torch.no_grad():
                     prior_dist = prior.get_dist(batch)
                 kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
                 kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
-                loss_sum += kl_div * kl_coef
-                losses[j, 0] = TensorDict(
-                    {"kl_div": kl_div.detach().item()}, batch_size=[]
+
+                # Compute total loss
+                loss_sum = (
+                    loss["loss_critic"]
+                    + loss["loss_objective"]
+                    + loss["loss_entropy"]
+                    + kl_div * kl_coef
                 )
+
+                # Store losses for logging
+                losses[j] = loss.select(
+                    "loss_critic", "loss_entropy", "loss_objective"
+                ).detach()
+                losses[j]["kl_div"] = kl_div.detach().item()
 
                 # Update policy
                 loss_sum.backward()

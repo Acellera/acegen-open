@@ -292,8 +292,7 @@ def run_a2c(cfg, task):
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = cfg.num_envs // cfg.mini_batch_size
-    losses = TensorDict({}, batch_size=[num_mini_batches])
+    losses = TensorDict({}, batch_size=[])
 
     while not task.finished:
 
@@ -343,9 +342,7 @@ def run_a2c(cfg, task):
 
         for j, batch in enumerate(buffer):
 
-            batch = batch.to(device, non_blocking=True)
-
-            # Compute loss
+            # Compute A2C losses
             mask = batch.get("mask").squeeze(-1)
             loss = loss_module(batch)
             loss = loss.named_apply(
@@ -354,20 +351,26 @@ def run_a2c(cfg, task):
                 ),
                 batch_size=[],
             )
-            loss_sum = (
-                loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-            )
-            losses[0] = loss.select(
-                "loss_critic", "loss_entropy", "loss_objective"
-            ).detach()
 
-            # Add KL loss term
+            # Compute KL loss term
             with torch.no_grad():
                 prior_dist = prior.get_dist(batch)
             kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
             kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
-            loss_sum += kl_div * kl_coef
-            losses[0] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
+
+            # Compute total loss
+            loss_sum = (
+                loss["loss_critic"]
+                + loss["loss_objective"]
+                + loss["loss_entropy"]
+                + kl_div * kl_coef
+            )
+
+            # Store losses for logging
+            losses = loss.select(
+                "loss_critic", "loss_entropy", "loss_objective"
+            ).detach()
+            losses["kl_div"] = kl_div.detach()
 
             # Update policy
             loss_sum.backward()
