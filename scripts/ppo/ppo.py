@@ -189,11 +189,9 @@ def run_ppo(cfg, task):
 
     # Load pretrained weights
     ckpt = torch.load(ckpt_path, map_location=device)
-
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
     )
-
     actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
@@ -344,6 +342,9 @@ def run_ppo(cfg, task):
                 }
             )
 
+        # Clone data to be potentially added to the replay buffer later
+        replay_data = data.clone()
+
         for j in range(ppo_epochs):
 
             # Compute experience replay loss
@@ -402,9 +403,6 @@ def run_ppo(cfg, task):
 
         # Add new experiences to the replay buffer
         if cfg.experience_replay:
-
-            # Get data to be potentially added to the replay buffer later
-            replay_data = data.clone()
 
             # MaxValueWriter is not compatible with storages of more than one dimension.
             replay_data.batch_size = [replay_data.batch_size[0]]
