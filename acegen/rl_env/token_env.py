@@ -12,26 +12,27 @@ from torchrl.data.utils import DEVICE_TYPING
 from torchrl.envs import EnvBase
 
 
-class SMILESEnv(EnvBase):
-    """Reinforcement learning environment for SMILES generation.
+class TokenEnv(EnvBase):
+    """Reinforcement learning environment for token-based generation.
 
-    Given a start token, end token, and length of vocabulary, this environment generates SMILES strings
-        step-by-step, one token at a time. The environment terminates when the end token is provided as
-        an action. The environment also terminates if the maximum length of the SMILES string is reached.
+    Given a start token, end token, and length of vocabulary, this environment generates token-based
+    sequences step-by-step, one token at a time. The environment terminates when the end token is
+    provided as an action. The environment also terminates if the maximum length of the episodes is
+    reached.
 
     Args:
-        start_token (int): Start token for SMILES.
-        end_token (int): End token for SMILES.
+        start_token (int): Start token for an episode.
+        end_token (int): End token for an episode.
         length_vocabulary (int): Length of vocabulary.
-        max_length (int, optional): Maximum length of SMILES. Defaults to 140.
+        max_length (int, optional): Maximum length of an episode. Defaults to 100.
         device (DEVICE_TYPING, optional): Device to use. Defaults to None.
-        batch_size (int, optional): number of SMILES to generate in parallel. Defaults to 1.
+        batch_size (int, optional): number of episodes to generate in parallel. Defaults to 1.
         one_hot_action_encoding (bool, optional): Whether to use one-hot encoding for actions. Defaults to False.
         one_hot_obs_encoding (bool, optional): Whether to use one-hot encoding for observations. Defaults to False.
 
     Examples:
-        >>> from acegen.rl_env import SMILESEnv
-        >>> rl_env = MultiStepSMILESEnv(
+        >>> from acegen import TokenEnv
+        >>> rl_env = TokenEnv(
         ...     start_token=0,
         ...     end_token=1,
         ...     length_vocabulary=2,

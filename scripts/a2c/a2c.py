@@ -14,13 +14,13 @@ import tqdm
 import yaml
 
 from acegen.models import adapt_state_dict, models, register_model
-from acegen.rl_env import generate_complete_smiles, SMILESEnv
+from acegen.rl_env import generate_complete_smiles, TokenEnv
 from acegen.scoring_functions import (
     custom_scoring_functions,
     register_custom_scoring_function,
     Task,
 )
-from acegen.vocabulary import SMILESVocabulary
+from acegen.vocabulary import Vocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict import TensorDict
 from torch.distributions.kl import kl_divergence
@@ -166,7 +166,7 @@ def run_a2c(cfg, task):
     # Create vocabulary
     ####################################################################################################################
 
-    vocabulary = SMILESVocabulary.load(voc_path, tokenizer=tokenizer)
+    vocabulary = Vocabulary.load(voc_path, tokenizer=tokenizer)
 
     # Create models
     ####################################################################################################################
@@ -213,7 +213,7 @@ def run_a2c(cfg, task):
     # Define environment creation function
     def create_env_fn():
         """Create a single RL rl_env."""
-        env = SMILESEnv(**env_kwargs)
+        env = TokenEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
         if primers := get_primers_from_module(actor_inference):
@@ -292,8 +292,7 @@ def run_a2c(cfg, task):
     kl_coef = cfg.kl_coef
     max_grad_norm = cfg.max_grad_norm
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-    num_mini_batches = cfg.num_envs // cfg.mini_batch_size
-    losses = TensorDict({}, batch_size=[num_mini_batches])
+    losses = TensorDict({}, batch_size=[])
 
     while not task.finished:
 
@@ -343,34 +342,35 @@ def run_a2c(cfg, task):
 
         for j, batch in enumerate(buffer):
 
-            batch = batch.to(device, non_blocking=True)
-
-            # Compute loss
+            # Compute A2C losses
             mask = batch.get("mask").squeeze(-1)
             loss = loss_module(batch)
             loss = loss.named_apply(
                 lambda name, value: (
-                    (value * mask).mean()
-                    if name.startswith("loss_")
-                    else value
-                    # (value * mask).sum(-1).mean(-1) if name.startswith("loss_") else value
+                    (value * mask).mean() if name.startswith("loss_") else value
                 ),
                 batch_size=[],
             )
-            loss_sum = (
-                loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
-            )
-            losses[j] = loss.select(
-                "loss_critic", "loss_entropy", "loss_objective"
-            ).detach()
 
-            # Add KL loss term
+            # Compute KL loss term
             with torch.no_grad():
                 prior_dist = prior.get_dist(batch)
-                kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
+            kl_div = kl_divergence(actor_training.get_dist(batch), prior_dist)
             kl_div = (kl_div * mask.squeeze()).sum(-1).mean(-1)
-            loss_sum += kl_div * kl_coef
-            losses[j] = TensorDict({"kl_div": kl_div.detach().item()}, batch_size=[])
+
+            # Compute total loss
+            loss_sum = (
+                loss["loss_critic"]
+                + loss["loss_objective"]
+                + loss["loss_entropy"]
+                + kl_div * kl_coef
+            )
+
+            # Store losses for logging
+            losses = loss.select(
+                "loss_critic", "loss_entropy", "loss_objective"
+            ).detach()
+            losses["kl_div"] = kl_div.detach()
 
             # Update policy
             loss_sum.backward()
