@@ -1,12 +1,12 @@
 # Logging configuration
 experiment_name: MolOpt
-agent_name: carl
-log_dir: results/carl_hypopt_max
+agent_name: carl_max_rerun
+log_dir: results/carl_max_rerun
 logger_backend: null # csv, wandb, tensorboard, or null
 seed: [101, 102, 103, 104, 105]
 
 # Environment configuration
-num_envs: 64 # Number of smiles to generate in parallel
+num_envs: 128 # Number of smiles to generate in parallel
 total_smiles: 10_000
 
 # Scoring function
@@ -26,7 +26,7 @@ model: gru # gru, lstm, or gpt2
 
 # Optimizer configuration
 lr: 0.0005 # default: 0.0001
-lr_annealing: True
+lr_annealing: False
 eps: 1.0e-08
 weight_decay: 0.0
 
@@ -34,7 +34,7 @@ weight_decay: 0.0
 topk: 0.25
 
 # Reinforce configuration
-alpha: 3 # 1 Reinforce
+alpha: 5 # 1 Reinforce
 sigma: 0.0 # 0.001 # No prior=0, 0.001 - 0.005 for prior
 baseline: mab # null, mab or loo
 likely_penalty_coef: 0 # Default 100, 0 for off
@@ -42,6 +42,6 @@ entropy_coef: 0.0 # Default 0.01, 0 for off
 
 # Data replay configuration
 replay_sampler: prioritized # uniform, prioritized
-replay_buffer_size: 500
-replay_batch_size: 10
+replay_buffer_size: 100
+replay_batch_size: 20
 

@@ -309,6 +309,7 @@ def run_reinforce(cfg, task):
     ####################################################################################################################
 
     total_done = 0
+    patience = 0
     pbar = tqdm.tqdm(total=cfg.total_smiles)
 
     while not task.finished:
@@ -334,6 +335,10 @@ def run_reinforce(cfg, task):
         done = data_next.get("done").squeeze(-1)
         total_done += cfg.num_envs  # done.sum().item()
         pbar.update(done.sum().item())
+        if len(data)==1:
+            patience += 1
+        else:
+            patience = 0
 
         # Save info about smiles lengths and rewards
         episode_rewards = data_next["reward"][done]
@@ -423,6 +428,10 @@ def run_reinforce(cfg, task):
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done)
+
+        # Early stop if the model collapses
+        if patience == 10:
+            break
 
 
 def get_log_prob(data, model):
