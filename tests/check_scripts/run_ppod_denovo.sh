@@ -24,6 +24,7 @@ python $PYTHONPATH/scripts/ppo/ppo.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
+  experience_replay=True \
   seed=$N_RUN \
   log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
   model=$ACEGEN_MODEL

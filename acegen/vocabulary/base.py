@@ -3,7 +3,7 @@ from typing import Protocol, Sequence
 import numpy as np
 
 
-class Tokenizer(Protocol):
+class BaseTokenizer(Protocol):
     """An interface for handling tokenizing/un-tokenizing SMILES strings.
 
     Any tokenizer should implement this interface.
@@ -14,7 +14,7 @@ class Tokenizer(Protocol):
     def untokenize(self, tokens: Sequence[str]) -> str: ...
 
 
-class Vocabulary(Protocol):
+class BaseVocabulary(Protocol):
     """An interface for handling encoding/decoding from SMILES to an array of indices.
 
     Any vocabulary should implement this interface.

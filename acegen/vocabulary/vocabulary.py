@@ -5,47 +5,30 @@ import numpy as np
 
 import torch
 
-from acegen.vocabulary.base import Tokenizer, Vocabulary
-
-SMILES_TOKENS = [
-    ".",
-    "/",
-    "\\",
-    "@",
-    "%",
-    "*",
-    "=",
-    ":",
-    "#",
-    ">",
-    "+",
-    "-",
-    "<UNK>",
-    "<SEP>",
-]
+from acegen.vocabulary.base import BaseTokenizer, BaseVocabulary
 
 
-class SMILESVocabulary(Vocabulary):
-    """A class for handling encoding/decoding from SMILES to an array of indices.
+class Vocabulary(BaseVocabulary):
+    """A class for handling encoding/decoding from strings to an array of indices.
 
     Args:
         start_token (str, optional): The start token. Defaults to "GO".
         end_token (str, optional): The end token. Defaults to "EOS".
-        tokenizer (Tokenizer, optional): A tokenizer to use for tokenizing the SMILES. Defaults to None.
+        tokenizer (BaseTokenizer, optional): A tokenizer to use for tokenizing strings. Defaults to None.
             Any class that implements the tokenize and untokenize methods can be used.
 
     Examples:
-        >>> from acegen.vocabulary import SMILESVocabulary
+        >>> from acegen.vocabulary import Vocabulary
         >>> chars = ["(", ")", "1", "=", "C", "N", "O"]
 
-        >>> vocabulary = SMILESVocabulary()
+        >>> vocabulary = Vocabulary()
         >>> vocabulary.add_characters(chars)
 
         >>> tokens_dict = dict(zip(chars + ["EOS", "GO"], range(len(chars) + 2)))
-        >>> vocabulary = SMILESVocabulary.create_from_dict(tokens_dict)
+        >>> vocabulary = Vocabulary.create_from_dict(tokens_dict)
 
-        >>> state_dict = SMILESVocabulary.state_dict()
-        >>> vocabulary2 = SMILESVocabulary()
+        >>> state_dict = Vocabulary.state_dict()
+        >>> vocabulary2 = Vocabulary()
         >>> vocabulary2.load_state_dict(state_dict)
     """
 
@@ -53,7 +36,7 @@ class SMILESVocabulary(Vocabulary):
         self,
         start_token: str = "GO",
         end_token: str = "EOS",
-        tokenizer: Tokenizer = None,
+        tokenizer: BaseTokenizer = None,
         special_tokens: list = (),
     ):
         self.start_token = start_token
@@ -71,15 +54,15 @@ class SMILESVocabulary(Vocabulary):
         self.special_indices = [self.end_token_index, self.start_token_index]
 
     def encode(
-        self, smiles: str, with_start: bool = True, with_end: bool = True
+        self, string: str, with_start: bool = True, with_end: bool = True
     ) -> np.ndarray:
         """Takes a list of characters (eg '[NH]') and encodes to array of indices.
 
         Args:
-            smiles (str): The SMILES string to encode.
+            string (str): The string to encode.
 
         Returns:
-            np.ndarray: An array of indices corresponding to the SMILES string.
+            np.ndarray: An array of indices corresponding to the string.
         """
         if self.tokenizer is None:
             raise RuntimeError(
@@ -87,29 +70,29 @@ class SMILESVocabulary(Vocabulary):
                 "Any class that implements the Tokenizer interface can be used."
             )
 
-        char_list = self.tokenizer.tokenize(smiles)
+        char_list = self.tokenizer.tokenize(string)
         if with_start:
             char_list = [self.start_token] + char_list
         if with_end:
             char_list = char_list + [self.end_token]
-        smiles_matrix = np.zeros(len(char_list), dtype=np.float32)
+        string_matrix = np.zeros(len(char_list), dtype=np.float32)
         for i, char in enumerate(char_list):
-            smiles_matrix[i] = self.vocab[char]
-        return smiles_matrix
+            string_matrix[i] = self.vocab[char]
+        return string_matrix
 
-    def decode(self, encoded_smiles, ignore_indices=()):
-        """Takes an array of indices and returns the corresponding SMILES.
+    def decode(self, encoded_string, ignore_indices=()):
+        """Takes an array of indices and returns the corresponding string.
 
         Args:
-            encoded_smiles (np.ndarray): An array of indices corresponding to a SMILES string.
+            encoded_string (np.ndarray): An array of indices corresponding to a string.
             ignore_indices (tuple, optional): Indices to ignore. Defaults to ().
 
 
         Returns:
-            str: The decoded SMILES string.
+            str: The decoded string.
         """
         chars = []
-        for i in encoded_smiles:
+        for i in encoded_string:
             if i in ignore_indices:
                 continue
             if i == self.vocab[self.start_token]:
@@ -117,8 +100,8 @@ class SMILESVocabulary(Vocabulary):
             if i == self.vocab[self.end_token]:
                 break
             chars.append(self.reversed_vocab[i])
-        smiles = "".join(chars)
-        return smiles
+        string = "".join(chars)
+        return string
 
     def add_characters(self, chars):
         """Adds characters to the vocabulary.
@@ -143,25 +126,25 @@ class SMILESVocabulary(Vocabulary):
         return "Vocabulary containing {} tokens: {}".format(len(self), self.chars)
 
     @classmethod
-    def create_from_smiles(
+    def create_from_strings(
         cls,
-        smiles_list: list[str],
-        tokenizer: Tokenizer,
+        strings_list: list[str],
+        tokenizer: BaseTokenizer,
         start_token: str = "GO",
         end_token: str = "EOS",
         special_tokens: list = (),
     ):
-        """Creates a vocabulary for the SMILES syntax.
+        """Creates a vocabulary form a list of strings_list.
 
         Args:
-            smiles_list (list[str]): A list of SMILES strings to create the vocabulary from.
-            tokenizer (Tokenizer): A tokenizer to use for tokenizing the SMILES.
+            strings_list (list[str]): A list of strings to create the vocabulary from.
+            tokenizer (BaseTokenizer): A tokenizer to use for tokenizing strings.
             start_token (str, optional): The start token. Defaults to "GO".
             end_token (str, optional): The end token. Defaults to "EOS".
             special_tokens (list, optional): A list of special tokens. Defaults to ().
 
         Returns:
-            SMILESVocabulary: A vocabulary for the SMILES syntax.
+            Vocabulary: A vocabulary class with the tokens from the strings.
         """
         vocabulary = cls(
             start_token=start_token,
@@ -170,8 +153,8 @@ class SMILESVocabulary(Vocabulary):
             special_tokens=special_tokens,
         )
         tokens = set()
-        for smi in smiles_list:
-            tokens.update(vocabulary.tokenizer.tokenize(smi))
+        for string in strings_list:
+            tokens.update(vocabulary.tokenizer.tokenize(string))
         vocabulary.add_characters(sorted(tokens))
         vocabulary.start_token_index = vocabulary.vocab[start_token]
         vocabulary.end_token_index = vocabulary.vocab[end_token]
@@ -183,7 +166,7 @@ class SMILESVocabulary(Vocabulary):
         vocab: dict[str, int],
         start_token: str = "GO",
         end_token: str = "EOS",
-        tokenizer: Tokenizer = None,
+        tokenizer: BaseTokenizer = None,
     ):
         """Creates a vocabulary from a dictionary mapping characters to indices.
 
@@ -193,11 +176,11 @@ class SMILESVocabulary(Vocabulary):
             vocab (dict[str, int]): A dictionary mapping characters to indices.
             start_token (str, optional): The start token. Defaults to "GO".
             end_token (str, optional): The end token. Defaults to "EOS".
-            tokenizer (Tokenizer, optional): A tokenizer to use for tokenizing the SMILES. Defaults to None.
+            tokenizer (BaseTokenizer, optional): A tokenizer to use for tokenizing strings. Defaults to None.
                 Any class that implements the tokenize and untokenize methods can be used.
 
         Returns:
-            SMILESVocabulary: A vocabulary for the SMILES syntax.
+            Vocabulary: A vocabulary created from the dictionary.
         """
         vocabulary = cls(
             start_token=start_token,
@@ -246,7 +229,7 @@ class SMILESVocabulary(Vocabulary):
         voc_path: Path,
         start_token: str = "GO",
         end_token: str = "EOS",
-        tokenizer: Tokenizer = None,
+        tokenizer: BaseTokenizer = None,
     ):
         """Loads a vocabulary from a file.
 
@@ -256,11 +239,11 @@ class SMILESVocabulary(Vocabulary):
             vocab (dict[str, int]): A dictionary mapping characters to indices.
             start_token (str, optional): The start token. Defaults to "GO".
             end_token (str, optional): The end token. Defaults to "EOS".
-            tokenizer (Tokenizer, optional): A tokenizer to use for tokenizing the SMILES. Defaults to None.
+            tokenizer (BaseTokenizer, optional): A tokenizer to use for tokenizing strings. Defaults to None.
                 Any class that implements the tokenize and untokenize methods can be used.
 
         Returns:
-            SMILESVocabulary: A vocabulary for the SMILES syntax.
+            Vocabulary: A vocabulary loaded from the file.
         """
         if isinstance(voc_path, str):
             voc_path = Path(voc_path)
@@ -276,7 +259,7 @@ class SMILESVocabulary(Vocabulary):
             with open(voc_path, "r") as f:
                 tokens = f.read().splitlines()
             tokens_dict = dict(zip(tokens, range(len(tokens))))
-            vocabulary = SMILESVocabulary.create_from_dict(
+            vocabulary = Vocabulary.create_from_dict(
                 tokens_dict,
                 start_token=start_token,
                 end_token=end_token,

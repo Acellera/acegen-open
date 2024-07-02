@@ -12,9 +12,9 @@ from acegen.models import (
     create_lstm_critic,
     models,
 )
-from acegen.rl_env.smiles_env import SMILESEnv
+from acegen.rl_env.token_env import TokenEnv
 from acegen.scoring_functions import (
     custom_scoring_functions,
     register_custom_scoring_function,
 )
-from acegen.vocabulary.vocabulary import SMILESVocabulary
+from acegen.vocabulary.vocabulary import Vocabulary
