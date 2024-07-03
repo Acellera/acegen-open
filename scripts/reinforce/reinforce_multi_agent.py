@@ -5,8 +5,8 @@ import os
 import random
 import shutil
 from copy import deepcopy
-from pathlib import Path
 from itertools import chain, combinations
+from pathlib import Path
 
 import hydra
 import numpy as np
@@ -14,16 +14,16 @@ import numpy as np
 import torch
 import tqdm
 import yaml
+from acegen.data.chem_utils import get_fp_hist
 
 from acegen.models import adapt_state_dict, models, register_model
-from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.data.chem_utils import get_fp_hist
+from acegen.rl_env import generate_complete_smiles, TokenEnv
 from acegen.scoring_functions import (
     custom_scoring_functions,
     register_custom_scoring_function,
     Task,
 )
-from acegen.vocabulary import SMILESVocabulary
+from acegen.vocabulary import Vocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict.utils import isin
 
@@ -172,7 +172,7 @@ def run_reinforce(cfg, task):
     # Create vocabulary
     ####################################################################################################################
 
-    vocabulary = SMILESVocabulary.load(voc_path, tokenizer=tokenizer)
+    vocabulary = Vocabulary.load(voc_path, tokenizer=tokenizer)
 
     # Create models
     ####################################################################################################################
@@ -186,7 +186,7 @@ def run_reinforce(cfg, task):
         )
         actor_training.load_state_dict(
             adapt_state_dict(deepcopy(ckpt), actor_training.state_dict())
-            )
+        )
 
         actor_inference = actor_inference.to(device)
         actor_training = actor_training.to(device)
@@ -206,7 +206,7 @@ def run_reinforce(cfg, task):
 
     def create_env_fn():
         """Create a single RL rl_env."""
-        env = SMILESEnv(**env_kwargs)
+        env = TokenEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(InitTracker())
         if primers := get_primers_from_module(actor_inference):
@@ -234,11 +234,13 @@ def run_reinforce(cfg, task):
     ####################################################################################################################
 
     optim = torch.optim.Adam(
-            chain.from_iterable([actor.parameters() for actor in population_training]), # Parameter groups NIMP
-            lr=cfg.lr,
-            eps=cfg.eps,
-            weight_decay=cfg.weight_decay,
-        )
+        chain.from_iterable(
+            [actor.parameters() for actor in population_training]
+        ),  # Parameter groups NIMP
+        lr=cfg.lr,
+        eps=cfg.eps,
+        weight_decay=cfg.weight_decay,
+    )
 
     # Create logger
     ####################################################################################################################
@@ -393,7 +395,7 @@ def run_reinforce(cfg, task):
 
             # Add entropy to the losses and update
             log_info["entropy"] = entropy.item()
-            log_info["entropy_loss"] = entropy_loss.item() 
+            log_info["entropy_loss"] = entropy_loss.item()
             for loss in population_loss:
                 loss += entropy_loss
 
@@ -401,9 +403,9 @@ def run_reinforce(cfg, task):
             # Compute the histograms of each agent sample
             chists = []
             for data in population_data:
-                SMILES = data.get("SMILES").to('cpu').data
+                SMILES = data.get("SMILES").to("cpu").data
                 chists.append(get_fp_hist(SMILES))
-            
+
             # Compute pairwise distances
             chist_dist = torch.tensor(0)
             for chist1, chist2 in combinations(chists, 2):
@@ -411,13 +413,13 @@ def run_reinforce(cfg, task):
                 chist_dist += dist
             chist_dist.to(device)
             chist_loss = cfg.chist_coef * chist_dist
-            
+
             # Add to losses
             log_info["chist_dist"] = chist_dist.item()
             log_info["chist_loss"] = chist_loss.item()
             for loss in population_loss:
                 loss -= chist_loss
-        
+
         # Update
         optim.zero_grad()
         for loss in population_loss:
