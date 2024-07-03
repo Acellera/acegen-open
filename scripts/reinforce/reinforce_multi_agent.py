@@ -384,7 +384,7 @@ def run_reinforce(cfg, task):
             masked_log_probs = (log_probs * mask.unsqueeze(1)).sum(dim=-1)
 
             # Compute the probability distribution and entropy
-            prob_dist = torch.distributions.Categorical(logits=population_log_prob)
+            prob_dist = torch.distributions.Categorical(logits=masked_log_probs)
             entropy = prob_dist.entropy().mean()
             entropy_loss = entropy_coef * entropy
 
