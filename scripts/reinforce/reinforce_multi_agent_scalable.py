@@ -14,7 +14,6 @@ import numpy as np
 import torch
 import tqdm
 import yaml
-from acegen.data.chem_utils import get_fp_hist
 
 from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, TokenEnv
@@ -187,11 +186,9 @@ def run_reinforce(cfg, task):
         actor_training.load_state_dict(
             adapt_state_dict(deepcopy(ckpt), actor_training.state_dict())
         )
-
-        actor_inference = actor_inference.to(device)
-        actor_training = actor_training.to(device)
         population_inference.append(actor_inference)
         population_training.append(actor_training)
+
 
     # Create RL environment
     ####################################################################################################################
@@ -233,14 +230,15 @@ def run_reinforce(cfg, task):
     # Create optimizer
     ####################################################################################################################
 
-    optim = torch.optim.Adam(
-        chain.from_iterable(
-            [actor.parameters() for actor in population_training]
-        ),  # Parameter groups NIMP
-        lr=cfg.lr,
-        eps=cfg.eps,
-        weight_decay=cfg.weight_decay,
-    )
+    optims = []
+    for actor in population_training:
+        optim = torch.optim.Adam(
+            actor.parameters(),
+            lr=cfg.lr,
+            eps=cfg.eps,
+            weight_decay=cfg.weight_decay,
+        )
+        optims.append(optim)
 
     # Create logger
     ####################################################################################################################
@@ -273,16 +271,20 @@ def run_reinforce(cfg, task):
     while not task.finished:
 
         log_info = {}
+        overall_entropy = []
 
         # Generate data
-        population_data = []
-        population_loss = []
-        for i, actor_inference, actor_training, experience_replay_buffer in zip(
+        for i, actor_inference, actor_training, experience_replay_buffer, optim in zip(
             range(num_agents),
             population_inference,
             population_training,
             population_experience_replay_buffer,
+            optims,
         ):
+            
+            actor_inference = actor_inference.to(device)
+            actor_training = actor_training.to(device)
+
             data = generate_complete_smiles(
                 policy_sample=actor_inference,
                 policy_evaluate=actor_training,
@@ -297,6 +299,8 @@ def run_reinforce(cfg, task):
                 promptsmiles_scan=cfg.get("promptsmiles_scan", False),
                 remove_duplicates=True,
             )
+
+            data = data.to(device)
 
             # Update pbar
             data_next = data.get("next")
@@ -318,11 +322,8 @@ def run_reinforce(cfg, task):
                     }
                 )
 
-            # Add data to the population
-            population_data.append(data)
-
             # comute loss
-            data, loss = compute_loss(data, actor_training)
+            data, loss, agent_likelihood = compute_loss(data, actor_training)
 
             # Compute experience replay loss
             if (
@@ -330,15 +331,39 @@ def run_reinforce(cfg, task):
                 and len(experience_replay_buffer) > cfg.replay_batch_size
             ):
                 replay_batch = experience_replay_buffer.sample()
-                _, replay_loss = compute_loss(replay_batch, actor_training)
+                _, replay_loss, _ = compute_loss(replay_batch, actor_training)
                 loss = torch.cat((loss, replay_loss), 0)
 
             # Average loss over the batch
             loss = loss.mean()
 
             # Add loss to the population
-            population_loss.append(loss)
             log_info[f"agent{i}/loss"] = loss.item()
+
+            # Add population term
+            other_likelihoods = []
+            with torch.no_grad():
+                for actor in population_training:
+                    if actor != actor_training:
+                        actor = actor.to(device)
+                        log_prob = get_log_prob(data, actor)
+                        other_likelihoods.append(log_prob)
+                        actor = actor.cpu()
+            
+            population_log_prob = torch.stack([agent_likelihood] + other_likelihoods, dim=1)
+            prob_dist = torch.distributions.Categorical(logits=population_log_prob)
+            entropy = prob_dist.entropy()
+            overall_entropy.append(entropy)
+            entropy_loss = entropy_coef * (entropy.mean() - 0.1) ** 2  # target entropy 0.1
+            log_info[f"agent{i}/entropy"] = entropy.mean().item()
+            log_info[f"agent{i}/entropy_loss"] = entropy_loss.item()
+            if cfg.get("entropy_coef", False):
+                loss += entropy_loss
+
+            # Update
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
 
             # Add new experiences to the replay buffer
             if cfg.experience_replay:
@@ -363,88 +388,34 @@ def run_reinforce(cfg, task):
                     replay_data.set("priority", reward)
                     experience_replay_buffer.extend(replay_data)
 
-        # Compute joint loss term, for now do nothing
-        # Concatenate all population data
-        data_cat = torch.cat(population_data, dim=0)
+            # move back to cpu
+            actor_inference = actor_inference.cpu()
+            actor_training = actor_training.cpu()
+            torch.cuda.empty_cache()
+            data = data.cpu()
+            del data
 
-        # Extract mask and log probabilities for all actors at once
-        mask = data_cat.get("mask").squeeze(-1)
-
-        # Initialize list for log probabilities
-        log_probs = []
-
-        # Compute log probabilities for each actor
-        for actor in population_training:
-            log_prob = get_log_prob(data_cat, actor)
-            log_probs.append(log_prob)
-
-        # Stack log probabilities into a tensor
-        log_probs = torch.stack(log_probs, dim=1)
-
-        # Apply the mask and sum the log probabilities
-        population_log_prob = (log_probs * mask.unsqueeze(1)).sum(dim=-1)
-
-        # Compute the probability distribution and entropy
-        prob_dist = torch.distributions.Categorical(logits=population_log_prob)
-        entropy = prob_dist.entropy().mean()
-        entropy_loss = entropy_coef * (entropy - 0.25) ** 2  # target entropy 0.2
-        log_info["entropy"] = entropy.item()
-        log_info["entropy_loss"] = entropy_loss.item()
-
-        # Add entropy to the losses and update
-        if cfg.get("entropy_coef", False):
-            for loss in population_loss:
-                loss += entropy_loss
-
-        if cfg.get("chist_coef", False):
-            # Compute the histograms of each agent sample
-            chists = []
-            for data in population_data:
-                SMILES = data.get("SMILES").to("cpu").data
-                chists.append(get_fp_hist(SMILES))
-
-            # Compute pairwise distances
-            chist_dist = torch.tensor(0)
-            for chist1, chist2 in combinations(chists, 2):
-                dist = torch.abs(chist1 - chist2).sum(0)
-                chist_dist += dist
-            chist_dist.to(device)
-            chist_loss = cfg.chist_coef * chist_dist
-
-            # Add to losses
-            log_info["chist_dist"] = chist_dist.item()
-            log_info["chist_loss"] = chist_loss.item()
-            for loss in population_loss:
-                loss -= chist_loss
-
-        # Update
-        optim.zero_grad()
-        for loss in population_loss:
-            loss.backward(retain_graph=True)
-        optim.step()
+        overall_entropy = torch.cat(overall_entropy).cpu().detach()
+        log_info["overall_entropy"] = overall_entropy.mean().item()
 
         # Log info
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done / cfg.num_agents)
 
-
 def get_log_prob(data, model):
+    mask = data.get("mask").squeeze(-1)
     actions = data.get("action")
     model_in = data.select(*model.in_keys, strict=False)
     log_prob = model.get_dist(model_in).log_prob(actions)
+    log_prob = (log_prob * mask).sum(-1)
     return log_prob
 
-
 def compute_loss(data, model):
-
-    mask = data.get("mask").squeeze(-1)
-    agent_log_prob = get_log_prob(data, model)
-    agent_likelihood = (agent_log_prob * mask).sum(-1)
+    agent_likelihood = get_log_prob(data, model)
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     loss = -agent_likelihood * reward
-
-    return data, loss
+    return data, loss, agent_likelihood
 
 
 if __name__ == "__main__":
