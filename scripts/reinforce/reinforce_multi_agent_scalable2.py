@@ -50,6 +50,32 @@ except ImportError as err:
 os.chdir("/tmp")
 
 
+class RunningMeanStd:
+    """Class to keep track on the running mean and variance of tensors batches."""
+
+    def __init__(self, epsilon=1e-4, shape=(), device=torch.device("cpu")):
+        self.mean = torch.zeros(shape, dtype=torch.float64).to(device)
+        self.var = torch.ones(shape, dtype=torch.float64).to(device)
+        self.count = epsilon
+
+    def update(self, x):
+        batch_mean = torch.mean(x, dim=0)
+        batch_var = torch.var(x, dim=0)
+        batch_count = x.shape[0]
+        self.update_from_moments(batch_mean, batch_var, batch_count)
+
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        delta = batch_mean - self.mean
+        tot_count = self.count + batch_count
+        new_mean = self.mean + delta * batch_count / tot_count
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + torch.square(delta) * self.count * batch_count / tot_count
+        new_var = M2 / tot_count
+        new_count = tot_count
+        self.mean, self.var, self.count = new_mean, new_var, new_count
+
+
 @hydra.main(
     config_path=".",
     config_name="config_denovo_multi",
@@ -189,6 +215,7 @@ def run_reinforce(cfg, task):
         population_inference.append(actor_inference)
         population_training.append(actor_training)
 
+
     # Create RL environment
     ####################################################################################################################
 
@@ -266,11 +293,12 @@ def run_reinforce(cfg, task):
 
     total_done = 0
     pbar = tqdm.tqdm(total=cfg.total_smiles)
-
+    rms = RunningMeanStd(shape=(1,), device=device)
     while not task.finished:
 
         log_info = {}
-        overall_entropy = []
+        global_reward = []
+        global_intrinsic_reward = []
 
         # Generate data
         for i, actor_inference, actor_training, experience_replay_buffer, optim in zip(
@@ -280,7 +308,7 @@ def run_reinforce(cfg, task):
             population_experience_replay_buffer,
             optims,
         ):
-
+            
             actor_inference = actor_inference.to(device)
             actor_training = actor_training.to(device)
 
@@ -298,8 +326,9 @@ def run_reinforce(cfg, task):
                 promptsmiles_scan=cfg.get("promptsmiles_scan", False),
                 remove_duplicates=True,
             )
-
+            data.pop("SMILES")
             data = data.to(device)
+            replay_data = data.clone()
 
             # Update pbar
             data_next = data.get("next")
@@ -310,6 +339,7 @@ def run_reinforce(cfg, task):
             # Save info about smiles lengths and rewards
             episode_rewards = data_next["reward"][done]
             episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
+            global_reward.append(episode_rewards.clone().cpu().detach())
             if len(episode_rewards) > 0:
                 log_info.update(
                     {
@@ -321,46 +351,49 @@ def run_reinforce(cfg, task):
                     }
                 )
 
-            # comute loss
-            data, loss, agent_likelihood = compute_loss(data, actor_training)
-
             # Compute experience replay loss
             if (
                 cfg.experience_replay
                 and len(experience_replay_buffer) > cfg.replay_batch_size
             ):
                 replay_batch = experience_replay_buffer.sample()
-                _, replay_loss, _ = compute_loss(replay_batch, actor_training)
-                loss = torch.cat((loss, replay_loss), 0)
+                replay_batch = replay_batch.exclude("_weight", "index", "priority", inplace=True)
+                extended_data = torch.cat([data, replay_batch], dim=0)
+            else:
+                extended_data = data
+
+            # Extend rewards
+            other_likelihoods = []
+            with torch.no_grad():
+                for actor in population_training:
+                    actor = actor.to(device)
+                    log_prob = get_log_prob(extended_data, actor)
+                    other_likelihoods.append(log_prob)
+                    if actor_training != actor:
+                        actor = actor.cpu()
+            population_log_prob = torch.stack(other_likelihoods, dim=1)
+            disagreement = torch.std(population_log_prob, dim=1)
+
+            rms.update(disagreement.cpu().reshape(-1))
+            intrinsic_reward = (disagreement - rms.mean) /  rms.var**0.5
+            intrinsic_reward = intrinsic_reward.float() * 0.05
+            data_next = extended_data.get("next")
+            done = data_next.get("done").squeeze(-1)
+            total_done += done.sum().item()
+            pbar.update(done.sum().item())
+            data_next["reward"][done] = data_next["reward"][done] + intrinsic_reward.unsqueeze(-1)
+            log_info[f"agent{i}/intrinsic_reward"] = intrinsic_reward.mean().item()
+            log_info[f"agent{i}/total_reward"] = data_next["reward"][done].mean().item()
+            global_intrinsic_reward.append(intrinsic_reward.clone().cpu().detach())
+
+            # comute loss
+            _, loss, _ = compute_loss(extended_data, actor_training)
 
             # Average loss over the batch
             loss = loss.mean()
 
             # Add loss to the population
             log_info[f"agent{i}/loss"] = loss.item()
-
-            # Add population term
-            other_likelihoods = []
-            with torch.no_grad():
-                for actor in population_training:
-                    if actor != actor_training:
-                        actor = actor.to(device)
-                        log_prob = get_log_prob(data, actor)
-                        other_likelihoods.append(log_prob)
-                        actor = actor.cpu()
-
-            population_log_prob = torch.stack(
-                [agent_likelihood] + other_likelihoods, dim=1
-            )
-            prob_dist = torch.distributions.Categorical(logits=population_log_prob)
-            entropy = prob_dist.entropy()
-            overall_entropy.append(entropy)
-            # entropy_loss = entropy_coef * (entropy.mean() - 0.1) ** 2  # target entropy 0.1
-            entropy_loss = entropy_coef * entropy.mean()
-            log_info[f"agent{i}/entropy"] = entropy.mean().item()
-            log_info[f"agent{i}/entropy_loss"] = entropy_loss.item()
-            if cfg.get("entropy_coef", False):
-                loss += entropy_loss
 
             # Update
             optim.zero_grad()
@@ -369,8 +402,6 @@ def run_reinforce(cfg, task):
 
             # Add new experiences to the replay buffer
             if cfg.experience_replay:
-
-                replay_data = data.clone()
 
                 # MaxValueWriter is not compatible with storages of more than one dimension.
                 replay_data.batch_size = [replay_data.batch_size[0]]
@@ -394,17 +425,20 @@ def run_reinforce(cfg, task):
             actor_inference = actor_inference.cpu()
             actor_training = actor_training.cpu()
             torch.cuda.empty_cache()
-            data = data.cpu()
-            del data
+            # data = data.cpu()
+            # del data
 
-        overall_entropy = torch.cat(overall_entropy).cpu().detach()
-        log_info["overall_entropy"] = overall_entropy.mean().item()
+        log_info["global_reward"] = torch.cat(global_reward).mean().item()
+        log_info["global_max_reward"] = torch.cat(global_reward).max().item()
+        log_info["global_min_reward"] = torch.cat(global_reward).min().item()
+        log_info["global_intrinsic_reward"] = torch.cat(global_intrinsic_reward).mean().item()
+        log_info["global_intrinsic_min_reward"] = torch.cat(global_intrinsic_reward).min().item()
+        log_info["global_intrinsic_max_reward"] = torch.cat(global_intrinsic_reward).max().item()
 
         # Log info
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done / cfg.num_agents)
-
 
 def get_log_prob(data, model):
     mask = data.get("mask").squeeze(-1)
@@ -413,7 +447,6 @@ def get_log_prob(data, model):
     log_prob = model.get_dist(model_in).log_prob(actions)
     log_prob = (log_prob * mask).sum(-1)
     return log_prob
-
 
 def compute_loss(data, model):
     agent_likelihood = get_log_prob(data, model)
