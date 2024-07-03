@@ -1,7 +1,7 @@
 # Logging configuration
 experiment_name: MolOpt
 agent_name: carl_max_rerun
-log_dir: results/carl_max_rerun
+log_dir: results/carl_max_rerun2
 logger_backend: null # csv, wandb, tensorboard, or null
 seed: [101, 102, 103, 104, 105]
 
