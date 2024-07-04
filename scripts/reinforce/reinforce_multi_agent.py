@@ -391,8 +391,9 @@ def run_reinforce(cfg, task):
             # Add entropy to the losses and update
             log_info["entropy"] = entropy.item()
             log_info["entropy_loss"] = entropy_loss.item() 
-            for loss in population_loss:
-                loss += entropy_loss
+            for data, loss in zip(population_data, population_loss):
+                #reward_scaler = data.get(("next", "reward")).squeeze(-1).sum(-1).mean()
+                loss += entropy_loss # reward_scaler * entropy_loss
 
         if cfg.get("chist_coef", False):
             # Compute the histograms of each agent sample
