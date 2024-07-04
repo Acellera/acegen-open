@@ -386,6 +386,7 @@ def run_reinforce(cfg, task):
             # Normalization of the entropy (mean 0, std 1)
             rms.update(entropy.cpu().reshape(-1))
             entropy = (entropy - rms.mean) / rms.var ** 0.5
+            entropy = torch.clamp(entropy, min=-1.0, max=1.0)
 
             # Compute and subtract entropy reward. Low entropy -> high reward
             entropy_reward = entropy.float() * cfg.entropy_coef 
