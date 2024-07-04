@@ -388,8 +388,8 @@ def run_reinforce(cfg, task):
             entropy = (entropy - rms.mean) / rms.var ** 0.5
             entropy_reward = entropy.float() * cfg.entropy_coef 
 
-            # Add entropy reward 
-            data_next["reward"][done] = data_next["reward"][done] + entropy_reward.unsqueeze(-1)
+            # Subtract entropy reward. Low entropy -> high reward
+            data_next["reward"][done] = data_next["reward"][done] - entropy_reward.unsqueeze(-1)
 
             # Compute loss
             data, loss = compute_loss(extended_data, actor_training)
