@@ -368,7 +368,7 @@ def run_reinforce(cfg, task):
             done = data_next.get("done").squeeze(-1)
             episode_length = (data_next["observation"] != 0.0).float().sum(-1)
 
-            # Add population reward
+            # Compute entropy
             pop_likelihoods = []
             with torch.no_grad():
                 for actor in population_training:
@@ -386,9 +386,9 @@ def run_reinforce(cfg, task):
             # Normalization of the entropy (mean 0, std 1)
             rms.update(entropy.cpu().reshape(-1))
             entropy = (entropy - rms.mean) / rms.var ** 0.5
-            entropy_reward = entropy.float() * cfg.entropy_coef 
 
-            # Subtract entropy reward. Low entropy -> high reward
+            # Compute and subtract entropy reward. Low entropy -> high reward
+            entropy_reward = entropy.float() * cfg.entropy_coef 
             data_next["reward"][done] = data_next["reward"][done] - entropy_reward.unsqueeze(-1)
 
             # Compute loss
