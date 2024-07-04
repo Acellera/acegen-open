@@ -27,8 +27,8 @@ python $PYTHONPATH/scripts/ppo/ppo.py --config-name config_fragment \
   experience_replay=False \
   seed=$N_RUN \
   log_dir=/tmp/"$agent_name"_seed"$N_RUN" \
-  model=$ACEGEN_MODEL
-
+  model=$ACEGEN_MODEL 
+    
 # Capture the exit status of the Python command
 exit_status=$?
 # Write the exit status to a file
