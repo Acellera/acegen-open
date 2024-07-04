@@ -374,19 +374,17 @@ def run_reinforce(cfg, task):
                     if actor != actor_training:
                         actor = actor.to(device)
                     log_prob = get_log_prob(extended_data, actor)
-                    # log_prob = log_prob / episode_length
+                    log_prob = log_prob / episode_length
                     pop_likelihoods.append(log_prob)
                     actor = actor.cpu()
             population_log_prob = torch.stack(pop_likelihoods, dim=1)
             prob_dist = torch.distributions.Categorical(logits=population_log_prob)
             entropy = prob_dist.entropy()
-            entropy_reward = entropy_coef * entropy.mean()
 
             # Normalization (mean 0, std 1)
-            rms.update(entropy_reward.cpu().reshape(-1))
-            entropy_reward = (entropy_reward - rms.mean) / rms.var ** 0.5
-            # entropy_reward =  entropy_reward.float() * 0.1 # scale entropy reward
-            entropy_reward = torch.clamp(entropy_reward, -0.2, 0.2) # clip entropy reward
+            rms.update(entropy.cpu().reshape(-1))
+            entropy = (entropy - rms.mean) / rms.var ** 0.5
+            entropy_reward = entropy.float() * cfg.entropy_coef # scale entropy reward
 
             # Add entropy reward 
             data_next["reward"][done] = data_next["reward"][done] + entropy_reward.unsqueeze(-1)
