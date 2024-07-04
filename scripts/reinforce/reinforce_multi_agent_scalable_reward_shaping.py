@@ -296,6 +296,7 @@ def run_reinforce(cfg, task):
 
         log_info = {}
         global_reward = []
+        global_entropy = []
         global_entropy_reward = []
         global_total_reward = []
 
@@ -374,17 +375,18 @@ def run_reinforce(cfg, task):
                     if actor != actor_training:
                         actor = actor.to(device)
                     log_prob = get_log_prob(extended_data, actor)
-                    log_prob = log_prob / episode_length
+                    log_prob = log_prob / episode_length # normalize by episode length, maybe not necessary
                     pop_likelihoods.append(log_prob)
-                    actor = actor.cpu()
+                    if actor != actor_training:
+                        actor = actor.cpu()
             population_log_prob = torch.stack(pop_likelihoods, dim=1)
             prob_dist = torch.distributions.Categorical(logits=population_log_prob)
             entropy = prob_dist.entropy()
 
-            # Normalization (mean 0, std 1)
+            # Normalization of the entropy (mean 0, std 1)
             rms.update(entropy.cpu().reshape(-1))
             entropy = (entropy - rms.mean) / rms.var ** 0.5
-            entropy_reward = entropy.float() * cfg.entropy_coef # scale entropy reward
+            entropy_reward = entropy.float() * cfg.entropy_coef 
 
             # Add entropy reward 
             data_next["reward"][done] = data_next["reward"][done] + entropy_reward.unsqueeze(-1)
@@ -397,7 +399,8 @@ def run_reinforce(cfg, task):
 
             # Add data to log info
             log_info[f"agent{i}/entropy"] = entropy.mean().item()
-            log_info[f"agent{i}/entropy_reward"] = entropy_reward.item()
+            log_info[f"agent{i}/entropy_reward"] = entropy_reward.mean().item()
+            global_entropy.append(entropy.clone().cpu().detach())
             global_entropy_reward.append(entropy_reward.clone().cpu().detach())
             global_reward.append(data_next["reward"][done].clone().cpu().detach())
             global_total_reward.append(data_next["reward"][done].clone().cpu().detach())
@@ -439,10 +442,11 @@ def run_reinforce(cfg, task):
         # Add global data to log info
         log_info["global_reward"] = torch.cat(global_reward).mean().item()
         log_info["global_max_reward"] = torch.cat(global_reward).max().item()
-        log_info["global_intrinsic_reward"] = (torch.cat(global_entropy_reward).mean().item())
-        log_info["global_intrinsic_max_reward"] = (torch.cat(global_entropy_reward).max().item())
+        log_info["global_intrinsic_reward"] = torch.cat(global_entropy_reward).mean().item()
+        log_info["global_intrinsic_max_reward"] =  torch.cat(global_entropy_reward).max().item()
         log_info["global_total_reward"] = torch.cat(global_total_reward).mean().item()
-        log_info["global_total_max_reward"] = (torch.cat(global_total_reward).max().item())
+        log_info["global_total_max_reward"] = torch.cat(global_total_reward).max().item()
+        log_info["global_entropy"] = torch.cat(global_entropy).mean().item()
 
         # Log info
         if logger:
