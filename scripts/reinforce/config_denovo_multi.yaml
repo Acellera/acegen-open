@@ -7,7 +7,7 @@ seed: 101 # multiple seeds can be provided as a list to multiple experiments seq
 
 # Environment configuration
 num_agents: 2 # Number of agents
-num_envs: 128 # Number of smiles to generate in parallel
+num_envs: 64 # Number of smiles to generate in parallel
 total_smiles: 20_000 # Total number of smiles to generate
 
 # Scoring function
@@ -27,7 +27,7 @@ model: gru # gru, lstm, gpt2, mamba or llama2
 custom_model_factory: null # Path to a custom model factory (e.g. my_module.create_model)
 
 # Optimizer configuration
-lr: 0.0001
+lr: 0.0005
 eps: 1.0e-08
 weight_decay: 0.0
 
@@ -38,4 +38,4 @@ chist_coef: 0.0 # Coef makes no diff, so just use 0, 1 for off, on
 # Data replay configuration
 experience_replay: True
 replay_buffer_size: 100
-replay_batch_size: 10
+replay_batch_size: 20
