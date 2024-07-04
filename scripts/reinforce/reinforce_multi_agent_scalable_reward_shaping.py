@@ -49,7 +49,6 @@ except ImportError as err:
 # hydra outputs saved in /tmp
 os.chdir("/tmp")
 
-
 class RunningMeanStd:
     """Class to keep track on the running mean and variance of tensors batches."""
 
@@ -74,7 +73,6 @@ class RunningMeanStd:
         new_var = M2 / tot_count
         new_count = tot_count
         self.mean, self.var, self.count = new_mean, new_var, new_count
-
 
 @hydra.main(
     config_path=".",
@@ -174,6 +172,7 @@ def run_reinforce(cfg, task):
 
     # Define number of agents in the population
     num_agents = cfg.get("num_agents", 1)
+    entropy_coef = cfg.get("entropy_coef", 0.0)
 
     # Get available device
     device = (
@@ -292,11 +291,12 @@ def run_reinforce(cfg, task):
     total_done = 0
     pbar = tqdm.tqdm(total=cfg.total_smiles)
     rms = RunningMeanStd(shape=(1,), device=device)
+
     while not task.finished:
 
         log_info = {}
         global_reward = []
-        global_intrinsic_reward = []
+        global_entropy_reward = []
         global_total_reward = []
 
         # Generate data
@@ -338,7 +338,6 @@ def run_reinforce(cfg, task):
             # Save info about smiles lengths and rewards
             episode_rewards = data_next["reward"][done]
             episode_length = (data_next["observation"] != 0.0).float().sum(-1).mean()
-            global_reward.append(episode_rewards.clone().cpu().detach())
             if len(episode_rewards) > 0:
                 log_info.update(
                     {
@@ -362,45 +361,48 @@ def run_reinforce(cfg, task):
                 extended_data = torch.cat([data, replay_batch], dim=0)
             else:
                 extended_data = data
-
+            
+            # Re-compute done and episode length for the extended data
             data_next = extended_data.get("next")
             done = data_next.get("done").squeeze(-1)
             episode_length = (data_next["observation"] != 0.0).float().sum(-1)
 
-            # Extend rewards
-            other_likelihoods = []
+            # Add population reward
+            pop_likelihoods = []
             with torch.no_grad():
                 for actor in population_training:
-                    actor = actor.to(device)
+                    if actor != actor_training:
+                        actor = actor.to(device)
                     log_prob = get_log_prob(extended_data, actor)
                     # log_prob = log_prob / episode_length
-                    other_likelihoods.append(log_prob)
-                    if actor_training != actor:
-                        actor = actor.cpu()
-            population_log_prob = torch.stack(other_likelihoods, dim=1)
-            disagreement = torch.std(population_log_prob, dim=1)
+                    pop_likelihoods.append(log_prob)
+                    actor = actor.cpu()
+            population_log_prob = torch.stack(pop_likelihoods, dim=1)
+            prob_dist = torch.distributions.Categorical(logits=population_log_prob)
+            entropy = prob_dist.entropy()
+            entropy_reward = entropy_coef * entropy.mean()
 
-            rms.update(disagreement.cpu().reshape(-1))
-            intrinsic_reward = (disagreement - rms.mean) / rms.var**0.5
-            intrinsic_reward = torch.clamp(intrinsic_reward.float() * 0.05, -0.2, 0.2)
+            # Normalization (mean 0, std 1)
+            rms.update(entropy_reward.cpu().reshape(-1))
+            entropy_reward = (entropy_reward - rms.mean) / rms.var ** 0.5
+            # entropy_reward =  entropy_reward.float() * 0.1 # scale entropy reward
+            entropy_reward = torch.clamp(entropy_reward, -0.2, 0.2) # clip entropy reward
 
-            total_done += done.sum().item()
-            pbar.update(done.sum().item())
-            data_next["reward"][done] = data_next["reward"][
-                done
-            ] + intrinsic_reward.unsqueeze(-1)
-            log_info[f"agent{i}/intrinsic_reward"] = intrinsic_reward.mean().item()
-            log_info[f"agent{i}/total_reward"] = data_next["reward"][done].mean().item()
-            global_intrinsic_reward.append(intrinsic_reward.clone().cpu().detach())
-            global_total_reward.append(data_next["reward"][done].clone().cpu().detach())
+            # Add entropy reward 
+            data_next["reward"][done] = data_next["reward"][done] + entropy_reward.unsqueeze(-1)
 
-            # comute loss
-            _, loss, _ = compute_loss(extended_data, actor_training)
+            # Compute loss
+            data, loss = compute_loss(extended_data, actor_training)
 
             # Average loss over the batch
             loss = loss.mean()
 
-            # Add loss to the population
+            # Add data to log info
+            log_info[f"agent{i}/entropy"] = entropy.mean().item()
+            log_info[f"agent{i}/entropy_reward"] = entropy_reward.item()
+            global_entropy_reward.append(entropy_reward.clone().cpu().detach())
+            global_reward.append(data_next["reward"][done].clone().cpu().detach())
+            global_total_reward.append(data_next["reward"][done].clone().cpu().detach())
             log_info[f"agent{i}/loss"] = loss.item()
 
             # Update
@@ -433,21 +435,16 @@ def run_reinforce(cfg, task):
             actor_inference = actor_inference.cpu()
             actor_training = actor_training.cpu()
             torch.cuda.empty_cache()
-            # data = data.cpu()
-            # del data
+            data = data.cpu()
+            del data
 
+        # Add global data to log info
         log_info["global_reward"] = torch.cat(global_reward).mean().item()
         log_info["global_max_reward"] = torch.cat(global_reward).max().item()
-        log_info["global_intrinsic_reward"] = (
-            torch.cat(global_intrinsic_reward).mean().item()
-        )
-        log_info["global_intrinsic_max_reward"] = (
-            torch.cat(global_intrinsic_reward).max().item()
-        )
+        log_info["global_intrinsic_reward"] = (torch.cat(global_entropy_reward).mean().item())
+        log_info["global_intrinsic_max_reward"] = (torch.cat(global_entropy_reward).max().item())
         log_info["global_total_reward"] = torch.cat(global_total_reward).mean().item()
-        log_info["global_total_max_reward"] = (
-            torch.cat(global_total_reward).max().item()
-        )
+        log_info["global_total_max_reward"] = (torch.cat(global_total_reward).max().item())
 
         # Log info
         if logger:
@@ -468,7 +465,7 @@ def compute_loss(data, model):
     agent_likelihood = get_log_prob(data, model)
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     loss = -agent_likelihood * reward
-    return data, loss, agent_likelihood
+    return data, loss
 
 
 if __name__ == "__main__":
