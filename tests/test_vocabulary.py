@@ -3,7 +3,7 @@ from copy import copy
 
 import pytest
 
-from acegen.vocabulary.vocabulary import SMILESVocabulary
+from acegen.vocabulary.vocabulary import Vocabulary
 
 single_smiles = "CC1=CC=CC=C1"
 multiple_smiles = [
@@ -36,25 +36,21 @@ class Tokenizer:
 
 def test_from_smiles():
     tokenizer = Tokenizer()
-    vocabulary = SMILESVocabulary.create_from_smiles(
-        multiple_smiles, tokenizer=tokenizer
-    )
+    vocabulary = Vocabulary.create_from_strings(multiple_smiles, tokenizer=tokenizer)
     assert len(vocabulary) > 0
 
 
 def create_from_dict():
     tokens_dict = dict(zip(chars + ["EOS", "GO"], range(len(chars) + 2)))
-    vocabulary = SMILESVocabulary.create_from_dict(tokens_dict)
+    vocabulary = Vocabulary.create_from_dict(tokens_dict)
     assert len(vocabulary) > 0
 
 
 def test_create_methods_match():
     tokenizer = Tokenizer()
-    vocabulary = SMILESVocabulary.create_from_smiles(
-        multiple_smiles, tokenizer=tokenizer
-    )
+    vocabulary = Vocabulary.create_from_strings(multiple_smiles, tokenizer=tokenizer)
     tokens_dict = copy(vocabulary.vocab)
-    vocabulary2 = SMILESVocabulary.create_from_dict(
+    vocabulary2 = Vocabulary.create_from_dict(
         tokens_dict,
         start_token=vocabulary.start_token,
         end_token=vocabulary.end_token,
@@ -64,18 +60,12 @@ def test_create_methods_match():
         k2, v2 = obj2
         assert k1 == k2
         if k1 != "tokenizer":
-            print(k1)
-            try:
-                assert v1 == v2
-            except AssertionError:
-                import ipdb
-
-                ipdb.set_trace()
+            assert v1 == v2
 
 
 def test_full_pipeline():
     tokens_dict = dict(zip(chars + ["EOS", "GO"], range(len(chars) + 2)))
-    vocabulary = SMILESVocabulary.create_from_dict(tokens_dict)
+    vocabulary = Vocabulary.create_from_dict(tokens_dict)
 
     with pytest.raises(
         RuntimeError,
@@ -95,12 +85,12 @@ def test_full_pipeline():
 
 def test_state_dict():
     tokens_dict = dict(zip(chars + ["STOP", "START"], range(len(chars) + 2)))
-    vocabulary = SMILESVocabulary.create_from_dict(
+    vocabulary = Vocabulary.create_from_dict(
         tokens_dict, start_token="START", end_token="STOP"
     )
 
     state_dict = vocabulary.state_dict()
-    vocabulary2 = SMILESVocabulary()
+    vocabulary2 = Vocabulary()
     vocabulary2.load_state_dict(state_dict)
     for obj1, obj2 in zip(vocabulary.__dict__.items(), vocabulary2.__dict__.items()):
         k1, v1 = obj1

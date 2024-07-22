@@ -1,10 +1,10 @@
 import pytest
 import torch
 from acegen.models import adapt_state_dict, models
-from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary
+from acegen.rl_env import generate_complete_smiles, TokenEnv
+from acegen.vocabulary import Vocabulary
 from torchrl.collectors import RandomPolicy
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.envs.utils import step_mdp
 from torchrl.modules.utils import get_primers_from_module
 from utils import get_default_devices
@@ -39,7 +39,7 @@ def test_smiles_env(
     one_hot_obs_encoding,
 ):
     torch.manual_seed(0)
-    env = SMILESEnv(
+    env = TokenEnv(
         start_token=start_token,
         end_token=end_token,
         length_vocabulary=length_vocabulary,
@@ -97,7 +97,7 @@ def test_sample_smiles(
     one_hot_obs_encoding,
 ):
     torch.manual_seed(0)
-    env = SMILESEnv(
+    env = TokenEnv(
         start_token=start_token,
         end_token=end_token,
         length_vocabulary=length_vocabulary,
@@ -107,7 +107,7 @@ def test_sample_smiles(
         one_hot_action_encoding=one_hot_action_encoding,
         one_hot_obs_encoding=one_hot_obs_encoding,
     )
-    smiles = generate_complete_smiles(env, vocabulary=SMILESVocabulary(), policy=None)
+    smiles = generate_complete_smiles(env, vocabulary=Vocabulary(), policy=None)
     terminated = smiles.get(("next", "terminated")).squeeze(
         dim=-1
     )  # if max_length is reached is False
@@ -159,7 +159,7 @@ def test_sample_smiles_with_prompt(
     with open(voc_path, "r") as f:
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
-    vocabulary = SMILESVocabulary.create_from_dict(
+    vocabulary = Vocabulary.create_from_dict(
         tokens_dict,
         start_token="GO",
         end_token="EOS",
@@ -167,7 +167,7 @@ def test_sample_smiles_with_prompt(
     )
     length_vocabulary = len(vocabulary)
     # Create environment
-    env = SMILESEnv(
+    env = TokenEnv(
         start_token=start_token,
         end_token=end_token,
         length_vocabulary=length_vocabulary,
@@ -247,7 +247,7 @@ def test_sample_promptsmiles(
     with open(voc_path, "r") as f:
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
-    vocabulary = SMILESVocabulary.create_from_dict(
+    vocabulary = Vocabulary.create_from_dict(
         tokens_dict,
         start_token="GO",
         end_token="EOS",
@@ -266,7 +266,7 @@ def test_sample_promptsmiles(
     policy_inference = policy_inference.to(device)
 
     # Create environment
-    env = SMILESEnv(
+    env = TokenEnv(
         start_token=vocabulary.start_token_index,
         end_token=vocabulary.end_token_index,
         length_vocabulary=length_vocabulary,
