@@ -177,13 +177,16 @@ def run_reinforce(cfg, task):
     ckpt = torch.load(ckpt_path, map_location=device)
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
-        adapt_state_dict(ckpt, actor_inference.state_dict())
+        adapt_state_dict(deepcopy(ckpt), actor_inference.state_dict())
     )
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
 
-    prior = deepcopy(actor_training)
+    prior, _ = create_actor(vocabulary_size=len(vocabulary))
+    prior.load_state_dict(
+        adapt_state_dict(deepcopy(ckpt), prior.state_dict())
+    )
+    prior = prior.to(device)
 
     # Create RL environment
     ####################################################################################################################
@@ -331,6 +334,7 @@ def run_reinforce(cfg, task):
         )
 
         log_info = {}
+        sample_n = data.size(0)
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
         total_done += cfg.num_envs  # done.sum().item()
@@ -355,7 +359,7 @@ def run_reinforce(cfg, task):
             )
 
         # Apply Hill-Climb
-        if cfg.get("topk", False):
+        if cfg.get("topk", False) and cfg.get("topk", False) < 1:
             sscore, sscore_idxs = (
                 data_next["reward"][done].squeeze(-1).sort(descending=True)
             )
@@ -367,9 +371,9 @@ def run_reinforce(cfg, task):
             and len(experience_replay_buffer) > cfg.replay_batch_size
         ):
             replay_batch = experience_replay_buffer.sample().exclude(
-                "priority", "index", "prior_log_prob", "_weight"
+                "priority", "index", "prior_log_prob", "_weight", "SMILES"
             )
-            data = torch.cat((data, replay_batch), 0)
+            data = torch.cat((data.exclude("SMILES"), replay_batch), 0)
 
         # Compute loss
         data, loss, agent_likelihood = compute_loss(
@@ -379,11 +383,17 @@ def run_reinforce(cfg, task):
             alpha=cfg.get("alpha", 1),
             sigma=cfg.get("sigma", 0.0),
             baseline=baseline,
-            entropy_coef=cfg.get("entropy_coef", 0.0),
+            entropy_coef=cfg.get("entropy_coef", 0.0)
         )
 
         # Average loss over the batch
         loss = loss.mean()
+
+        # Add NLL Entropy loss term (this is the inverse to minimize entropy accross the batch to increase information gain)
+        if cfg.get("nll_entropy_coef", False):
+            nll_entropy = torch.distributions.Categorical(logits=agent_likelihood).entropy().mean()
+            nll_entropy = nll_entropy / (sample_n / cfg.num_envs) # Scale by distribution size, i.e., penalize smaller entropy distributions
+            loss -= cfg.nll_entropy_coef * nll_entropy
 
         # Add regularizer that penalizes high likelihood for the entire sequence
         if cfg.get("likely_penalty_coef", False):
@@ -403,7 +413,7 @@ def run_reinforce(cfg, task):
             scheduler.step()
 
         # Then add new experiences to the replay buffer
-        if cfg.replay_buffer_size is True:
+        if cfg.get("replay_buffer_size", 100):
 
             replay_data = data.clone()
 
@@ -420,10 +430,12 @@ def run_reinforce(cfg, task):
                 replay_data = replay_data[~is_duplicated]
 
             # Add data to the replay buffer
-            if len(replay_data) > 1:
+            if len(replay_data) > 0:
                 reward = replay_data.get(("next", "reward"))
                 replay_data.set("priority", reward)
                 experience_replay_buffer.extend(replay_data)
+
+        torch.cuda.empty_cache()
 
         # Log info
         if logger:
