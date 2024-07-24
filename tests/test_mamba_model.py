@@ -6,7 +6,6 @@ from acegen.models.mamba import (
     create_mamba_actor_critic,
     create_mamba_critic,
 )
-from tensordict import TensorDict
 from utils import get_default_devices
 
 
