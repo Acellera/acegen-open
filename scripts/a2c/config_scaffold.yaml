@@ -39,6 +39,6 @@ gamma: 0.999
 lmbda: 0.99
 critic_coef: 0.5
 entropy_coef: 0.05
-kl_coef: 0.1
+kl_coef: 0.001
 mini_batch_size: 16
 max_grad_norm: 0.5

@@ -1,4 +1,4 @@
-from acegen.vocabulary.base import Tokenizer, Vocabulary
+from acegen.vocabulary.base import BaseTokenizer, BaseVocabulary
 from acegen.vocabulary.tokenizers import (
     AISTokenizer,
     AsciiSMILESTokenizer,
@@ -9,7 +9,7 @@ from acegen.vocabulary.tokenizers import (
     SMILESTokenizerEnamine,
     SMILESTokenizerGuacaMol,
 )
-from acegen.vocabulary.vocabulary import SMILESVocabulary
+from acegen.vocabulary.vocabulary import Vocabulary
 
 tokenizer_options = {
     "AISTokenizer": AISTokenizer,

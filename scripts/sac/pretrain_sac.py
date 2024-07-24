@@ -13,7 +13,7 @@ import torch
 import tqdm
 import yaml
 
-from acegen import SMILESEnv, SMILESVocabulary
+from acegen import TokenEnv, Vocabulary
 from acegen.models import (
     adapt_state_dict,
     create_gru_actor,
@@ -85,7 +85,7 @@ def main(cfg: "DictConfig"):
     with open(ckpt, "r") as f:
         tokens = f.read().splitlines()
     tokens_dict = dict(zip(tokens, range(len(tokens))))
-    vocabulary = SMILESVocabulary.create_from_dict(
+    vocabulary = Vocabulary.create_from_dict(
         tokens_dict, start_token="GO", end_token="EOS"
     )
 
@@ -173,7 +173,7 @@ def main(cfg: "DictConfig"):
 
     def create_env_fn():
         """Create a single RL rl_env."""
-        env = SMILESEnv(**env_kwargs)
+        env = TokenEnv(**env_kwargs)
         env = TransformedEnv(env)
         env.append_transform(
             UnsqueezeTransform(
@@ -197,7 +197,7 @@ def main(cfg: "DictConfig"):
         return env
 
     # tests rl_env
-    test_env = SMILESEnv(**env_kwargs)
+    test_env = TokenEnv(**env_kwargs)
 
     # Scoring transform - more efficient to do it outside the environment
     ####################################################################################################################

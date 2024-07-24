@@ -13,15 +13,15 @@ import torch
 
 from acegen.data import load_dataset, SMILESDataset
 from acegen.models import models, register_model
-from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary, tokenizer_options
+from acegen.rl_env import generate_complete_smiles, TokenEnv
+from acegen.vocabulary import tokenizer_options, Vocabulary
 from rdkit import Chem
 from tensordict.utils import remove_duplicates
 from torch.distributed import barrier, destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
@@ -90,7 +90,7 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nConstructing vocabulary...")
     if master:
-        vocabulary = SMILESVocabulary.create_from_smiles(
+        vocabulary = Vocabulary.create_from_strings(
             load_dataset(cfg.train_dataset_path),
             tokenizer=tokenizer_options[cfg.tokenizer](),
         )
@@ -99,7 +99,7 @@ def main(cfg: "DictConfig"):
     barrier()
 
     # Load vocabulary from a file
-    vocabulary = SMILESVocabulary()
+    vocabulary = Vocabulary()
     vocabulary.load_state_dict(torch.load(save_path))
     vocabulary.tokenizer = tokenizer_options[cfg.tokenizer]()
 
@@ -152,7 +152,7 @@ def main(cfg: "DictConfig"):
     actor_inference.to(device)
 
     logging.info("\nCreating test environment...")
-    test_env = SMILESEnv(
+    test_env = TokenEnv(
         start_token=vocabulary.start_token_index,
         end_token=vocabulary.end_token_index,
         length_vocabulary=len(vocabulary),

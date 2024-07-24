@@ -12,11 +12,11 @@ import torch
 
 from acegen.data import chem_utils, load_dataset, MolBloomDataset, SMILESDataset
 from acegen.models import models, register_model
-from acegen.rl_env import generate_complete_smiles, SMILESEnv
-from acegen.vocabulary import SMILESVocabulary, tokenizer_options
+from acegen.rl_env import generate_complete_smiles, TokenEnv
+from acegen.vocabulary import tokenizer_options, Vocabulary
 from tensordict.utils import remove_duplicates
 from torch.utils.data import DataLoader
-from torchrl.envs import InitTracker, TensorDictPrimer, TransformedEnv
+from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
 from torchrl.record.loggers import get_logger
 from tqdm import tqdm
@@ -50,7 +50,7 @@ def main(cfg: "DictConfig"):
     os.makedirs(cfg.model_log_dir, exist_ok=True)
 
     logging.info("\nConstructing vocabulary...")
-    vocabulary = SMILESVocabulary.create_from_smiles(
+    vocabulary = Vocabulary.create_from_strings(
         load_dataset(cfg.train_dataset_path),
         tokenizer=tokenizer_options[cfg.tokenizer](),
         special_tokens=cfg.get("special_tokens", []),
@@ -98,7 +98,7 @@ def main(cfg: "DictConfig"):
     actor_inference.to(device)
 
     logging.info("\nCreating test environment...")
-    test_env = SMILESEnv(
+    test_env = TokenEnv(
         start_token=vocabulary.start_token_index,
         end_token=vocabulary.end_token_index,
         length_vocabulary=len(vocabulary),
