@@ -1,9 +1,7 @@
 #! /usr/bin/python3
 import datetime
-import json
 import os
 import random
-import shutil
 from copy import deepcopy
 from pathlib import Path
 
@@ -343,13 +341,11 @@ def get_log_prob(data, model):
 
 
 def compute_loss(data, model):
-
     mask = data.get("mask").squeeze(-1)
     agent_log_prob = get_log_prob(data, model)
     agent_likelihood = (agent_log_prob * mask).sum(-1)
     reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     loss = -agent_likelihood * reward
-
     return data, loss
 
 
