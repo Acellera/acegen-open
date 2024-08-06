@@ -6,6 +6,7 @@ python -m pip install torch torchvision
 # python -m pip install --pre torch --extra-index-url https://download.pytorch.org/whl/nightly/cpu --force-reinstall
 
 # Not testing these dependencies for now
+python -m pip install rdkit==2023.3.3
 # python -m pip MolScore promptsmiles
 
 cd ../acegen-open
