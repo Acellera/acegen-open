@@ -8,14 +8,14 @@
 ![license](https://img.shields.io/badge/license-MIT-blue)
 [![tutorials](https://img.shields.io/badge/tutorials-available-brightgreen)](https://github.com/Acellera/acegen-open/tree/main/tutorials)
 ![python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11-blue)
+[![arXiv](https://img.shields.io/badge/arXiv-<arXiv_ID>-blue)](https://arxiv.org/abs/2405.04657)
+[![JCIM](https://img.shields.io/badge/JCIM-DOI-blue)](https://pubs.acs.org/doi/abs/10.1021/acs.jcim.4c00895)
 
 ---
 
 ## Overview
 
 ACEGEN is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. ACEGEN harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
-
-The full paper can be found [here](https://pubs.acs.org/doi/abs/10.1021/acs.jcim.4c00895).
 
 ---
 
