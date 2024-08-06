@@ -3,7 +3,11 @@
   <img src="./acegen/images/acegen_logo.jpeg" alt="Alt Text" width="250" />
 </p>
 
-# AceGen: A TorchRL-based toolkit for reinforcement learning in generative chemistry
+# ACEGEN: A TorchRL-based toolkit for reinforcement learning in generative chemistry
+
+![license](https://img.shields.io/badge/license-MIT-blue)
+[![tutorials](https://img.shields.io/badge/tutorials-available-brightgreen)](https://github.com/Acellera/acegen-open/tree/main/tutorials)
+![python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11-blue)
 
 ---
 
@@ -11,27 +15,27 @@
 
 ACEGEN is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. ACEGEN harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
 
-The full paper can be found [here](https://arxiv.org/abs/2405.04657).
+The full paper can be found [here](https://pubs.acs.org/doi/abs/10.1021/acs.jcim.4c00895).
 
 ---
 
-## Features
+## Key Features
 
-- __**Multiple Generative Modes:**__ 
+- 🚀 __**Multiple Generative Modes:**__ 
 ACEGEN facilitates the generation of chemical libraries with different modes: de novo generation, scaffold decoration, and fragment linking.
 
-- __**RL Algorithms:**__ 
+- 🤖 __**RL Algorithms:**__ 
 ACEGEN offers task optimization with various reinforcement learning algorithms such as [Proximal Policy Optimization (PPO)][1], [Advantage Actor-Critic (A2C)][2], [Reinforce][3], [Reinvent][4], and [Augmented Hill-Climb (AHC)][5].
 
-- __**Other Algorithms:**__ 
+- 🔍 __**Other Algorithms:**__ 
 ACEGEN also includes [Direct Preference Optimization (DPO)][8] and Hill Climbing.
 
-- __**Pre-trained Models:**__ ACEGEN contains pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), GPT-2, LLama2 and Mamba.
+- 🧠 __**Pre-trained Models:**__ ACEGEN contains pre-trained models including Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), GPT-2, LLama2 and Mamba.
 
-- __**Scoring Functions :**__ 
+- 🧪 __**Scoring Functions :**__ 
 ACEGEN defaults to MolScore, a comprehensive scoring function suite for generative chemistry, to evaluate the quality of the generated molecules. MolScore allows to train agents on single scoring functions, on entire benchmarks containing multiple scoring functions (e.g., MolOpt, GuacaMol), or using curriculum learning where the same agent is optimized on a sequence of different scoring functions.
 
-- __**Customization Support:**__ 
+- 🛠️ __**Customization Support:**__ 
 ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
 
 ---
@@ -127,6 +131,18 @@ To run the training scripts for fragment linking, run the following commands (re
     python scripts/ahc/ahc.py --config-name config_linking
     python scripts/dpo/dpo.py --config-name config_linking
     python scripts/hill_climb/hill_climb.py --config-name config_linking
+
+### Optimization of Hyperparameters in the Configuration File
+
+The hyperparameters in the configuration files have sensible default values.
+
+However, the optimal choice of hyperparameters depends on multiple factors, including the scoring function and the network architecture.
+
+To learn how to perform hyperparameter sweeps using [wandb](https://wandb.ai/) to optimize a specific task, follow this [tutorial](tutorials/hyperparameter_optimisation_with_wandb.md).
+
+<p align="center">
+  <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="700" />
+</p>
 
 ### Advanced usage
 
@@ -263,9 +279,9 @@ If you use ACEGEN in your work, please refer to this BibTeX entry to cite it:
 ```
 @article{bou2024acegen,
   title={ACEGEN: Reinforcement learning of generative chemical agents for drug discovery},
-  author={Bou, Albert and Thomas, Morgan and Dittert, Sebastian and Navarro Ramírez, Carles and Majewski, Maciej and Wang, Ye and Patel, Shivam and Tresadern, Gary and Ahmad, Mazen and Moens, Vincent and Sherman, Woody and Sciabola, Simone and De Fabritiis, Gianni},
-  eprint={2405.04657},
-  archivePrefix={arXiv},
-  year={2024}
+  author={Bou, Albert and Thomas, Morgan and Dittert, Sebastian and Navarro, Carles and Majewski, Maciej and Wang, Ye and Patel, Shivam and Tresadern, Gary and Ahmad, Mazen and Moens, Vincent and others},
+  journal={Journal of Chemical Information and Modeling},
+  year={2024},
+  publisher={ACS Publications}
 }
 ```
