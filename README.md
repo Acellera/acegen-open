@@ -8,8 +8,8 @@
 ![license](https://img.shields.io/badge/license-MIT-blue)
 [![tutorials](https://img.shields.io/badge/tutorials-available-brightgreen)](https://github.com/Acellera/acegen-open/tree/main/tutorials)
 ![python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11-blue)
-[![arXiv](https://img.shields.io/badge/arXiv-<arXiv_ID>-blue)](https://arxiv.org/abs/2405.04657)
-[![JCIM](https://img.shields.io/badge/JCIM-DOI-blue)](https://pubs.acs.org/doi/abs/10.1021/acs.jcim.4c00895)
+[![arXiv](https://img.shields.io/badge/arXiv-2405.04657-red.svg)](https://arxiv.org/abs/2405.04657)
+[![JCIM](https://img.shields.io/badge/JCIM-10.1021%2Facs.jcim.4c00895-blue)](https://doi.org/10.1021/acs.jcim.4c00895)
 
 ---
 
