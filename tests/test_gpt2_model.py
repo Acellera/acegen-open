@@ -8,6 +8,18 @@ from acegen.models.gpt2 import (
 )
 from utils import get_default_devices
 
+try:
+    import transformers
+
+    transformers_available = True
+except ImportError:
+    transformers_available = False
+
+skip_if_transformers_not_available = pytest.mark.skipif(
+    not transformers_available,
+    reason="transformers library is not available, skipping this test",
+)
+
 
 def generate_valid_data_batch(
     vocabulary_size: int, batch_size: int, sequence_length: int
@@ -21,6 +33,7 @@ def generate_valid_data_batch(
     return batch
 
 
+@skip_if_transformers_not_available
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
 def test_gpt2_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
@@ -52,6 +65,7 @@ def test_gpt2_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
     assert "action" in training_batch.keys()
 
 
+@skip_if_transformers_not_available
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
 @pytest.mark.parametrize("critic_value_per_action", [True, False])
@@ -95,6 +109,7 @@ def test_gpt2_critic(
         assert "state_value" in training_batch.keys()
 
 
+@skip_if_transformers_not_available
 @pytest.mark.parametrize("vocabulary_size", [10])
 @pytest.mark.parametrize("device", get_default_devices())
 @pytest.mark.parametrize("critic_value_per_action", [True, False])
