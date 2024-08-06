@@ -40,40 +40,42 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 
 ---
 
+## Table of Contents
+- [Installation](#installation)
+  - [Conda environment and required dependencies](#conda-environment-and-required-dependencies)
+  - [Optional dependencies](#optional-dependencies)
+  - [Install ACEGEN](#install-acegen)
+- [Generating libraries of molecules](#generating-libraries-of-molecules)
+  - [Running training scripts to generate compound libraries](#running-training-scripts-to-generate-compound-libraries)
+  - [Alternative usage](#alternative-usage)
+- [Advanced usage](#advanced-usage)
+  - [Optimization of Hyperparameters in the Configuration Files](#optimization-of-hyperparameters-in-the-configuration-files)
+  - [Changing the scoring function](#changing-the-scoring-function)
+  - [Changing the policy prior](#changing-the-policy-prior)
+    - [Available models](#available-models)
+    - [Integration of custom models](#integration-of-custom-models)
+- [Results on the MolOpt benchmark](#results-on-the-molopt-benchmark)
+- [De Novo generation example: docking in the 5-HT2A](#de-novo-generation-example-docking-in-the-5-ht2a)
+- [Scaffold constrained generation example: BACE1 docking with AHC algorithm](#scaffold-constrained-generation-example-bace1-docking-with-ahc-algorithm)
+- [Citation](#citation)
+
+---
+
 ## Installation
 
-### Conda environment
+### Conda environment and required dependencies
 
 To create the conda / mamba environment, run
 
     conda create -n acegen python=3.10 -y
     conda activate acegen
-    pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu121
-    
-### Install Tensordict
 
-To install Tensordict, run
+To install the required dependencies run the following commands. Replace `cu121` with your appropriate CUDA version (e.g., `cu118`, `cu117`, `cu102`).
 
-    git clone https://github.com/pytorch/tensordict.git
-    cd tensordict
-    python setup.py install
+    pip3 install torch torchvision  --index-url https://download.pytorch.org/whl/cu121
+    pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb scipy
+    pip3 install torchrl
 
-### Install TorchRL
-
-To install TorchRL, run
-
-    git clone https://github.com/pytorch/rl.git
-    cd rl
-    python setup.py install
-
-### Install ACEGEN
-
-To install ACEGEN, run (use `pip install -e ./` for develop mode)
-
-    pip3 install tqdm wandb hydra-core
-    git clone https://github.com/Acellera/acegen-open.git
-    cd acegen-open
-    pip install ./
 
 ### Optional dependencies
 
@@ -85,7 +87,15 @@ To use the scaffold decoration and fragment linking, install promptsmiles by run
 
     pip3 install promptsmiles
 
-To learn how to configure constrained molecule generation with AcGen and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
+To learn how to configure constrained molecule generation with ACEGEN and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
+
+### Install ACEGEN
+
+To install ACEGEN, run (use `pip install -e ./` for develop mode)
+
+    git clone https://github.com/Acellera/acegen-open.git
+    cd acegen-open
+    pip install ./
 
 ---
 
@@ -132,19 +142,7 @@ To run the training scripts for fragment linking, run the following commands (re
     python scripts/dpo/dpo.py --config-name config_linking
     python scripts/hill_climb/hill_climb.py --config-name config_linking
 
-### Optimization of Hyperparameters in the Configuration File
-
-The hyperparameters in the configuration files have sensible default values.
-
-However, the optimal choice of hyperparameters depends on multiple factors, including the scoring function and the network architecture.
-
-To learn how to perform hyperparameter sweeps using [wandb](https://wandb.ai/) to optimize a specific task, follow this [tutorial](tutorials/hyperparameter_optimisation_with_wandb.md).
-
-<p align="center">
-  <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="900" />
-</p>
-
-### Advanced usage
+### Alternative usage
 
 Scripts are also available as executables after installation, but both the path and name of the config must be specified. For example,
 
@@ -156,18 +154,30 @@ YAML config parameters can also be specified on the command line. For example,
 
 ---
 
-## Changing the scoring function
+## Advanced usage
+
+### Optimization of Hyperparameters in the Configuration Files
+
+The hyperparameters in the configuration files have sensible default values. However, the optimal choice of hyperparameters depends on various factors, including the scoring function and the network architecture. Therefore, it is very useful to have a way to automatically explore the space of hyperparameters.
+
+To learn how to perform hyperparameter sweeps to find the best configuration for a specific problem using [wandb](https://wandb.ai/), follow this [tutorial](tutorials/hyperparameter_optimisation_with_wandb.md).
+
+<p align="center">
+  <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="900" />
+</p>
+
+
+### Changing the scoring function
 
 To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows to switch betwewn different scoring modes and scoring objecitves.
 Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explaination. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
 
 Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the instructions in this other [tutorial](tutorials/adding_custom_scoring_function.md).
 
----
 
-## Changing the policy prior
+### Changing the policy prior
 
-### Available models
+#### Available models
 
 We provide a variety of default priors that can be selected in the configuration file. These include:
 
@@ -206,7 +216,7 @@ We provide a variety of default priors that can be selected in the configuration
   - number of parameters: 5,965,760
   - to select set the field `model` to `llama2` in any configuration file
 
-### Integration of custom models
+#### Integration of custom models
 
 Users can also combine their own custom models with ACEGEN.
 
