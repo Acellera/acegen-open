@@ -183,7 +183,7 @@ def run_ppo(cfg, task):
         critic_training, critic_inference = create_critic(len(vocabulary))
 
     # Load pretrained weights
-    ckpt = torch.load(ckpt_path, map_location=device)
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
 
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())

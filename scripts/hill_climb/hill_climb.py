@@ -166,7 +166,7 @@ def run_hill_climb(cfg, task):
     # Create models
     ####################################################################################################################
 
-    ckpt = torch.load(ckpt_path, map_location=device)
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())
