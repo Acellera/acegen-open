@@ -81,6 +81,7 @@ To install the required dependencies run the following commands. Replace `cu121`
 
 Unless you intend to define your own custom scoring functions, install MolScore by running
 
+    pip3 install rdkit==2023.3.3, joblib
     pip3 install MolScore
 
 To use the scaffold decoration and fragment linking, install promptsmiles by running
