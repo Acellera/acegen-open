@@ -5,7 +5,7 @@
 
 # ACEGEN: A TorchRL-based toolkit for reinforcement learning in generative chemistry
 
-![license](https://img.shields.io/badge/license-MIT-blue)
+[![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Acellera/acegen-open/blob/main/LICENSE)
 [![tutorials](https://img.shields.io/badge/tutorials-available-brightgreen)](https://github.com/Acellera/acegen-open/tree/main/tutorials)
 ![python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11-blue)
 [![arXiv](https://img.shields.io/badge/arXiv-2405.04657-red.svg)](https://arxiv.org/abs/2405.04657)
