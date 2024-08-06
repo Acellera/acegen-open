@@ -141,7 +141,7 @@ However, the optimal choice of hyperparameters depends on multiple factors, incl
 To learn how to perform hyperparameter sweeps using [wandb](https://wandb.ai/) to optimize a specific task, follow this [tutorial](tutorials/hyperparameter_optimisation_with_wandb.md).
 
 <p align="center">
-  <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="700" />
+  <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="900" />
 </p>
 
 ### Advanced usage
