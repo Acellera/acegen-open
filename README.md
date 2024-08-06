@@ -5,8 +5,8 @@
 
 # ACEGEN: A TorchRL-based toolkit for reinforcement learning in generative chemistry
 
-![license](https://github.com/Acellera/acegen-open/blob/main/LICENSE)
-![tutorials](https://github.com/Acellera/acegen-open/tree/main/tutorials)
+![license](https://img.shields.io/badge/license-MIT-blue)
+[![tutorials](https://img.shields.io/badge/tutorials-available-brightgreen)](https://github.com/Acellera/acegen-open/tree/main/tutorials)
 ![python](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11-blue)
 
 ---
@@ -138,10 +138,10 @@ The hyperparameters in the configuration files have sensible default values.
 
 However, the optimal choice of hyperparameters depends on multiple factors, including the scoring function and the network architecture.
 
-To learn how to perform hyperparameter sweeps using [wandb](https://wandb.ai/) to optimize a specific task, follow this [tutorial](tutorials/hyperparameter_optimisation_with_wandb.md)
+To learn how to perform hyperparameter sweeps using [wandb](https://wandb.ai/) to optimize a specific task, follow this [tutorial](tutorials/hyperparameter_optimisation_with_wandb.md).
 
 <p align="center">
-  <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="250" />
+  <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="500" />
 </p>
 
 ### Advanced usage
