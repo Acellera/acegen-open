@@ -7,7 +7,9 @@ python -m pip install torch torchvision
 
 python -m pip torchrl
 python -m pip install rdkit==2023.3.3
-python -m pip MolScore promptsmiles
+python -m pip MolScore 
+python -m pip promptsmiles
+python -m pip transformers
 
 cd ../acegen-open
 pip install -e .

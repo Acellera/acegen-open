@@ -3,7 +3,9 @@ python -m pip install flake8 pytest pytest-cov hydra-core tqdm
 python -m pip install torch torchvision
 # python -m pip install --pre torch --extra-index-url https://download.pytorch.org/whl/nightly/cpu --force-reinstall
 python -m pip install rdkit==2023.3.3
-python -m pip MolScore promptsmiles
+python -m pip MolScore
+python -m pip promptsmiles
+python -m pip transformers
 
 cd ../acegen-open
 pip install -e .
