@@ -10,7 +10,7 @@ python -m pip install transformers promptsmiles torchrl rdkit==2023.3.3 MolScore
 
 # Verify installations
 python -c "import transformers; print(transformers.__version__)"
-python -c "import promptsmiles; print(promptsmiles.__version__)"
+python -c "import promptsmiles"
 # python -c "import mamba_ssm; print('mamba-ssm:', mamba_ssm.__version__)"  # Assuming mamba-ssm imports as mamba
 
 cd ../acegen-open
