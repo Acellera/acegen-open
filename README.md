@@ -73,7 +73,7 @@ To create the conda / mamba environment, run
 To install the required dependencies run the following commands. Replace `cu121` with your appropriate CUDA version (e.g., `cu118`, `cu117`, `cu102`).
 
     pip3 install torch torchvision  --index-url https://download.pytorch.org/whl/cu121
-    pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb scipy
+    pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb
     pip3 install torchrl
 
 
@@ -81,7 +81,7 @@ To install the required dependencies run the following commands. Replace `cu121`
 
 Unless you intend to define your own custom scoring functions, install MolScore by running
 
-    pip3 install rdkit==2023.3.3, joblib
+    pip3 install rdkit==2023.3.3
     pip3 install MolScore
 
 To use the scaffold decoration and fragment linking, install promptsmiles by running

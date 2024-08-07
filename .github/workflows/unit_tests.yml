@@ -25,7 +25,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-       bash .github/unittest/install_dependencies_nightly.sh
+       bash .github/unittest/install_dependencies.sh
     - name: Test with pytest
       run: |
         pytest tests/ --cov=acegen
