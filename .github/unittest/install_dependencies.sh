@@ -4,9 +4,8 @@ python -m pip install --upgrade pip
 # Install dependencies
 python -m pip install flake8 pytest pytest-cov hydra-core tqdm
 python -m pip install torch torchvision
-
-# Ensure dependencies are installed in the right order
 python -m pip install transformers promptsmiles torchrl rdkit==2023.3.3 MolScore # causal-conv1d>=1.4.0 mamba-ssm==1.2.2
+pip install deepsmiles selfies smi2sdf smi2svg # atomInSmiles safe
 
 # Verify installations
 python -c "import transformers; print(transformers.__version__)"
