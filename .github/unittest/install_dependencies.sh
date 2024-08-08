@@ -11,6 +11,7 @@ python -m pip install smi2sdf
 python -m pip install smi2svg
 python -m pip install atomInSmiles
 python -m pip install safe-mol
+python -m pip install smizip
 python -m pip install molbloom
 
 # Verify installations
