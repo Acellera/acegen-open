@@ -43,23 +43,23 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 ---
 
 ## Table of Contents
-1. **Installation**
+1. [**Installation**](#1-installation)
    - [1.1. Conda environment and required dependencies](#11-conda-environment-and-required-dependencies)
    - [1.2. Optional dependencies](#12-optional-dependencies)
    - [1.3. Install ACEGEN](#13-install-acegen)
-2. **Generating libraries of molecules**
+2. [**Generating libraries of molecules**](#2-generating-libraries-of-molecules)
    - [2.1. Running training scripts to generate compound libraries](#21-running-training-scripts-to-generate-compound-libraries)
    - [2.2. Alternative usage](#22-alternative-usage)
-3. **Advanced usage**
-   - [3.1. Optimization of hyperparameters in the configuration files](#31-optimization-of-hyperparameters-in-the-configuration-files)
+3. [**Advanced usage**](#3-advanced-usage)
+   - [3.1. Optimization of Hyperparameters in the Configuration Files](#31-optimization-of-hyperparameters-in-the-configuration-files)
    - [3.2. Changing the scoring function](#32-changing-the-scoring-function)
    - [3.3. Changing the policy prior](#33-changing-the-policy-prior)
      - [3.3.1. Available models](#331-available-models)
      - [3.3.2. Integration of custom models](#332-integration-of-custom-models)
-4. **Results on the MolOpt benchmark**
-5. **De Novo generation example: docking in the 5-HT2A**
-6. **Scaffold constrained generation example: BACE1 docking with AHC algorithm**
-7. **Citation**
+4. [**Results on the MolOpt benchmark**](#4-results-on-the-molopt-benchmark)
+5. [**De Novo generation example: docking in the 5-HT2A**](#5-de-novo-generation-example-docking-in-the-5-ht2a)
+6. [**Scaffold constrained generation example: BACE1 docking with AHC algorithm**](#6-scaffold-constrained-generation-example-bace1-docking-with-ahc-algorithm)
+7. [**Citation**](#7-citation)
 
 ---
 
