@@ -42,30 +42,30 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 
 ---
 
-## Table of Contents
-- [Installation](#installation)
-  - [Conda environment and required dependencies](#conda-environment-and-required-dependencies)
-  - [Optional dependencies](#optional-dependencies)
-  - [Install ACEGEN](#install-acegen)
-- [Generating libraries of molecules](#generating-libraries-of-molecules)
-  - [Running training scripts to generate compound libraries](#running-training-scripts-to-generate-compound-libraries)
-  - [Alternative usage](#alternative-usage)
-- [Advanced usage](#advanced-usage)
-  - [Optimization of Hyperparameters in the Configuration Files](#optimization-of-hyperparameters-in-the-configuration-files)
-  - [Changing the scoring function](#changing-the-scoring-function)
-  - [Changing the policy prior](#changing-the-policy-prior)
-    - [Available models](#available-models)
-    - [Integration of custom models](#integration-of-custom-models)
-- [Results on the MolOpt benchmark](#results-on-the-molopt-benchmark)
-- [De Novo generation example: docking in the 5-HT2A](#de-novo-generation-example-docking-in-the-5-ht2a)
-- [Scaffold constrained generation example: BACE1 docking with AHC algorithm](#scaffold-constrained-generation-example-bace1-docking-with-ahc-algorithm)
-- [Citation](#citation)
+## Table of Contentsx
+1. [**Installation**](#1-Installation)
+   - [1.1. Conda environment and required dependencies](#11-conda-environment-and-required-dependencies)
+   - [1.2. Optional dependencies](#12-optional-dependencies)
+   - [1.3. Install ACEGEN](#13-install-acegen)
+2. [**Generating libraries of molecules**](#2-generating-libraries-of-molecules)
+   - [2.1. Running training scripts to generate compound libraries](#21-running-training-scripts-to-generate-compound-libraries)
+   - [2.2. Alternative usage](#22-alternative-usage)
+3. [**Advanced usage**](#3-advanced-usage)
+   - [3.1. Optimization of Hyperparameters in the Configuration Files](#31-optimization-of-hyperparameters-in-the-configuration-files)
+   - [3.2. Changing the scoring function](#32-changing-the-scoring-function)
+   - [3.3. Changing the policy prior](#33-changing-the-policy-prior)
+     - [3.3.1. Available models](#331-available-models)
+     - [3.3.2. Integration of custom models](#332-integration-of-custom-models)
+4. [**Results on the MolOpt benchmark**](#4-results-on-the-molopt-benchmark)
+5. [**De Novo generation example: docking in the 5-HT2A**](#5-de-novo-generation-example-docking-in-the-5-ht2a)
+6. [**Scaffold constrained generation example: BACE1 docking with AHC algorithm**](#6-scaffold-constrained-generation-example-bace1-docking-with-ahc-algorithm)
+7. [**Citation**](#7-citation)
 
 ---
 
-## Installation
+## 1. Installation 
 
-### Conda environment and required dependencies
+### 1.1. Conda environment and required dependencies
 
 To create the conda / mamba environment, run
 
@@ -79,7 +79,7 @@ To install the required dependencies run the following commands. Replace `cu121`
     pip3 install torchrl
 
 
-### Optional dependencies
+### 1.2. Optional dependencies
 
 Unless you intend to define your own custom scoring functions, install MolScore by running
 
@@ -92,7 +92,7 @@ To use the scaffold decoration and fragment linking, install promptsmiles by run
 
 To learn how to configure constrained molecule generation with ACEGEN and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
 
-### Install ACEGEN
+### 1.3. Install ACEGEN
 
 To install ACEGEN, run (use `pip install -e ./` for develop mode)
 
@@ -102,7 +102,7 @@ To install ACEGEN, run (use `pip install -e ./` for develop mode)
 
 ---
 
-## Generating libraries of molecules
+## 2. Generating libraries of molecules 
 
 ACEGEN has multiple RL algorithms available, each in a different directory within the `acegen-open/scripts` directory. Each RL algorithm has three different generative modes of execution: de novo, scaffold decoration, and fragment linking.
 
@@ -112,7 +112,7 @@ While the default values in the configuration files are considered sensible, a d
 
 To customize the model architecture, refer to the [Changing the model architecture](##Changing the model architecture) section. To customize the scoring function, refer to the [Changing the scoring function](##Changing the scoring function) section.
 
-### Running training scripts to generate compoud libraries
+### 2.1. Running training scripts to generate compoud libraries
 
 To run the training scripts for denovo generation, run the following commands:
     
@@ -145,7 +145,7 @@ To run the training scripts for fragment linking, run the following commands (re
     python scripts/dpo/dpo.py --config-name config_linking
     python scripts/hill_climb/hill_climb.py --config-name config_linking
 
-### Alternative usage
+### 2.2. Alternative usage
 
 Scripts are also available as executables after installation, but both the path and name of the config must be specified. For example,
 
@@ -157,9 +157,9 @@ YAML config parameters can also be specified on the command line. For example,
 
 ---
 
-## Advanced usage
+## 3. Advanced usage
 
-### Optimization of Hyperparameters in the Configuration Files
+### 3.1. Optimization of hyperparameters in the configuration files
 
 The hyperparameters in the configuration files have sensible default values. However, the optimal choice of hyperparameters depends on various factors, including the scoring function and the network architecture. Therefore, it is very useful to have a way to automatically explore the space of hyperparameters.
 
@@ -170,7 +170,7 @@ To learn how to perform hyperparameter sweeps to find the best configuration for
 </p>
 
 
-### Changing the scoring function
+### 3.2. Changing the scoring function
 
 To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows to switch betwewn different scoring modes and scoring objecitves.
 Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explaination. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
@@ -178,9 +178,9 @@ Please refer to the `molscore` section in the configuration [tutorial](tutorials
 Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the instructions in this other [tutorial](tutorials/adding_custom_scoring_function.md).
 
 
-### Changing the policy prior
+### 3.3. Changing the policy prior
 
-#### Available models
+#### 3.3.1. Available models
 
 We provide a variety of default priors that can be selected in the configuration file. These include:
 
@@ -219,18 +219,15 @@ We provide a variety of default priors that can be selected in the configuration
   - number of parameters: 5,965,760
   - to select set the field `model` to `llama2` in any configuration file
 
-#### Integration of custom models
+#### 3.3.2. Integration of custom models
 
-Users can also combine their own custom models with ACEGEN.
-
-A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
+Users can also combine their own custom models with ACEGEN. A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
 
 ---
 
-## Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark
+## 4. Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark 
 
-Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. 
-Each algorithm ran 5 times with different seeds, and results were averaged. 
+Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
 The default values for each algorithm are those in our de novo configuration files.
 Additionally, for Reinvent we also tested the configuration proposed in the MolOpt paper.
 
@@ -273,19 +270,19 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ---
 
-## De Novo generation example: docking in the 5-HT2A
+## 5. De Novo generation example: docking in the 5-HT2A
 
 ![Alt Text](./acegen/images/acagen_de_novo.png)
 
 ---
 
-## Scaffold constrained generation example: BACE1 docking with AHC algorithm
+## 6. Scaffold constrained generation example: BACE1 docking with AHC algorithm
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
 
 ---
 
-## Citation
+## 7. Citation 
 
 If you use ACEGEN in your work, please refer to this BibTeX entry to cite it:
 
