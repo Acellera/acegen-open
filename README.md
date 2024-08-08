@@ -42,8 +42,8 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 
 ---
 
-## Table of Contents
-1. [**Installation**](#1-installation)
+## Table of Contentsx
+1. [**Installation**](#1-Installation)
    - [1.1. Conda environment and required dependencies](#11-conda-environment-and-required-dependencies)
    - [1.2. Optional dependencies](#12-optional-dependencies)
    - [1.3. Install ACEGEN](#13-install-acegen)
@@ -63,7 +63,7 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 
 ---
 
-## 1. Installation 📥
+## 1. Installation 
 
 ### 1.1. Conda environment and required dependencies
 
@@ -102,7 +102,7 @@ To install ACEGEN, run (use `pip install -e ./` for develop mode)
 
 ---
 
-## 2. Generating libraries of molecules 💊
+## 2. Generating libraries of molecules 
 
 ACEGEN has multiple RL algorithms available, each in a different directory within the `acegen-open/scripts` directory. Each RL algorithm has three different generative modes of execution: de novo, scaffold decoration, and fragment linking.
 
@@ -225,7 +225,7 @@ Users can also combine their own custom models with ACEGEN. A detailed guide on 
 
 ---
 
-## 4. Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark 📊
+## 4. Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark 
 
 Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
 The default values for each algorithm are those in our de novo configuration files.
@@ -282,7 +282,7 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ---
 
-## 7. Citation 📚
+## 7. Citation 
 
 If you use ACEGEN in your work, please refer to this BibTeX entry to cite it:
 
