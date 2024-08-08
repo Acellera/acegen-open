@@ -221,16 +221,13 @@ We provide a variety of default priors that can be selected in the configuration
 
 #### Integration of custom models
 
-Users can also combine their own custom models with ACEGEN.
-
-A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
+Users can also combine their own custom models with ACEGEN. A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
 
 ---
 
 ## Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark
 
-Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. 
-Each algorithm ran 5 times with different seeds, and results were averaged. 
+Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
 The default values for each algorithm are those in our de novo configuration files.
 Additionally, for Reinvent we also tested the configuration proposed in the MolOpt paper.
 
