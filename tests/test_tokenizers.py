@@ -8,6 +8,7 @@ from acegen.vocabulary.tokenizers import (
     SMILESTokenizerChEMBL,
     SMILESTokenizerEnamine,
     SMILESTokenizerGuacaMol,
+    SmiZipTokenizer,
 )
 
 try:
@@ -67,8 +68,9 @@ multiple_smiles = [
         (SMILESTokenizerChEMBL, True, None),
         (SMILESTokenizerEnamine, True, None),
         (SMILESTokenizerGuacaMol, True, None),
-        # (AISTokenizer, _has_AIS, AIS_ERR if not _has_AIS else None),
-        # (SAFETokenizer, _has_SAFE, SAFE_ERR if not _has_SAFE else None),
+        (AISTokenizer, _has_AIS, AIS_ERR if not _has_AIS else None),
+        (SAFETokenizer, _has_SAFE, SAFE_ERR if not _has_SAFE else None),
+        (SmiZipTokenizer, _has_smizip, SMIZIP_ERR if not _has_smizip else None),
     ],
 )
 def test_smiles_based_tokenizers(tokenizer, available, error):
