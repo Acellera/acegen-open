@@ -13,6 +13,7 @@ python -m pip install atomInSmiles
 python -m pip install safe-mol
 python -m pip install smizip
 python -m pip install molbloom
+python -m pip install wheel
 python -m pip install causal-conv1d>=1.4.0 --no-build-isolation
 python -m pip install mamba-ssm==1.2.2 --no-build-isolation
 
