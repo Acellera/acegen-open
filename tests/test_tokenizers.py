@@ -1,7 +1,7 @@
-import pytest
 import warnings
 from functools import partial
-from rdkit.Chem import AllChem as Chem
+
+import pytest
 
 from acegen.vocabulary.tokenizers import (
     AISTokenizer,
@@ -13,6 +13,7 @@ from acegen.vocabulary.tokenizers import (
     SMILESTokenizerGuacaMol,
     SmiZipTokenizer,
 )
+from rdkit.Chem import AllChem as Chem
 
 try:
     import deepsmiles
@@ -376,4 +377,6 @@ def test_smiles_based_tokenizers(tokenizer, available, error):
         eq, err = smiles_eq(decoded_smiles, smiles)
         assert eq, err
         if decoded_smiles != smiles:
-            warnings.warn(f"{tokenizer.__name__} behaviour: {smiles} -> {decoded_smiles}")
+            warnings.warn(
+                f"{tokenizer.__name__} behaviour: {smiles} -> {decoded_smiles}"
+            )

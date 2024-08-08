@@ -5,7 +5,7 @@ python -m pip install --upgrade pip
 python -m pip install flake8 pytest pytest-cov hydra-core tqdm
 python -m pip install torch torchvision
 python -m pip install transformers promptsmiles torchrl rdkit==2023.3.3 MolScore # causal-conv1d>=1.4.0 mamba-ssm==1.2.2
-python -m pip install deepsmiles selfies smi2sdf smi2svg # atomInSmiles safe
+python -m pip install deepsmiles selfies smi2sdf smi2svg atomInSmiles safe-mol
 python -m pip install molbloom
 
 # Verify installations
