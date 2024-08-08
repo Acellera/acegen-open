@@ -1,25 +1,10 @@
-# Upgrade pip and install dependencies
-python -m pip install --upgrade pip && \
-python -m pip install \
-    flake8 \
-    pytest \
-    pytest-cov \
-    hydra-core \
-    tqdm \
-    torch \
-    torchvision \
-    transformers \
-    promptsmiles \
-    torchrl \
-    rdkit==2023.09.03 \
-    MolScore \
-    deepsmiles \
-    selfies \
-    smi2sdf \
-    smi2svg \
-    atomInSmiles \
-    safe-mol \
-    molbloom
+# Upgrade pip
+python -m pip install --upgrade pip
+
+# Install dependencies
+python -m pip install flake8 pytest pytest-cov hydra-core tqdm deepsmiles selfies smi2sdf smi2svg atomInSmiles safe-mol molbloom
+python -m pip install torch torchvision
+python -m pip install transformers promptsmiles torchrl rdkit==2023.09.03 MolScore # causal-conv1d>=1.4.0 mamba-ssm==1.2.2
 
 # Verify installations
 python -c "import transformers; print(transformers.__version__)"
