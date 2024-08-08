@@ -13,6 +13,8 @@ python -m pip install atomInSmiles
 python -m pip install safe-mol
 python -m pip install smizip
 python -m pip install molbloom
+python -m pip causal-conv1d>=1.4.0 
+python -m pip mamba-ssm==1.2.2
 
 # Verify installations
 python -c "import transformers; print(transformers.__version__)"
