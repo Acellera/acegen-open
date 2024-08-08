@@ -3,9 +3,9 @@ import shutil
 import tempfile
 
 from acegen.scoring_functions import (
-    Task,
-    register_custom_scoring_function,
     custom_scoring_functions,
+    register_custom_scoring_function,
+    Task,
 )
 
 
