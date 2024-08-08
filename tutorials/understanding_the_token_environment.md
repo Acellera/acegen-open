@@ -1,9 +1,10 @@
-# Tutorial: Understanding the SMILES Environment
+# Tutorial: Understanding the token Environment
 
 ---
 
-In this tutorial, we will demonstrate how to create an AceGen environment for smiles generation. We will also explain 
-how to interact with it using TensorDicts and how to understand its expected inputs and outputs.
+In this tutorial, we will demonstrate how to create an AceGen environment for smiles generation.
+The same approach could be used for other chemical languages.
+We will also explain how to interact with this environment using TensorDicts and how to understand its expected inputs and outputs.
 
 ## Prerequisite Knowledge on TorchRL and Tensordict
 
@@ -15,10 +16,9 @@ dictionary of tensors as input and return a dictionary of tensors as output.
 
 ---
 
-## What is the SMILES environment?
+## What is the token environment?
 
-The SMILES environment is a Tensordict-compatible environment for molecule generation with SMILES, and a key component 
-of the AceGen library.  In particular, it is the component that manages the segment of the RL loop responsible for 
+The token environment is a Tensordict-compatible environment for molecule generation with language, and a key component of the AceGen library.  In particular, it is the component that manages the segment of the RL loop responsible for 
 providing observations in response to the agent's actions. This environment class inherits  from the TorchRL base 
 environment component ``EnvBase``, providing a range of advantages that include input and output data transformations, 
 compatibility with Gym-based APIs,  efficient vectorized options (enabling the generation of multiple molecules in parallel), 
@@ -27,11 +27,11 @@ environment, all TorchRL components become available for creating potential RL s
 
 ---
 
-## How to create a SMILES environment?
+## How to create a token environment?
 
 ### Create a vocabulary
 
-To create a SMILES environment, we first need to create a vocabulary. The vocabulary maps characters to indices and 
+To create a token environment, we first need to create a vocabulary. The vocabulary maps characters to indices and 
 vice versa.  There are 3 ways to create a vocabulary in AceGen.
 
 1. Create a vocabulary from a list of characters
@@ -86,9 +86,9 @@ env =  TokenEnv(
 
 ---
 
-## How to interact with the SMILES environment?
+## How to interact with the token environment?
 
-To start exploring how to use the SMILES environment, we can create an initial observation
+To start exploring how to use the token environment, we can create an initial observation
 
 ```python
 initial_td = env.reset() 
@@ -226,9 +226,9 @@ print([vocab1.decode(seq) for seq in rollout["action"].numpy()])
 
 ---
 
-## What are the exact expected inputs and outputs of the SMILES environment?
+## What are the exact expected inputs and outputs of the token environment?
 
-We can better understand the expected inputs and outputs of the SMILES environment by running the following code 
+We can better understand the expected inputs and outputs of the token environment by running the following code 
 snippets, which will print the full action, observation, done, and reward specs.
 
 ```python

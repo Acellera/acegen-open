@@ -2,8 +2,8 @@ import pytest
 
 from acegen.vocabulary.tokenizers import (
     AISTokenizer,
-    SAFETokenizer,
     DeepSMILESTokenizer,
+    SAFETokenizer,
     SELFIESTokenizer,
     SMILESTokenizerChEMBL,
     SMILESTokenizerEnamine,
@@ -54,18 +54,28 @@ multiple_smiles = [
     "CC1=CC=CC=C1",  # Toluene (C7H8)
 ]
 
-@pytest.mark.parametrize("tokenizer, available, error", [
-    (DeepSMILESTokenizer, _has_deepsmiles, DEEPSMILES_ERR if not _has_deepsmiles else None),
-    (SELFIESTokenizer, _has_selfies, SELFIES_ERR if not _has_selfies else None),
-    (SMILESTokenizerChEMBL, True, None),
-    (SMILESTokenizerEnamine, True, None),
-    (SMILESTokenizerGuacaMol, True, None),
-    # (AISTokenizer, _has_AIS, AIS_ERR if not _has_AIS else None),
-    # (SAFETokenizer, _has_SAFE, SAFE_ERR if not _has_SAFE else None),
-])
+
+@pytest.mark.parametrize(
+    "tokenizer, available, error",
+    [
+        (
+            DeepSMILESTokenizer,
+            _has_deepsmiles,
+            DEEPSMILES_ERR if not _has_deepsmiles else None,
+        ),
+        (SELFIESTokenizer, _has_selfies, SELFIES_ERR if not _has_selfies else None),
+        (SMILESTokenizerChEMBL, True, None),
+        (SMILESTokenizerEnamine, True, None),
+        (SMILESTokenizerGuacaMol, True, None),
+        # (AISTokenizer, _has_AIS, AIS_ERR if not _has_AIS else None),
+        # (SAFETokenizer, _has_SAFE, SAFE_ERR if not _has_SAFE else None),
+    ],
+)
 def test_smiles_based_tokenizers(tokenizer, available, error):
     if not available:
-        pytest.skip(f"Skipping {tokenizer.__name__} test because the required module is not available: {error}")
+        pytest.skip(
+            f"Skipping {tokenizer.__name__} test because the required module is not available: {error}"
+        )
     for smiles in multiple_smiles:
         t = tokenizer()
         tokens = t.tokenize(smiles)
@@ -74,4 +84,3 @@ def test_smiles_based_tokenizers(tokenizer, available, error):
         assert isinstance(tokens[0], str)
         decoded_smiles = t.untokenize(tokens)
         assert decoded_smiles == smiles
-
