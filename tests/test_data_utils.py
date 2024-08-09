@@ -11,6 +11,7 @@ from acegen.data import (
     smiles_to_tensordict,
     SMILESDataset,
 )
+from acegen.data.chem_utils import fraction_valid
 from acegen.vocabulary.tokenizers import SMILESTokenizerChEMBL
 from acegen.vocabulary.vocabulary import Vocabulary
 from tensordict import TensorDict
@@ -102,3 +103,21 @@ def test_load_dataset(randomize_smiles):
     data_batch = dataloader.__iter__().__next__()
     assert isinstance(data_batch, TensorDict)
     shutil.rmtree(temp_dir)
+
+
+def test_fraction_valid():
+
+    multiple_smiles = [
+        "CCO",  # Ethanol (C2H5OH)
+        "CCN(CC)CC",  # Triethylamine (C6H15N)
+        "CC(=O)OC(C)C",  # Diethyl carbonate (C7H14O3)
+        "CC(C)C",  # Isobutane (C4H10)
+        "CC1=CC=CC=C1",  # Toluene (C7H8)
+    ]
+
+    assert fraction_valid(multiple_smiles) == 1.0
+
+    # add an invalid SMILES
+    multiple_smiles.append("invalid")
+
+    assert fraction_valid(multiple_smiles) == 5 / 6
