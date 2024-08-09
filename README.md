@@ -17,7 +17,7 @@
 
 ## Overview
 
-ACEGEN is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. ACEGEN harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
+ACEGEN is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. ACEGEN harnesses the capabilities of [TorchRL](https://github.com/pytorch/rl), a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
 
 ---
 
