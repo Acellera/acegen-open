@@ -66,7 +66,7 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 <details>
   <summary><strong>1. Installation</strong></summary>
 
-  <!-- Blank line added here -->
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
   <details>
     <summary><strong>1.1. Conda environment and required dependencies</strong></summary>
