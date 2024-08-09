@@ -289,7 +289,7 @@ Users can also combine their own custom models with ACEGEN. A detailed guide on 
   <summary><strong>4. Results on the MolOpt benchmark </strong></summary>
     &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on [MolOpt benchmark]((https://arxiv.org/pdf/2206.12411.pdf)) scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
+Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on [MolOpt benchmark](https://arxiv.org/pdf/2206.12411.pdf) scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
 The default values for each algorithm are those in our de novo configuration files.
 Additionally, for Reinvent we also tested the configuration proposed in the MolOpt paper.
 
@@ -345,7 +345,7 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 <details>
   <summary><strong>6. Scaffold constrained generation example: BACE1 docking with AHC algorithm </strong></summary>
-
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
 
