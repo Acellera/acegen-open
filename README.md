@@ -17,7 +17,7 @@
 
 ## Overview
 
-ACEGEN is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. ACEGEN harnesses the capabilities of TorchRL, a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
+ACEGEN is a comprehensive toolkit designed to leverage reinforcement learning (RL) techniques for generative chemistry tasks, particularly in drug design. ACEGEN harnesses the capabilities of [TorchRL](https://github.com/pytorch/rl), a modern library for general decision-making tasks, to provide a flexible and integrated solution for generative drug design challenges.
 
 ---
 
@@ -138,7 +138,7 @@ Each mode of execution has its own configuration file in YAML format, located ri
 
 While the default values in the configuration files are considered sensible, a default scoring function and model architecture are also defined so users can test the scripts out of the box. However, users might generally want to customize the model architecture or the scoring function.
 
-To customize the model architecture, refer to the [Changing the model architecture](##Changing the model architecture) section. To customize the scoring function, refer to the [Changing the scoring function](##Changing the scoring function) section.
+For customizing the scoring function, see section `3.2. Changing the scoring function`. For customizing the model architecture, see section `3.3.2. Integration of custom models`.
 
   <details>
     <summary><strong>2.1. Running training scripts to generate compound libraries</strong></summary>
