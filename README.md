@@ -52,7 +52,7 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
    - [2.2. Alternative usage]
 3. [**Advanced usage**]
    - [3.1. Optimization of Hyperparameters in the Configuration Files]
-   - [3.2. Changing the scoring function](#32-changing-the-scoring-function)
+   - [3.2. Changing the scoring function]
    - [3.3. Changing the policy prior]
      - [3.3.1. Available models]
      - [3.3.2. Integration of custom models]
