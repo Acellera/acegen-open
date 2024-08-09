@@ -43,14 +43,14 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 ---
 
 ## Table of Contents
-1. [**Installation**](#1-Installation)
+1. [**Installation**](#installation)
    - [1.1. Conda environment and required dependencies](#11-conda-environment-and-required-dependencies)
    - [1.2. Optional dependencies](#12-optional-dependencies)
    - [1.3. Install ACEGEN](#13-install-acegen)
-2. [**Generating libraries of molecules**](#2-generating-libraries-of-molecules)
+2. [**Generating libraries of molecules**](#generating-libraries-of-molecules)
    - [2.1. Running training scripts to generate compound libraries](#21-running-training-scripts-to-generate-compound-libraries)
    - [2.2. Alternative usage](#22-alternative-usage)
-3. [**Advanced usage**](#3-advanced-usage)
+3. [**Advanced usage**](#advanced-usage)
    - [3.1. Optimization of Hyperparameters in the Configuration Files](#31-optimization-of-hyperparameters-in-the-configuration-files)
    - [3.2. Changing the scoring function](#32-changing-the-scoring-function)
    - [3.3. Changing the policy prior](#33-changing-the-policy-prior)
