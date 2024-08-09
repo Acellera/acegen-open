@@ -43,23 +43,23 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 ---
 
 ## Table of Contents
-1. [**Installation**]
-   - [1.1. Conda environment and required dependencies]
-   - [1.2. Optional dependencies]
-   - [1.3. Install ACEGEN]
-2. [**Generating libraries of molecules**]
-   - [2.1. Running training scripts to generate compound libraries]
-   - [2.2. Alternative usage]
-3. [**Advanced usage**]
-   - [3.1. Optimization of Hyperparameters in the Configuration Files]
-   - [3.2. Changing the scoring function]
-   - [3.3. Changing the policy prior]
-     - [3.3.1. Available models]
-     - [3.3.2. Integration of custom models]
-4. [**Results on the MolOpt benchmark**]
-5. [**De Novo generation example: docking in the 5-HT2A**]
-6. [**Scaffold constrained generation example: BACE1 docking with AHC algorithm**]
-7. [**Citation**]
+1. **Installation**
+   - 1.1. Conda environment and required dependencies
+   - 1.2. Optional dependencies
+   - 1.3. Install ACEGEN
+2. **Generating libraries of molecules**
+   - 2.1. Running training scripts to generate compound libraries
+   - 2.2. Alternative usage
+3. **Advanced usage**
+   - 3.1. Optimization of Hyperparameters in the Configuration Files
+   - 3.2. Changing the scoring function
+   - 3.3. Changing the policy prior
+     - 3.3.1. Available models
+     - 3.3.2. Integration of custom models
+4. **Results on the MolOpt benchmark**
+5. **De Novo generation example: docking in the 5-HT2A**
+6. **Scaffold constrained generation example: BACE1 docking with AHC algorithm**
+7. **Citation**
 
 ---
 
@@ -85,6 +85,7 @@ pip3 install torch torchvision  --index-url https://download.pytorch.org/whl/cu1
 pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb
 pip3 install torchrl
 ```
+
 
   </details>
 
