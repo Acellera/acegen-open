@@ -110,7 +110,7 @@ Each mode of execution has its own configuration file in YAML format, located ri
 
 While the default values in the configuration files are considered sensible, a default scoring function and model architecture are also defined so users can test the scripts out of the box. However, users might generally want to customize the model architecture or the scoring function.
 
-To customize the model architecture, refer to the [Changing the model architecture](##Changing the model architecture) section. To customize the scoring function, refer to the [Changing the scoring function](##Changing the scoring function) section.
+To customize the model architecture, refer to the [Changing the model architecture](#332-integration-of-custom-models) section. To customize the scoring function, refer to the [Changing the scoring function](#32-changing-the-scoring-function) section.
 
 ### 2.1. Running training scripts to generate compoud libraries
 
