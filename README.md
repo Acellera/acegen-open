@@ -42,7 +42,7 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 
 ---
 
-## Table of Contentsx
+## Table of Contents
 1. [**Installation**](#1-Installation)
    - [1.1. Conda environment and required dependencies](#11-conda-environment-and-required-dependencies)
    - [1.2. Optional dependencies](#12-optional-dependencies)
