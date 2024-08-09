@@ -285,10 +285,10 @@ Users can also combine their own custom models with ACEGEN. A detailed guide on 
 ---
 
 <details>
-  <summary><strong>4. Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark </strong></summary>
+  <summary><strong>4. Results on the MolOpt benchmark </strong></summary>
     &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
+Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on [MolOpt benchmark]((https://arxiv.org/pdf/2206.12411.pdf)) scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
 The default values for each algorithm are those in our de novo configuration files.
 Additionally, for Reinvent we also tested the configuration proposed in the MolOpt paper.
 
@@ -334,6 +334,7 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 <details>
   <summary><strong>5. De Novo generation example: docking in the 5-HT2A </strong></summary>
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 ![Alt Text](./acegen/images/acagen_de_novo.png)
 
