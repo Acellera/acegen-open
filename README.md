@@ -42,31 +42,11 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 
 ---
 
-## Table of Contents
-1. [**Installation**](#installation)
-   - [1.1. Conda environment and required dependencies](#11-conda-environment-and-required-dependencies)
-   - [1.2. Optional dependencies](#12-optional-dependencies)
-   - [1.3. Install ACEGEN](#13-install-acegen)
-2. [**Generating libraries of molecules**](#generating-libraries-of-molecules)
-   - [2.1. Running training scripts to generate compound libraries](#21-running-training-scripts-to-generate-compound-libraries)
-   - [2.2. Alternative usage](#22-alternative-usage)
-3. [**Advanced usage**](#advanced-usage)
-   - [3.1. Optimization of Hyperparameters in the Configuration Files](#31-optimization-of-hyperparameters-in-the-configuration-files)
-   - [3.2. Changing the scoring function](#32-changing-the-scoring-function)
-   - [3.3. Changing the policy prior](#33-changing-the-policy-prior)
-     - [3.3.1. Available models](#331-available-models)
-     - [3.3.2. Integration of custom models](#332-integration-of-custom-models)
-4. [**Results on the MolOpt benchmark**](#4-results-on-the-molopt-benchmark)
-5. [**De Novo generation example: docking in the 5-HT2A**](#5-de-novo-generation-example-docking-in-the-5-ht2a)
-6. [**Scaffold constrained generation example: BACE1 docking with AHC algorithm**](#6-scaffold-constrained-generation-example-bace1-docking-with-ahc-algorithm)
-7. [**Citation**](#7-citation)
-
----
-
 <details>
   <summary><strong>1. Installation</strong></summary>
 
-### 1.1. Conda environment and required dependencies
+  <details>
+    <summary><strong>1.1. Conda environment and required dependencies</strong></summary>
 
 To create the conda / mamba environment, run
 
@@ -79,8 +59,10 @@ To install the required dependencies run the following commands. Replace `cu121`
     pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb
     pip3 install torchrl
 
+  <details>
 
-### 1.2. Optional dependencies
+  <details>
+    <summary><strong>1.2. Optional dependencies</strong></summary>
 
 Unless you intend to define your own custom scoring functions, install MolScore by running
 
@@ -93,13 +75,18 @@ To use the scaffold decoration and fragment linking, install promptsmiles by run
 
 To learn how to configure constrained molecule generation with ACEGEN and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
 
-### 1.3. Install ACEGEN
+  <details>
+
+  <details>
+    <summary><strong>1.3. Install ACEGEN</strong></summary>
 
 To install ACEGEN, run (use `pip install -e ./` for develop mode)
 
     git clone https://github.com/Acellera/acegen-open.git
     cd acegen-open
     pip install ./
+
+  <details>
 
 </details>
 
@@ -230,11 +217,11 @@ We provide a variety of default priors that can be selected in the configuration
 
 Users can also combine their own custom models with ACEGEN. A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
 
-</details>
 
 ---
 
-## 4. Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark 
+<details>
+  <summary><strong>4. Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark </strong></summary>
 
 Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
 The default values for each algorithm are those in our de novo configuration files.
@@ -276,18 +263,26 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 [7]: https://arxiv.org/abs/2007.03328
 [8]: https://arxiv.org/abs/2305.18290
 
+</details>
 
 ---
 
-## 5. De Novo generation example: docking in the 5-HT2A
+<details>
+  <summary><strong>5. De Novo generation example: docking in the 5-HT2A </strong></summary>
 
 ![Alt Text](./acegen/images/acagen_de_novo.png)
 
+</details>
+
 ---
 
-## 6. Scaffold constrained generation example: BACE1 docking with AHC algorithm
+<details>
+  <summary><strong>6. Scaffold constrained generation example: BACE1 docking with AHC algorithm </strong></summary>
+
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
+
+details
 
 ---
 
