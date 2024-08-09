@@ -63,7 +63,8 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 
 ---
 
-## 1. Installation 
+<details>
+  <summary><strong>1. Installation</strong></summary>
 
 ### 1.1. Conda environment and required dependencies
 
@@ -100,9 +101,12 @@ To install ACEGEN, run (use `pip install -e ./` for develop mode)
     cd acegen-open
     pip install ./
 
+</details>
+
 ---
 
-## 2. Generating libraries of molecules 
+<details>
+  <summary><strong>2. Generating libraries of molecules</strong></summary>
 
 ACEGEN has multiple RL algorithms available, each in a different directory within the `acegen-open/scripts` directory. Each RL algorithm has three different generative modes of execution: de novo, scaffold decoration, and fragment linking.
 
@@ -155,10 +159,13 @@ YAML config parameters can also be specified on the command line. For example,
 
     ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml> total_smiles=100
 
+</details>
+
 ---
 
-## 3. Advanced usage
-
+<details>
+  <summary><strong>3. Advanced usage</strong></summary>
+  
 ### 3.1. Optimization of hyperparameters in the configuration files
 
 The hyperparameters in the configuration files have sensible default values. However, the optimal choice of hyperparameters depends on various factors, including the scoring function and the network architecture. Therefore, it is very useful to have a way to automatically explore the space of hyperparameters.
@@ -222,6 +229,8 @@ We provide a variety of default priors that can be selected in the configuration
 #### 3.3.2. Integration of custom models
 
 Users can also combine their own custom models with ACEGEN. A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
+
+</details>
 
 ---
 
