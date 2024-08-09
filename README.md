@@ -344,10 +344,13 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ---
 
-## 6. Scaffold constrained generation example: BACE1 docking with AHC algorithm
+<details>
+  <summary><strong>6. Scaffold constrained generation example: BACE1 docking with AHC algorithm </strong></summary>
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
 
+</details>
 
 ---
 
