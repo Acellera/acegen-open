@@ -349,7 +349,7 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
 
-details
+<details>
 
 ---
 
