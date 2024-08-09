@@ -280,6 +280,7 @@ We provide a variety of default priors that can be selected in the configuration
 Users can also combine their own custom models with ACEGEN. A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
 
 </details>
+</details>
 
 ---
 
