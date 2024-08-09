@@ -69,51 +69,54 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
   <details>
     <summary><strong>1.1. Conda environment and required dependencies</strong></summary>
 
-    To create the conda / mamba environment, run:
+To create the conda / mamba environment, run:
 
-    ```bash
-    conda create -n acegen python=3.10 -y
-    conda activate acegen
-    ```
+```bash
+conda create -n acegen python=3.10 -y
+conda activate acegen
+```
 
-    To install the required dependencies run the following commands. Replace `cu121` with your appropriate CUDA version (e.g., `cu118`, `cu117`, `cu102`).
+To install the required dependencies run the following commands. Replace `cu121` with your appropriate CUDA version (e.g., `cu118`, `cu117`, `cu102`).
 
-    ```bash
-    pip3 install torch torchvision  --index-url https://download.pytorch.org/whl/cu121
-    pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb
-    pip3 install torchrl
-    ```
+```bash
+pip3 install torch torchvision  --index-url https://download.pytorch.org/whl/cu121
+pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb
+pip3 install torchrl
+```
+
   </details>
 
   <details>
     <summary><strong>1.2. Optional dependencies</strong></summary>
 
-    Unless you intend to define your own custom scoring functions, install MolScore by running:
+Unless you intend to define your own custom scoring functions, install MolScore by running:
 
-    ```bash
-    pip3 install rdkit==2023.3.3
-    pip3 install MolScore
-    ```
+```bash
+pip3 install rdkit==2023.3.3
+pip3 install MolScore
+```
 
-    To use the scaffold decoration and fragment linking, install promptsmiles by running:
+To use the scaffold decoration and fragment linking, install promptsmiles by running:
 
-    ```bash
-    pip3 install promptsmiles
-    ```
+```bash
+pip3 install promptsmiles
+```
 
-    To learn how to configure constrained molecule generation with ACEGEN and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
+To learn how to configure constrained molecule generation with ACEGEN and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
+
   </details>
 
   <details>
     <summary><strong>1.3. Install ACEGEN</strong></summary>
 
-    To install ACEGEN, run (use `pip install -e ./` for develop mode):
+To install ACEGEN, run (use `pip install -e ./` for develop mode):
 
-    ```bash
-    git clone https://github.com/Acellera/acegen-open.git
-    cd acegen-open
-    pip install ./
-    ```
+```bash
+git clone https://github.com/Acellera/acegen-open.git
+cd acegen-open
+pip install ./
+```
+
   </details>
 
 </details>
