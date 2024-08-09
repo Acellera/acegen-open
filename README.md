@@ -40,6 +40,26 @@ ACEGEN defaults to MolScore, a comprehensive scoring function suite for generati
 - 🛠️ __**Customization Support:**__ 
 ACEGEN provides tutorials for integrating custom models and custom scoring functions, ensuring flexibility for advanced users.
 
+---
+
+## Table of Contents
+1. [**Installation**]
+   - [1.1. Conda environment and required dependencies]
+   - [1.2. Optional dependencies]
+   - [1.3. Install ACEGEN]
+2. [**Generating libraries of molecules**]
+   - [2.1. Running training scripts to generate compound libraries]
+   - [2.2. Alternative usage]
+3. [**Advanced usage**]
+   - [3.1. Optimization of Hyperparameters in the Configuration Files]
+   - [3.2. Changing the scoring function](#32-changing-the-scoring-function)
+   - [3.3. Changing the policy prior]
+     - [3.3.1. Available models]
+     - [3.3.2. Integration of custom models]
+4. [**Results on the MolOpt benchmark**]
+5. [**De Novo generation example: docking in the 5-HT2A**]
+6. [**Scaffold constrained generation example: BACE1 docking with AHC algorithm**]
+7. [**Citation**]
 
 ---
 
@@ -103,18 +123,20 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 <details>
   <summary><strong>2. Generating libraries of molecules</strong></summary>
 
-ACEGEN has multiple RL algorithms available, each in a different directory within the `acegen-open/scripts` directory. Each RL algorithm has three different generative modes of execution: de novo, scaffold decoration, and fragment linking.
+  ACEGEN has multiple RL algorithms available, each in a different directory within the `acegen-open/scripts` directory. Each RL algorithm has three different generative modes of execution: de novo, scaffold decoration, and fragment linking.
 
-Each mode of execution has its own configuration file in YAML format, located right next to the script. To modify training parameters for any mode, edit the corresponding YAML file. For a breakdown of the general structure of our configuration files, refer to this [tutorial](tutorials/breaking_down_configuration_files.md).
+  Each mode of execution has its own configuration file in YAML format, located right next to the script. To modify training parameters for any mode, edit the corresponding YAML file. For a breakdown of the general structure of our configuration files, refer to this [tutorial](tutorials/breaking_down_configuration_files.md).
 
-While the default values in the configuration files are considered sensible, a default scoring function and model architecture are also defined so users can test the scripts out of the box. However, users might generally want to customize the model architecture or the scoring function.
+  While the default values in the configuration files are considered sensible, a default scoring function and model architecture are also defined so users can test the scripts out of the box. However, users might generally want to customize the model architecture or the scoring function.
 
-To customize the model architecture, refer to the [Changing the model architecture](##Changing the model architecture) section. To customize the scoring function, refer to the [Changing the scoring function](##Changing the scoring function) section.
+  To customize the model architecture, refer to the [Changing the model architecture](##Changing the model architecture) section. To customize the scoring function, refer to the [Changing the scoring function](##Changing the scoring function) section.
 
-### 2.1. Running training scripts to generate compoud libraries
+  <details>
+    <summary><strong>2.1. Running training scripts to generate compound libraries</strong></summary>
 
-To run the training scripts for denovo generation, run the following commands:
+    To run the training scripts for de novo generation, run the following commands:
     
+    ```bash
     python scripts/reinforce/reinforce.py --config-name config_denovo
     python scripts/a2c/a2c.py --config-name config_denovo
     python scripts/ppo/ppo.py --config-name config_denovo
@@ -122,10 +144,11 @@ To run the training scripts for denovo generation, run the following commands:
     python scripts/ahc/ahc.py --config-name config_denovo
     python scripts/dpo/dpo.py --config-name config_denovo
     python scripts/hill_climb/hill_climb.py --config-name config_denovo
+    ```
 
+    To run the training scripts for scaffold decoration, run the following commands (requires installation of promptsmiles):
 
-To run the training scripts for scaffold decoration, run the following commands (requires installation of promptsmiles):
-
+    ```bash
     python scripts/reinforce/reinforce.py --config-name config_scaffold
     python scripts/a2c/a2c.py --config-name config_scaffold
     python scripts/ppo/ppo.py --config-name config_scaffold
@@ -133,9 +156,11 @@ To run the training scripts for scaffold decoration, run the following commands 
     python scripts/ahc/ahc.py --config-name config_scaffold
     python scripts/dpo/dpo.py --config-name config_scaffold
     python scripts/hill_climb/hill_climb.py --config-name config_scaffold
+    ```
 
-To run the training scripts for fragment linking, run the following commands (requires installation of promptsmiles):
+    To run the training scripts for fragment linking, run the following commands (requires installation of promptsmiles):
 
+    ```bash
     python scripts/reinforce/reinforce.py --config-name config_linking
     python scripts/a2c/a2c.py --config-name config_linking
     python scripts/ppo/ppo.py --config-name config_linking
@@ -143,16 +168,24 @@ To run the training scripts for fragment linking, run the following commands (re
     python scripts/ahc/ahc.py --config-name config_linking
     python scripts/dpo/dpo.py --config-name config_linking
     python scripts/hill_climb/hill_climb.py --config-name config_linking
+    ```
+  </details>
 
-### 2.2. Alternative usage
+  <details>
+    <summary><strong>2.2. Alternative usage</strong></summary>
 
-Scripts are also available as executables after installation, but both the path and name of the config must be specified. For example,
+    Scripts are also available as executables after installation, but both the path and name of the config must be specified. For example:
 
-    ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml> 
+    ```bash
+    ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml>
+    ```
 
-YAML config parameters can also be specified on the command line. For example,
+    YAML config parameters can also be specified on the command line. For example:
 
+    ```bash
     ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml> total_smiles=100
+    ```
+  </details>
 
 </details>
 
@@ -161,70 +194,75 @@ YAML config parameters can also be specified on the command line. For example,
 <details>
   <summary><strong>3. Advanced usage</strong></summary>
   
-### 3.1. Optimization of hyperparameters in the configuration files
+  <details>
+    <summary><strong>3.1. Optimization of hyperparameters in the configuration files</strong></summary>
 
-The hyperparameters in the configuration files have sensible default values. However, the optimal choice of hyperparameters depends on various factors, including the scoring function and the network architecture. Therefore, it is very useful to have a way to automatically explore the space of hyperparameters.
+    The hyperparameters in the configuration files have sensible default values. However, the optimal choice of hyperparameters depends on various factors, including the scoring function and the network architecture. Therefore, it is very useful to have a way to automatically explore the space of hyperparameters.
 
-To learn how to perform hyperparameter sweeps to find the best configuration for a specific problem using [wandb](https://wandb.ai/), follow this [tutorial](tutorials/hyperparameter_optimisation_with_wandb.md).
+    To learn how to perform hyperparameter sweeps to find the best configuration for a specific problem using [wandb](https://wandb.ai/), follow this [tutorial](tutorials/hyperparameter_optimisation_with_wandb.md).
 
-<p align="center">
-  <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="900" />
-</p>
+    <p align="center">
+      <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="900" />
+    </p>
+  </details>
 
+  <details>
+    <summary><strong>3.2. Changing the scoring function</strong></summary>
 
-### 3.2. Changing the scoring function
+    To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows switching between different scoring modes and scoring objectives.
+    Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explanation. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
 
-To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows to switch betwewn different scoring modes and scoring objecitves.
-Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explaination. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
+    Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the instructions in this other [tutorial](tutorials/adding_custom_scoring_function.md).
+  </details>
 
-Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the instructions in this other [tutorial](tutorials/adding_custom_scoring_function.md).
+  <details>
+    <summary><strong>3.3. Changing the policy prior</strong></summary>
 
+    <details>
+      <summary><strong>3.3.1. Available models</strong></summary>
 
-### 3.3. Changing the policy prior
+      We provide a variety of default priors that can be selected in the configuration file. These include:
 
-#### 3.3.1. Available models
+      - **A Gated Recurrent Unit (GRU) model**
+        - Pre-training dataset1 (default): [ChEMBL](https://www.ebi.ac.uk/chembl/)
+        - Pre-training dataset2: [ZINC250k](https://github.com/wenhao-gao/mol_opt/blob/main/data/zinc.txt.gz)
+        - Tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
+        - Number of parameters: 4,363,045
+        - To select, set the field `model` to `gru` in any configuration file
 
-We provide a variety of default priors that can be selected in the configuration file. These include:
+      - **A Long Short-Term Memory (LSTM) model**
+        - Pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+        - Tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
+        - Number of parameters: 5,807,909
+        - To select, set the field `model` to `lstm` in any configuration file
 
-- A Gated Recurrent Unit (GRU) model
-  - pre-training dataset1 (default): [ChEMBL](https://www.ebi.ac.uk/chembl/)
-  - pre-training dataset2: [ZINC250k](https://github.com/wenhao-gao/mol_opt/blob/main/data/zinc.txt.gz)
-  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
-  - number of parameters: 4,363,045
-  - to select set the field `model` to `gru` in any configuration file
+      - **A GPT-2 model** (requires installation of HuggingFace's `transformers` library)
+        - Pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
+        - Tokenizer: [SMILESTokenizerEnamine](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L133) 
+        - Number of parameters: 5,030,400
+        - To select, set the field `model` to `gpt2` in any configuration file
 
+      - **A Mamba model** (requires installation of `mamba-ssm` library)
+        - Pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
+        - Tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
+        - Number of parameters: 2,809,216
+        - To select, set the field `model` to `mamba` in any configuration file
 
-- A Long Short-Term Memory (LSTM) model
-  - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
-  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
-  - number of parameters: 5,807,909
-  - to select set the field `model` to `lstm` in any configuration file
- 
+      - **A Llama2 model** (requires installation of HuggingFace's `transformers` library)
+        - Pre-training dataset: [REAL Database, 6B cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database)
+        - Tokenizer: [AsciiSMILESTokenizer](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L524C7-L524C27) 
+        - Number of parameters: 5,965,760
+        - To select, set the field `model` to `llama2` in any configuration file
+    </details>
 
-- A GPT-2 model (requires installation of HuggingFace's `transformers` library)
-  - pre-training dataset: [REAL 350/3 lead-like, 613.86M cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database-subsets)
-  - tokenizer: [SMILESTokenizerEnamine](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L133) 
-  - number of parameters: 5,030,400
-  - to select set the field `model` to `gpt2` in any configuration file
+    <details>
+      <summary><strong>3.3.2. Integration of custom models</strong></summary>
 
+      Users can also combine their own custom models with ACEGEN. A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
+    </details>
+  </details>
 
-- A Mamba model (requires installation of `mamba-ssm` library)
-  - pre-training dataset: [ChEMBL](https://www.ebi.ac.uk/chembl/)
-  - tokenizer: [SMILESTokenizerChEMBL](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L40) 
-  - number of parameters: 2,809,216
-  - to select set the field `model` to `mamba` in any configuration file
-
-
-- A Llama2 model (requires installation of HuggingFace's `transformers` library)
-  - pre-training dataset: [REAL Database, 6B cpds, CXSMILES](https://enamine.net/compound-collections/real-compounds/real-database)
-  - tokenizer: [AsciiSMILESTokenizer](https://github.com/Acellera/acegen-open/blob/main/acegen/vocabulary/tokenizers.py#L524C7-L524C27) 
-  - number of parameters: 5,965,760
-  - to select set the field `model` to `llama2` in any configuration file
-
-#### 3.3.2. Integration of custom models
-
-Users can also combine their own custom models with ACEGEN. A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
-
+</details>
 
 ---
 
