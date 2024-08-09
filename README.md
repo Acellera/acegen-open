@@ -333,23 +333,15 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 
 ---
 
-<details>
-  <summary><strong>5. De Novo generation example: docking in the 5-HT2A </strong></summary>
-  &nbsp; <!-- This adds a non-breaking space for some spacing -->
+## 5. De Novo generation example: docking in the 5-HT2A
 
 ![Alt Text](./acegen/images/acagen_de_novo.png)
 
-</details>
-
 ---
 
-<details>
-  <summary><strong>6. Scaffold constrained generation example: BACE1 docking with AHC algorithm </strong></summary>
-  &nbsp; <!-- This adds a non-breaking space for some spacing -->
+## 6. Scaffold constrained generation example: BACE1 docking with AHC algorithm
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
-
-<details>
 
 ---
 
