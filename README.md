@@ -43,66 +43,94 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 ---
 
 ## Table of Contents
-1. [**Installation**](#1-Installation)
-   - [1.1. Conda environment and required dependencies](#11-conda-environment-and-required-dependencies)
-   - [1.2. Optional dependencies](#12-optional-dependencies)
-   - [1.3. Install ACEGEN](#13-install-acegen)
-2. [**Generating libraries of molecules**](#2-generating-libraries-of-molecules)
-   - [2.1. Running training scripts to generate compound libraries](#21-running-training-scripts-to-generate-compound-libraries)
-   - [2.2. Alternative usage](#22-alternative-usage)
-3. [**Advanced usage**](#3-advanced-usage)
-   - [3.1. Optimization of Hyperparameters in the Configuration Files](#31-optimization-of-hyperparameters-in-the-configuration-files)
-   - [3.2. Changing the scoring function](#32-changing-the-scoring-function)
-   - [3.3. Changing the policy prior](#33-changing-the-policy-prior)
-     - [3.3.1. Available models](#331-available-models)
-     - [3.3.2. Integration of custom models](#332-integration-of-custom-models)
-4. [**Results on the MolOpt benchmark**](#4-results-on-the-molopt-benchmark)
-5. [**De Novo generation example: docking in the 5-HT2A**](#5-de-novo-generation-example-docking-in-the-5-ht2a)
-6. [**Scaffold constrained generation example: BACE1 docking with AHC algorithm**](#6-scaffold-constrained-generation-example-bace1-docking-with-ahc-algorithm)
-7. [**Citation**](#7-citation)
+1. **Installation**
+   - 1.1. Conda environment and required dependencies
+   - 1.2. Optional dependencies
+   - 1.3. Install ACEGEN
+2. **Generating libraries of molecules**
+   - 2.1. Running training scripts to generate compound libraries
+   - 2.2. Alternative usage
+3. **Advanced usage**
+   - 3.1. Optimization of Hyperparameters in the Configuration Files
+   - 3.2. Changing the scoring function
+   - 3.3. Changing the policy prior
+     - 3.3.1. Available models
+     - 3.3.2. Integration of custom models
+4. **Results on the MolOpt benchmark**
+5. **De Novo generation example: docking in the 5-HT2A**
+6. **Scaffold constrained generation example: BACE1 docking with AHC algorithm**
+7. **Citation**
 
 ---
 
-## 1. Installation 
+<details>
+  <summary><strong>1. Installation</strong></summary>
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-### 1.1. Conda environment and required dependencies
+  <details>
+    <summary><strong>1.1. Conda environment and required dependencies</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-To create the conda / mamba environment, run
+To create the conda / mamba environment, run:
 
-    conda create -n acegen python=3.10 -y
-    conda activate acegen
+```bash
+conda create -n acegen python=3.10 -y
+conda activate acegen
+```
 
 To install the required dependencies run the following commands. Replace `cu121` with your appropriate CUDA version (e.g., `cu118`, `cu117`, `cu102`).
 
-    pip3 install torch torchvision  --index-url https://download.pytorch.org/whl/cu121
-    pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb
-    pip3 install torchrl
+```bash
+pip3 install torch torchvision  --index-url https://download.pytorch.org/whl/cu121
+pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb
+pip3 install torchrl
+```
 
 
-### 1.2. Optional dependencies
+  </details>
 
-Unless you intend to define your own custom scoring functions, install MolScore by running
+  <details>
+    <summary><strong>1.2. Optional dependencies</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-    pip3 install rdkit==2023.3.3
-    pip3 install MolScore
+Unless you intend to define your own custom scoring functions, install MolScore by running:
 
-To use the scaffold decoration and fragment linking, install promptsmiles by running
+```bash
+pip3 install rdkit==2023.3.3
+pip3 install MolScore
+```
 
-    pip3 install promptsmiles
+To use the scaffold decoration and fragment linking, install promptsmiles by running:
+
+```bash
+pip3 install promptsmiles
+```
 
 To learn how to configure constrained molecule generation with ACEGEN and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
 
-### 1.3. Install ACEGEN
+  </details>
 
-To install ACEGEN, run (use `pip install -e ./` for develop mode)
+  <details>
+    <summary><strong>1.3. Install ACEGEN</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-    git clone https://github.com/Acellera/acegen-open.git
-    cd acegen-open
-    pip install ./
+To install ACEGEN, run (use `pip install -e ./` for develop mode):
+
+```bash
+git clone https://github.com/Acellera/acegen-open.git
+cd acegen-open
+pip install ./
+```
+
+  </details>
+
+</details>
 
 ---
 
-## 2. Generating libraries of molecules 
+<details>
+  <summary><strong>2. Generating libraries of molecules</strong></summary>
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 ACEGEN has multiple RL algorithms available, each in a different directory within the `acegen-open/scripts` directory. Each RL algorithm has three different generative modes of execution: de novo, scaffold decoration, and fragment linking.
 
@@ -110,56 +138,79 @@ Each mode of execution has its own configuration file in YAML format, located ri
 
 While the default values in the configuration files are considered sensible, a default scoring function and model architecture are also defined so users can test the scripts out of the box. However, users might generally want to customize the model architecture or the scoring function.
 
-To customize the model architecture, refer to the [Changing the model architecture](#332-integration-of-custom-models) section. To customize the scoring function, refer to the [Changing the scoring function](#32-changing-the-scoring-function) section.
+For customizing the scoring function, see section `3.2. Changing the scoring function`. For customizing the model architecture, see section `3.3.2. Integration of custom models`.
 
-### 2.1. Running training scripts to generate compoud libraries
+  <details>
+    <summary><strong>2.1. Running training scripts to generate compound libraries</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-To run the training scripts for denovo generation, run the following commands:
-    
-    python scripts/reinforce/reinforce.py --config-name config_denovo
-    python scripts/a2c/a2c.py --config-name config_denovo
-    python scripts/ppo/ppo.py --config-name config_denovo
-    python scripts/reinvent/reinvent.py --config-name config_denovo
-    python scripts/ahc/ahc.py --config-name config_denovo
-    python scripts/dpo/dpo.py --config-name config_denovo
-    python scripts/hill_climb/hill_climb.py --config-name config_denovo
+To run the training scripts for de novo generation, run the following commands:
 
+```bash
+python scripts/reinforce/reinforce.py --config-name config_denovo
+python scripts/a2c/a2c.py --config-name config_denovo
+python scripts/ppo/ppo.py --config-name config_denovo
+python scripts/reinvent/reinvent.py --config-name config_denovo
+python scripts/ahc/ahc.py --config-name config_denovo
+python scripts/dpo/dpo.py --config-name config_denovo
+python scripts/hill_climb/hill_climb.py --config-name config_denovo
+```
 
 To run the training scripts for scaffold decoration, run the following commands (requires installation of promptsmiles):
 
-    python scripts/reinforce/reinforce.py --config-name config_scaffold
-    python scripts/a2c/a2c.py --config-name config_scaffold
-    python scripts/ppo/ppo.py --config-name config_scaffold
-    python scripts/reinvent/reinvent.py --config-name config_scaffold
-    python scripts/ahc/ahc.py --config-name config_scaffold
-    python scripts/dpo/dpo.py --config-name config_scaffold
-    python scripts/hill_climb/hill_climb.py --config-name config_scaffold
+```bash
+python scripts/reinforce/reinforce.py --config-name config_scaffold
+python scripts/a2c/a2c.py --config-name config_scaffold
+python scripts/ppo/ppo.py --config-name config_scaffold
+python scripts/reinvent/reinvent.py --config-name config_scaffold
+python scripts/ahc/ahc.py --config-name config_scaffold
+python scripts/dpo/dpo.py --config-name config_scaffold
+python scripts/hill_climb/hill_climb.py --config-name config_scaffold
+```
 
 To run the training scripts for fragment linking, run the following commands (requires installation of promptsmiles):
 
-    python scripts/reinforce/reinforce.py --config-name config_linking
-    python scripts/a2c/a2c.py --config-name config_linking
-    python scripts/ppo/ppo.py --config-name config_linking
-    python scripts/reinvent/reinvent.py --config-name config_linking
-    python scripts/ahc/ahc.py --config-name config_linking
-    python scripts/dpo/dpo.py --config-name config_linking
-    python scripts/hill_climb/hill_climb.py --config-name config_linking
+```bash
+python scripts/reinforce/reinforce.py --config-name config_linking
+python scripts/a2c/a2c.py --config-name config_linking
+python scripts/ppo/ppo.py --config-name config_linking
+python scripts/reinvent/reinvent.py --config-name config_linking
+python scripts/ahc/ahc.py --config-name config_linking
+python scripts/dpo/dpo.py --config-name config_linking
+python scripts/hill_climb/hill_climb.py --config-name config_linking
+```
 
-### 2.2. Alternative usage
+  </details>
 
-Scripts are also available as executables after installation, but both the path and name of the config must be specified. For example,
+  <details>
+    <summary><strong>2.2. Alternative usage</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-    ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml> 
+Scripts are also available as executables after installation, but both the path and name of the config must be specified. For example:
 
-YAML config parameters can also be specified on the command line. For example,
+```bash
+ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml>
+```
 
-    ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml> total_smiles=100
+YAML config parameters can also be specified on the command line. For example:
+
+```bash
+ppo.py --config-path=<path_to_config_dir> --config-name=<config_name.yaml> total_smiles=100
+```
+
+  </details>
+
+</details>
 
 ---
 
-## 3. Advanced usage
+<details>
+  <summary><strong>3. Advanced usage</strong></summary>
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-### 3.1. Optimization of hyperparameters in the configuration files
+  <details>
+    <summary><strong>3.1. Optimization of hyperparameters in the configuration files</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 The hyperparameters in the configuration files have sensible default values. However, the optimal choice of hyperparameters depends on various factors, including the scoring function and the network architecture. Therefore, it is very useful to have a way to automatically explore the space of hyperparameters.
 
@@ -169,16 +220,22 @@ To learn how to perform hyperparameter sweeps to find the best configuration for
   <img src="./acegen/images/wandb_sweep.png" alt="Alt Text" width="900" />
 </p>
 
+  </details>
 
-### 3.2. Changing the scoring function
+  <details>
+    <summary><strong>3.2. Changing the scoring function</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows to switch betwewn different scoring modes and scoring objecitves.
-Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explaination. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
+To change the scoring function, the easiest option is to adjust the `molscore` parameters in the configuration files. Modifying these parameters allows switching between different scoring modes and scoring objectives.
+Please refer to the `molscore` section in the configuration [tutorial](tutorials/breaking_down_configuration_files.md) for a more detailed explanation. Additionally, refer to the [tutorials](https://github.com/MorganCThomas/MolScore/tree/main/tutorials) in the MolScore repository.
 
 Alternatively, users can define their own custom scoring functions and use them in the ACEGEN scripts by following the instructions in this other [tutorial](tutorials/adding_custom_scoring_function.md).
 
+  </details>
 
-### 3.3. Changing the policy prior
+  <details>
+    <summary><strong>3.3. Changing the policy prior</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 #### 3.3.1. Available models
 
@@ -223,11 +280,16 @@ We provide a variety of default priors that can be selected in the configuration
 
 Users can also combine their own custom models with ACEGEN. A detailed guide on integrating custom models can be found in this [tutorial](tutorials/adding_custom_model.md).
 
+</details>
+</details>
+
 ---
 
-## 4. Results on the [MolOpt](https://arxiv.org/pdf/2206.12411.pdf) benchmark 
+<details>
+  <summary><strong>4. Results on the MolOpt benchmark </strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on MolOpt benchmark scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
+Algorithm comparison for the Area Under the Curve (AUC) of the top 100 molecules on [MolOpt benchmark](https://arxiv.org/pdf/2206.12411.pdf) scoring functions. Each algorithm ran 5 times with different seeds, and results were averaged. 
 The default values for each algorithm are those in our de novo configuration files.
 Additionally, for Reinvent we also tested the configuration proposed in the MolOpt paper.
 
@@ -267,18 +329,27 @@ Additionally, for Reinvent we also tested the configuration proposed in the MolO
 [7]: https://arxiv.org/abs/2007.03328
 [8]: https://arxiv.org/abs/2305.18290
 
+</details>
 
 ---
 
-## 5. De Novo generation example: docking in the 5-HT2A
+<details>
+  <summary><strong>5. De Novo generation example: docking in the 5-HT2A </strong></summary>
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 ![Alt Text](./acegen/images/acagen_de_novo.png)
 
+</details>
+
 ---
 
-## 6. Scaffold constrained generation example: BACE1 docking with AHC algorithm
+<details>
+  <summary><strong>6. Scaffold constrained generation example: BACE1 docking with AHC algorithm </strong></summary>
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 ![Alt Text](./acegen/images/acegen_decorative.png)
+
+</details>
 
 ---
 
