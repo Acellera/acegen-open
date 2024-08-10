@@ -11,8 +11,11 @@ total_smiles: 10_000 # Total number of smiles to generate
 
 # Scoring function
 molscore_mode: single # single, benchmark, or curriculum
-molscore_task: MolOpt:Albuterol_similarity # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
-custom_task: null # Requires custom_task mode to be set to null
+molscore_task: MolOpt:Albuterol_similarity # selects the Albuterol_similarity task from the MolOpt benchmark
+# molscore_task accepts task configuration files (JSON), benchmark (preset only), or curriculum task (preset only)
+# Refer to MolScore documentation for more information
+custom_task: null # Requires molscore_task mode to be set to null
+# Reefr to the tutorials for more information on how to use custom scoring functions / tasks
 
 # Promptsmiles configuration
 prompt: null  # e.g. c1ccccc  # Fix the beginning of the generated molecules
