@@ -67,3 +67,14 @@ def smiles_to_tensordict(
     smiles_tensordict.set(("next", "is_init"), next_is_init)
 
     return smiles_tensordict
+
+
+def collate_smiles_to_tensordict(arr, max_length: int, reward: torch.Tensor = None, device: str = "cpu"):
+    """Function to take a list of encoded sequences and turn them into a tensordict."""
+    collated_arr = torch.ones(len(arr), max_length) * -1
+    for i, seq in enumerate(arr):
+        collated_arr[i, : seq.size(0)] = seq
+    data = smiles_to_tensordict(collated_arr, reward=reward, replace_mask_value=0, device=device)
+    data.set("sequence", data.get("observation"))
+    data.set("sequence_mask", data.get("mask"))
+    return data
