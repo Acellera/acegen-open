@@ -11,10 +11,10 @@ import numpy as np
 import torch
 import tqdm
 import yaml
+from acegen.data import collate_smiles_to_tensordict
 
 from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, TokenEnv
-from acegen.data import collate_smiles_to_tensordict
 from acegen.scoring_functions import (
     custom_scoring_functions,
     register_custom_scoring_function,
@@ -182,9 +182,7 @@ def run_reinvent(cfg, task):
     actor_training = actor_training.to(device)
 
     prior, _ = create_actor(vocabulary_size=len(vocabulary))
-    prior.load_state_dict(
-        adapt_state_dict(deepcopy(ckpt), prior.state_dict())
-    )
+    prior.load_state_dict(adapt_state_dict(deepcopy(ckpt), prior.state_dict()))
     prior = prior.to(device)
 
     # Create RL environment
@@ -288,7 +286,7 @@ def run_reinvent(cfg, task):
             )
 
         data, loss, agent_likelihood = compute_loss(data, actor_training, prior, sigma)
-        
+
         # Average loss over the batch
         loss = loss.mean()
 
@@ -306,14 +304,26 @@ def run_reinvent(cfg, task):
             sampled_smiles = augment_smiles(data.get("SMILES").cpu().data)
             sampled_reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
             # Sample replay buffer
-            replay_smiles, replay_reward = task.replay(cfg.replay_batch_size, augment=True)
+            replay_smiles, replay_reward = task.replay(
+                cfg.replay_batch_size, augment=True
+            )
             replay_reward = torch.tensor(replay_reward, device=device).float()
             # Concatenate and create tensor
-            aug_tokens = [torch.tensor(vocabulary.encode(smi)) for smi in sampled_smiles + replay_smiles]
+            aug_tokens = [
+                torch.tensor(vocabulary.encode(smi))
+                for smi in sampled_smiles + replay_smiles
+            ]
             aug_reward = torch.cat([sampled_reward, replay_reward], dim=0)
-            aug_data = collate_smiles_to_tensordict(arr=aug_tokens, max_length=env.max_length, reward=aug_reward, device=device)
+            aug_data = collate_smiles_to_tensordict(
+                arr=aug_tokens,
+                max_length=env.max_length,
+                reward=aug_reward,
+                device=device,
+            )
             # Compute loss
-            aug_data, loss, agent_likelihood = compute_loss(aug_data, actor_training, prior, sigma)
+            aug_data, loss, agent_likelihood = compute_loss(
+                aug_data, actor_training, prior, sigma
+            )
             # Average loss over the batch
             loss = loss.mean()
             # Add regularizer that penalizes high likelihood for the entire sequence
