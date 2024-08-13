@@ -48,7 +48,7 @@ Now we have a sweep setup, we can start agents that sample a set of hyperparamet
 To start an agent, simply run the following command,
 
 ```
-wandb agent sweep_id
+wandb agent --count <number_of_runs> sweep_id
 ```
 
 This command can be run several times to create as many agents as you wish (for example, on different GPUs), enabling parallel agents testing different hyperparameters.
@@ -59,3 +59,4 @@ This command can be run several times to create as many agents as you wish (for 
 - Any hyperparameters not specified in the sweep configuration will be taken from the default configuration path.
   - This can be changed by adding `--config-name=<new_default.yaml>` to the command section of the sweep inbetween `${program}` and `${args_no_hyphens}`.
   - Or by changing the default path specified at the top of main in the respective script.
+- Something may not be interpreted correctly, specifically `null` may be interpreted as a string. So it's recommended to use `False` or `0`.
