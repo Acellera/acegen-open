@@ -103,6 +103,7 @@ def main(cfg: "DictConfig"):
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
                     add_run_dir=False,
+                    score_invalids=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
                 run_reinforce(cfg, task)
@@ -115,6 +116,7 @@ def main(cfg: "DictConfig"):
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
                     add_benchmark_dir=False,
+                    score_invalids=True,
                     **cfg.get("molscore_kwargs", {}),
                 )
                 for task in MSB:
