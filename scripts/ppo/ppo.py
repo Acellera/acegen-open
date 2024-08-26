@@ -1,9 +1,7 @@
 #! /usr/bin/python3
 import datetime
-import json
 import os
 import random
-import shutil
 from pathlib import Path
 
 import hydra
@@ -93,16 +91,12 @@ def main(cfg: "DictConfig"):
                 ) from MOLSCORE_ERR
 
             if cfg.molscore_mode == "single":
-                # Save molscore output. Also redirect output to save_dir
-                cfg.molscore_task = shutil.copy(cfg.molscore_task, save_dir)
-                data = json.load(open(cfg.molscore_task, "r"))
-                json.dump(data, open(cfg.molscore_task, "w"), indent=4)
                 task = MolScore(
                     model_name=cfg.agent_name,
                     task_config=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
-                    add_run_dir=False,
+                    add_run_dir=True,
                     **cfg.get("molscore_kwargs", {}),
                 )
                 run_ppo(cfg, task)
@@ -193,7 +187,7 @@ def run_ppo(cfg, task):
         critic_training, critic_inference = create_critic(len(vocabulary))
 
     # Load pretrained weights
-    ckpt = torch.load(ckpt_path, map_location=device)
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
 
     actor_inference.load_state_dict(
         adapt_state_dict(ckpt, actor_inference.state_dict())

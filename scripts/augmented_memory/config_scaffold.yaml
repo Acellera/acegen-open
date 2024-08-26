@@ -1,6 +1,6 @@
 # Logging configuration
 experiment_name: acegen
-agent_name: ppo
+agent_name: augmem
 log_dir: results # Directory to save the results
 logger_backend: null  # wandb, tensorboard, or null
 seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
@@ -8,44 +8,37 @@ seed: 101 # multiple seeds can be provided as a list to multiple experiments seq
 # Environment configuration
 num_envs: 64 # Number of smiles to generate in parallel
 total_smiles: 10_000  # Total number of smiles to generate
+max_length: 200 # Maximum length limit of the generated SMILES
 
 # Scoring function
 molscore_mode: single # single, benchmark, or curriculum
-molscore_task: MolOpt:Celecoxxib_rediscovery # selects the Celecoxxib_rediscovery task from the MolOpt benchmark
+molscore_task: LibINVENT_Exp1:DRD2_SelRF_SubFilt_DF # selects the DRD2_SelRF_SubFilt_DF task from the LibINVENT_Exp1 benchmark
 # molscore_task accepts task configuration files (JSON), benchmark (preset only), or curriculum task (preset only)
 # Refer to MolScore documentation for more information
 custom_task: null # Requires molscore_task mode to be set to null
 # Reefr to the tutorials for more information on how to use custom scoring functions / tasks
 
 # Promptsmiles configuration
-promptsmiles: c1(C)ccc(*)cc1.NS(=O)(=O)(*)
+promptsmiles: N1(*)CCN(CC1)CCCCN(*)
 promptsmiles_optimize: True
 promptsmiles_shuffle: True
 promptsmiles_multi: False
 
 # Model architecture
-shared_nets: False
 model: gru # gru, lstm, gpt2, mamba or llama2
 # The default prior varies for each model. Refer to the README file in the root directory for more information.
 # The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
 custom_model_factory: null # Path to a custom model factory (e.g. my_module.create_model)
 
 # Optimizer configuration
-lr: 0.0005
-eps: 1.0e-06
-weight_decay: 1.0e-06
+lr: 0.0001
+eps: 1.0e-08
+weight_decay: 0.0
 
-# PPO configuration
-gamma: 0.999
-lmbda: 1.0 # GAE
-critic_coef: 0.25
-entropy_coef: 0.01
-kl_coef: 0.001
-ppo_epochs: 3
-max_grad_norm: 0.25
-ppo_clip: 0.5
+# Reinforce configuration
+sigma: 128
 
 # Data replay configuration
-experience_replay: True # If True, the algorithm is PPO+D
-replay_batch_size: 24
+augmentation_rounds: 2
 replay_buffer_size: 100
+replay_batch_size: 100

@@ -1,7 +1,29 @@
-import torch
-from acegen.data import smiles_to_tensordict
+import os
+import shutil
+import tempfile
 
+import pytest
+import torch
+
+from acegen.data import (
+    load_dataset,
+    MolBloomDataset,
+    smiles_to_tensordict,
+    SMILESDataset,
+)
+from acegen.data.chem_utils import fraction_valid
+from acegen.vocabulary.tokenizers import SMILESTokenizerChEMBL
+from acegen.vocabulary.vocabulary import Vocabulary
 from tensordict import TensorDict
+from torch.utils.data import DataLoader
+
+
+try:
+    from molbloom import BloomFilter, CustomFilter
+
+    _has_molbloom = True
+except ImportError:
+    _has_molbloom = False
 
 
 def test_smiles_to_tensordict():
@@ -51,3 +73,51 @@ def test_smiles_to_tensordict():
 
     # Check rewards are in the right position
     assert (result["next"]["reward"][next_tensordict["done"]].cpu() == reward).all()
+
+
+@pytest.mark.parametrize("randomize_smiles", [False, True])
+def test_load_dataset(randomize_smiles):
+    dataset_path = os.path.dirname(__file__) + "/data/smiles_test_set"
+    dataset_str = load_dataset(dataset_path)
+    assert type(dataset_str) == list
+    assert len(dataset_str) == 1000
+    vocab = Vocabulary.create_from_strings(
+        dataset_str, tokenizer=SMILESTokenizerChEMBL()
+    )
+    temp_dir = tempfile.mkdtemp()
+    dataset = SMILESDataset(
+        cache_path=temp_dir,
+        dataset_path=dataset_path,
+        vocabulary=vocab,
+        randomize_smiles=randomize_smiles,
+    )
+    if _has_molbloom:
+        molbloom_dataset = MolBloomDataset(dataset_path=dataset_path)
+        assert dataset_str[0] in molbloom_dataset
+    dataloader = DataLoader(
+        dataset,
+        batch_size=4,
+        shuffle=True,
+        collate_fn=dataset.collate_fn,
+    )
+    data_batch = dataloader.__iter__().__next__()
+    assert isinstance(data_batch, TensorDict)
+    shutil.rmtree(temp_dir)
+
+
+def test_fraction_valid():
+
+    multiple_smiles = [
+        "CCO",  # Ethanol (C2H5OH)
+        "CCN(CC)CC",  # Triethylamine (C6H15N)
+        "CC(=O)OC(C)C",  # Diethyl carbonate (C7H14O3)
+        "CC(C)C",  # Isobutane (C4H10)
+        "CC1=CC=CC=C1",  # Toluene (C7H8)
+    ]
+
+    assert fraction_valid(multiple_smiles) == 1.0
+
+    # add an invalid SMILES
+    multiple_smiles.append("invalid")
+
+    assert fraction_valid(multiple_smiles) == 5 / 6

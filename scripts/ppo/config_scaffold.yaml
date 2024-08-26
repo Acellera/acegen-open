@@ -10,11 +10,12 @@ num_envs: 64 # Number of smiles to generate in parallel
 total_smiles: 10_000  # Total number of smiles to generate
 
 # Scoring function
-molscore_mode: benchmark # single, benchmark, or curriculum
-molscore_task: LibINVENT_Exp1 # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
-molscore_kwargs:
-  include: ["DRD2_SelRF_SubFilt_DF"]
-custom_task: null # Requires molscore to be set to null
+molscore_mode: single # single, benchmark, or curriculum
+molscore_task: LibINVENT_Exp1:DRD2_SelRF_SubFilt_DF # selects the DRD2_SelRF_SubFilt_DF task from the LibINVENT_Exp1 benchmark
+# molscore_task accepts task configuration files (JSON), benchmark (preset only), or curriculum task (preset only)
+# Refer to MolScore documentation for more information
+custom_task: null # Requires molscore_task mode to be set to null
+# Reefr to the tutorials for more information on how to use custom scoring functions / tasks
 
 # Promptsmiles configuration
 promptsmiles: N1(*)CCN(CC1)CCCCN(*)

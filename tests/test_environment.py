@@ -256,7 +256,7 @@ def test_sample_promptsmiles(
     length_vocabulary = len(vocabulary)
 
     # Create policy
-    ckpt = torch.load(ckpt_path, map_location=device)
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
     policy_train, policy_inference = create_actor(length_vocabulary)
     policy_train.load_state_dict(adapt_state_dict(ckpt, policy_train.state_dict()))
     policy_inference.load_state_dict(
