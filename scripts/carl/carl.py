@@ -6,6 +6,7 @@ import random
 import shutil
 from copy import deepcopy
 from pathlib import Path
+from functools import partial
 
 import hydra
 import numpy as np
@@ -60,14 +61,17 @@ os.chdir("/tmp")
 def main(cfg: "DictConfig"):
 
     if isinstance(cfg.seed, int):
-        cfg.seed = [cfg.seed]
+        seeds = [cfg.seed]
+    else:
+        seeds = cfg.seed
 
-    for seed in cfg.seed:
+    for seed in seeds:
 
         # Set seed
         random.seed(int(seed))
         np.random.seed(int(seed))
         torch.manual_seed(int(seed))
+        cfg.seed = int(seed)
 
         # Define save_dir and save config
         current_time = datetime.datetime.now()
