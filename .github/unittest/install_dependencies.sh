@@ -4,7 +4,8 @@ python -m pip install --upgrade pip
 # Install required dependencies
 python -m pip install flake8 pytest pytest-cov hydra-core tqdm
 python -m pip install torch torchvision
-python -m pip install -r acegen-open/requirements.txt
+python -m pip install git+https://github.com/pytorch/rl.git@767a877a0a93d41a9b7935598da0ded4c984904f
+python -m pip install git+https://github.com/pytorch/tensordict.git@3812ca62d0d5db7d337592d99934e32a3d2b4bfd
 
 # Install additional dependencies
 python -m pip install transformers promptsmiles MolScore
