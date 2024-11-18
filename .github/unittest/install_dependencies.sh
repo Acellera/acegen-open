@@ -2,6 +2,7 @@
 python -m pip install --upgrade pip
 
 # Install required dependencies
+python -m pip install flake8 pytest pytest-cov hydra-core tqdm
 python -m pip install torch torchvision
 python -m pip install -r acegen-open/requirements.txt
 
