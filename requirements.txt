@@ -8,5 +8,5 @@ wandb
 rdkit>=2023.3.3
 
 # TorchRL and Tensordict
-git+https://github.com/pytorch/rl.git@767a877a0a93d41a9b7935598da0ded4c984904f
-git+https://github.com/pytorch/tensordict.git@3812ca62d0d5db7d337592d99934e32a3d2b4bfd
+git+https://github.com/pytorch/rl.git@83a7a57daee4b76b249dbc0ce2231f163f2a1482
+git+https://github.com/pytorch/tensordict.git@c11024e0db864bd8487c68e3d0cf5e100fc07831
