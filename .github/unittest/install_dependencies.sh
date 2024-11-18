@@ -1,10 +1,12 @@
 # Upgrade pip
 python -m pip install --upgrade pip
 
-# Install dependencies
-python -m pip install flake8 pytest pytest-cov hydra-core tqdm
+# Install required dependencies
 python -m pip install torch torchvision
-python -m pip install transformers promptsmiles torchrl rdkit==2023.3.3 MolScore
+python -m pip install -r acegen-open/requirements.txt
+
+# Install additional dependencies
+python -m pip install transformers promptsmiles MolScore
 python -m pip install deepsmiles
 python -m pip install selfies
 python -m pip install smi2sdf
