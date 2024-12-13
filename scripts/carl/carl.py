@@ -125,6 +125,7 @@ def main(cfg: "DictConfig"):
                 )
                 for task in MSB:
                     run_reinforce(cfg, task)
+                    task.write_scores()
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -389,7 +390,8 @@ def run_reinforce(cfg, task):
             alpha=cfg.get("alpha", 1),
             sigma=cfg.get("sigma", 0.0),
             baseline=baseline,
-            entropy_coef=cfg.get("entropy_coef", 0.0)
+            entropy_coef=cfg.get("entropy_coef", 0.0),
+            kl_coef=cfg.get("kl_coef", 0.0),
         )
 
         # Average loss over the batch
@@ -462,7 +464,7 @@ def get_log_prob(data, model):
 
 
 def compute_loss(
-    data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0
+    data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0, kl_coef=0.0
 ):
 
     mask = data.get("mask").squeeze(-1)
@@ -488,12 +490,14 @@ def compute_loss(
     loss = -agent_likelihood * reward
 
     # Add KL loss term
-    # kl_div = kl_divergence(agent_dist, prior_dist)
-    # kl_div = (kl_div * mask.squeeze()).sum(-1)
-    # loss += kl_div * sigma
+    if kl_coef:
+        kl_div = kl_divergence(prior_dist, agent_dist)
+        kl_div = (kl_div * mask.squeeze()).sum(-1)
+        loss += kl_coef * kl_div
 
     # Add Entropy loss term
-    loss -= entropy_coef * (agent_dist.entropy() * mask.squeeze()).mean(-1)
+    if entropy_coef:
+        loss -= entropy_coef * (agent_dist.entropy() * mask.squeeze()).mean(-1)
 
     return data, loss, agent_likelihood
 
