@@ -6,7 +6,6 @@ import random
 import shutil
 from copy import deepcopy
 from pathlib import Path
-from functools import partial
 
 import hydra
 import numpy as np
@@ -15,8 +14,10 @@ import torch
 import tqdm
 import yaml
 
-from acegen.models import adapt_state_dict, models, register_model
+from acegen.models.utils import reinitialize_model
+from acegen.models import adapt_state_dict, models, register_model, create_gru_actor
 from acegen.rl_env import generate_complete_smiles, TokenEnv
+from acegen.rl_env.baselines import LeaveOneOutBaseline, MovingAverageBaseline
 from acegen.scoring_functions import (
     custom_scoring_functions,
     register_custom_scoring_function,
@@ -190,6 +191,13 @@ def run_reinforce(cfg, task):
         adapt_state_dict(deepcopy(ckpt), prior.state_dict())
     )
     prior = prior.to(device)
+    
+    if cfg.get("RND", False):
+        rnd_target, _ = create_gru_actor(vocabulary_size=len(vocabulary))
+        rnd_pred, _ = create_gru_actor(vocabulary_size=len(vocabulary))
+        rnd_target = rnd_target.to(device)
+        reinitialize_model(rnd_target, seed=cfg.seed)
+        rnd_pred = rnd_pred.to(device)
 
     # Create RL environment
     ####################################################################################################################
@@ -231,39 +239,8 @@ def run_reinforce(cfg, task):
         priority_key="priority",
     )
 
-    # Create baseline
+    # Select baseline
     ####################################################################################################################
-
-    class MovingAverageBaseline:
-        """Class to keep track on the running mean and variance of tensors batches."""
-
-        def __init__(self, epsilon=1e-3, shape=(), device=torch.device("cpu")):
-            self.mean = torch.zeros(shape, dtype=torch.float64).to(device)
-            self.count = epsilon
-
-        def update(self, x):
-            batch_mean = torch.mean(x, dim=0)
-            batch_count = x.shape[0]
-            self.update_from_moments(batch_mean, batch_count)
-
-        def update_from_moments(self, batch_mean, batch_count):
-            delta = batch_mean - self.mean
-            tot_count = self.count + batch_count
-            new_mean = self.mean + delta * batch_count / tot_count
-            new_count = tot_count
-            self.mean, self.count = new_mean, new_count
-
-    class LeaveOneOutBaseline:
-        """Class to compute the leave-one-out baseline for a given tensor."""
-
-        def __init__(self):
-            self.mean = None
-
-        def update(self, x):
-            with torch.no_grad():
-                loo = x.unsqueeze(1).expand(-1, x.size(0))
-                loo_mask = 1 - torch.eye(loo.size(0), device=loo.device)
-                self.mean = (loo * loo_mask).sum(0) / loo_mask.sum(0)
 
     # Select baseline
     baseline = None
@@ -274,6 +251,9 @@ def run_reinforce(cfg, task):
             baseline = MovingAverageBaseline(device=device)
         else:
             raise ValueError(f"Unknown baseline: {cfg.baseline}")
+    
+    if cfg.get("RND", False):
+        rnd_baseline = MovingAverageBaseline(device=device)
 
     # Create optimizer
     ####################################################################################################################
@@ -287,6 +267,12 @@ def run_reinforce(cfg, task):
     if cfg.get("lr_annealing", False):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optim, T_max=5000 // cfg.num_envs, eta_min=0.0001
+        )
+        
+    if cfg.get("RND", False):
+        rnd_optim = torch.optim.Adam(
+            rnd_pred.parameters(),
+            lr=0.001,
         )
 
     # Create logger
@@ -388,7 +374,20 @@ def run_reinforce(cfg, task):
             baseline=baseline,
             entropy_coef=cfg.get("entropy_coef", 0.0),
             kl_coef=cfg.get("kl_coef", 0.0),
+            rnd_target=rnd_target if cfg.get("RND", False) else None,
+            rnd_pred=rnd_pred if cfg.get("RND", False) else None,
+            rnd_baseline=rnd_baseline if cfg.get("RND", False) else None,
         )
+        # RND
+        if cfg.get("RND", False):
+            # Update RND
+            RND_loss = update_rand(
+                data,
+                rnd_target,
+                rnd_pred,
+                rnd_optim
+            )
+            log_info.update({f"train/RND_loss": RND_loss.item()})
 
         # Average loss over the batch
         loss = loss.mean()
@@ -408,6 +407,8 @@ def run_reinforce(cfg, task):
         optim.zero_grad()
         loss.backward()
         optim.step()
+        log_info.update({f"train/loss": loss.item()})
+        
         if cfg.get("lr_annealing", None) & (total_done < 5000):
             log_info.update(
                 {
@@ -439,8 +440,6 @@ def run_reinforce(cfg, task):
                 replay_data.set("priority", reward)
                 experience_replay_buffer.extend(replay_data)
 
-        torch.cuda.empty_cache()
-
         # Log info
         if logger:
             for key, value in log_info.items():
@@ -452,35 +451,46 @@ def run_reinforce(cfg, task):
 
 
 def get_log_prob(data, model):
+    mask = data.get("mask").squeeze(-1)
     actions = data.get("action")
     model_in = data.select(*model.in_keys, strict=False)
     dist = model.get_dist(model_in)
     log_prob = dist.log_prob(actions)
+    log_prob = (log_prob * mask).sum(-1)
     return log_prob, dist
 
 
 def compute_loss(
-    data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0, kl_coef=0.0
+    data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0, kl_coef=0.0, rnd_target=None, rnd_pred=None, rnd_baseline=None
 ):
 
     mask = data.get("mask").squeeze(-1)
 
+    # Get Prior LL
     with torch.no_grad():
-        prior_log_prob, prior_dist = get_log_prob(data, prior)
-        data.set("prior_log_prob", prior_log_prob)
-
-    agent_log_prob, agent_dist = get_log_prob(data, model)
-    agent_likelihood = (agent_log_prob * mask).sum(-1)
-    prior_likelihood = (prior_log_prob * mask).sum(-1)
-    reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
+        prior_likelihood, prior_dist = get_log_prob(data, prior)
+    # Get Agent LL
+    agent_likelihood, agent_dist = get_log_prob(data, model)
 
     # Reward reshaping
+    reward = data.get(("next", "reward")).squeeze(-1).sum(-1)
     reward = torch.pow(torch.clamp(reward + sigma * prior_likelihood, min=0.0), alpha)
 
     # Subtract baselines
     if baseline:
         baseline.update(reward.detach())
         reward = reward - baseline.mean
+        
+    # Add intrinsic RND reward
+    if rnd_target and rnd_pred:
+        with torch.no_grad():
+            target_likelihood, _ = get_log_prob(data, rnd_target)
+            pred_likelihood, _ = get_log_prob(data, rnd_pred)
+            rnd_reward = torch.pow((pred_likelihood - target_likelihood), 2).detach()
+        # Normalize
+        rnd_baseline.update(rnd_reward)
+        rnd_reward = rnd_reward / rnd_baseline.std
+        reward = rnd_reward + reward
 
     # REINFORCE (negative as we minimize the negative log prob to maximize the policy)
     loss = -agent_likelihood * reward
@@ -496,6 +506,24 @@ def compute_loss(
         loss -= entropy_coef * (agent_dist.entropy() * mask.squeeze()).mean(-1)
 
     return data, loss, agent_likelihood
+
+
+def update_rand(
+    data, rnd_target, rnd_pred, rnd_optim
+):
+    with torch.no_grad():
+        target_likelihood, _ = get_log_prob(data, rnd_target)
+    pred_likelihood, _ = get_log_prob(data, rnd_pred)
+    
+    # Loss
+    loss = torch.pow((pred_likelihood - target_likelihood), 2).mean()
+
+    # Update
+    rnd_optim.zero_grad()
+    loss.backward()
+    rnd_optim.step()
+    
+    return loss
 
 
 if __name__ == "__main__":
