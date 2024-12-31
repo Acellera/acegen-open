@@ -192,12 +192,14 @@ def run_reinforce(cfg, task):
     )
     prior = prior.to(device)
     
-    if cfg.get("RND", False):
+    if cfg.get("rnd_coef", False):
         rnd_target, _ = create_gru_actor(vocabulary_size=len(vocabulary))
         rnd_pred, _ = create_gru_actor(vocabulary_size=len(vocabulary))
         rnd_target = rnd_target.to(device)
         reinitialize_model(rnd_target, seed=cfg.seed)
         rnd_pred = rnd_pred.to(device)
+    else:
+        rnd_target, rnd_pred = None, None
 
     # Create RL environment
     ####################################################################################################################
@@ -252,8 +254,10 @@ def run_reinforce(cfg, task):
         else:
             raise ValueError(f"Unknown baseline: {cfg.baseline}")
     
-    if cfg.get("RND", False):
+    if cfg.get("rnd_coef", False):
         rnd_baseline = MovingAverageBaseline(device=device)
+    else:
+        rnd_baseline = None
 
     # Create optimizer
     ####################################################################################################################
@@ -268,12 +272,14 @@ def run_reinforce(cfg, task):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optim, T_max=5000 // cfg.num_envs, eta_min=0.0001
         )
-        
-    if cfg.get("RND", False):
+
+    if cfg.get("rnd_coef", False):
         rnd_optim = torch.optim.Adam(
             rnd_pred.parameters(),
             lr=0.001,
         )
+    else:
+        rnd_optim = None
 
     # Create logger
     ####################################################################################################################
@@ -374,12 +380,13 @@ def run_reinforce(cfg, task):
             baseline=baseline,
             entropy_coef=cfg.get("entropy_coef", 0.0),
             kl_coef=cfg.get("kl_coef", 0.0),
-            rnd_target=rnd_target if cfg.get("RND", False) else None,
-            rnd_pred=rnd_pred if cfg.get("RND", False) else None,
-            rnd_baseline=rnd_baseline if cfg.get("RND", False) else None,
+            rnd_coef=cfg.get("rnd_coef", 0.0),
+            rnd_target=rnd_target,
+            rnd_pred=rnd_pred,
+            rnd_baseline=rnd_baseline,
         )
         # RND
-        if cfg.get("RND", False):
+        if cfg.get("rnd_coef", False):
             # Update RND
             RND_loss = update_rand(
                 data,
@@ -461,7 +468,7 @@ def get_log_prob(data, model):
 
 
 def compute_loss(
-    data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0, kl_coef=0.0, rnd_target=None, rnd_pred=None, rnd_baseline=None
+    data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0, kl_coef=0.0, rnd_coef=0.0, rnd_target=None, rnd_pred=None, rnd_baseline=None
 ):
 
     mask = data.get("mask").squeeze(-1)
@@ -482,7 +489,7 @@ def compute_loss(
         reward = reward - baseline.mean
         
     # Add intrinsic RND reward
-    if rnd_target and rnd_pred:
+    if rnd_coef:
         with torch.no_grad():
             target_likelihood, _ = get_log_prob(data, rnd_target)
             pred_likelihood, _ = get_log_prob(data, rnd_pred)
@@ -490,7 +497,7 @@ def compute_loss(
         # Normalize
         rnd_baseline.update(rnd_reward)
         rnd_reward = rnd_reward / rnd_baseline.std
-        reward = rnd_reward + reward
+        reward = reward + (rnd_coef*rnd_reward)
 
     # REINFORCE (negative as we minimize the negative log prob to maximize the policy)
     loss = -agent_likelihood * reward
@@ -503,7 +510,7 @@ def compute_loss(
 
     # Add Entropy loss term
     if entropy_coef:
-        loss -= entropy_coef * (agent_dist.entropy() * mask.squeeze()).mean(-1)
+        loss -= entropy_coef * (agent_dist.entropy() * mask.squeeze()).sum(-1)
 
     return data, loss, agent_likelihood
 
