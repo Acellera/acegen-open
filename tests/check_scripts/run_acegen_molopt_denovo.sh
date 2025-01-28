@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH --job-name=ahc_denovo
+#SBATCH --job-name=acegen_denovo
 #SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=slurm_logs/ahc_denovo%j.txt
-#SBATCH --error=slurm_errors/ahc_denovo%j.txt
+#SBATCH --output=slurm_logs/acegen_denovo%j.txt
+#SBATCH --error=slurm_errors/acegen_denovo%j.txt
 
 current_commit=$(git rev-parse --short HEAD)
 project_name="acegen-scripts-check-$current_commit"
