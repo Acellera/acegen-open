@@ -393,18 +393,6 @@ def run_reinforce(cfg, task):
         # Average loss over the batch
         loss = loss.mean()
 
-        # Add NLL Entropy loss term (this is the inverse to minimize entropy accross the batch to increase information gain)
-        if cfg.get("nll_entropy_coef", False):
-            nll_entropy = (
-                torch.distributions.Categorical(logits=agent_likelihood)
-                .entropy()
-                .mean()
-            )
-            nll_entropy = nll_entropy / (
-                sample_n / cfg.num_envs
-            )  # Scale by distribution size, i.e., penalize smaller entropy distributions
-            loss -= cfg.nll_entropy_coef * nll_entropy
-
         # Add regularizer that penalizes high likelihood for the entire sequence
         if cfg.get("likely_penalty_coef", False):
             loss_p = -(1 / agent_likelihood).mean()
