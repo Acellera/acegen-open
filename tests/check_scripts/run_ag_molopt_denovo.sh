@@ -20,7 +20,7 @@ if [ -z "$ACEGEN_MODEL" ]; then
 fi
 
 export PYTHONPATH=$(dirname $(dirname $PWD))
-python $PYTHONPATH/scripts/acegen/acegen.py \
+python $PYTHONPATH/scripts/acegen/ag.py \
   logger_backend=wandb \
   experiment_name="$project_name" \
   agent_name="$agent_name" \
