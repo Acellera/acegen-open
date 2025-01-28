@@ -1,8 +1,8 @@
 import logging
 import tarfile
+from functools import partial
 from importlib import import_module, resources
 from pathlib import Path
-from functools import partial
 
 from acegen.models.gpt2 import (
     create_gpt2_actor,
@@ -87,9 +87,12 @@ models = {
     "lstm_guacamol": (
         partial(create_lstm_actor, embedding_size=1024, hidden_size=1024, dropout=0.2),
         partial(create_lstm_critic, embedding_size=1024, hidden_size=1024, dropout=0.2),
-        partial(create_lstm_actor_critic, embedding_size=1024, hidden_size=1024, dropout=0.2),
+        partial(
+            create_lstm_actor_critic, embedding_size=1024, hidden_size=1024, dropout=0.2
+        ),
         resources.files("acegen.priors") / "lstm_guacamol_vocabulary.txt",
-        resources.files("acegen.priors") / "lstm_guacamol_model_final_0.473_acegen.ckpt", 
+        resources.files("acegen.priors")
+        / "lstm_guacamol_model_final_0.473_acegen.ckpt",
         SMILESTokenizerGuacaMol(),
     ),
     "gpt2": (

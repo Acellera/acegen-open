@@ -37,6 +37,7 @@ def adapt_state_dict(source_state_dict: dict, target_state_dict: dict):
 
     return target_state_dict
 
+
 def reinitialize_model(
     model: Union[torch.nn.Module, TensorDictModule], seed: int = 101
 ):

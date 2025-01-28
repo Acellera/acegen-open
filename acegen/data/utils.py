@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import torch
 import warnings
+
+import torch
 from tensordict import TensorDict
 
 
@@ -82,7 +83,7 @@ def collate_smiles_to_tensordict(
             )
             collated_arr[i, :max_length] = seq[:max_length]
         else:
-            collated_arr[i, :seq.size(0)] = seq
+            collated_arr[i, : seq.size(0)] = seq
     data = smiles_to_tensordict(
         collated_arr, reward=reward, replace_mask_value=0, device=device
     )

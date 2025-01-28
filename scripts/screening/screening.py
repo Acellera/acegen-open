@@ -127,11 +127,11 @@ def main(cfg: "DictConfig"):
 
 
 def run_screening(cfg, task):
-    
+
     # Load SMILES
     ####################################################################################################################
     all_smiles = load_dataset(cfg.dataset_path)
-    
+
     # Create logger
     ####################################################################################################################
     logger = None
@@ -152,19 +152,19 @@ def run_screening(cfg, task):
                 "reinit": True,
             },
         )
-    
+
     # Iteratively score SMILES
     ####################################################################################################################
     # Randomise dataset
     random.shuffle(all_smiles)
-    
+
     total_done = 0
     pbar = tqdm.tqdm(total=cfg.total_smiles)
     batch_size = 100
-   
+
     while not task.finished:
         # Sample
-        smiles = all_smiles[total_done:total_done+batch_size]
+        smiles = all_smiles[total_done : total_done + batch_size]
         # Score
         scores = task.score(smiles)
         # Update progress
@@ -175,7 +175,7 @@ def run_screening(cfg, task):
             "screen/reward": scores.mean(),
             "screen/min_reward": scores.min(),
             "screen/max_reward": scores.max(),
-            }
+        }
         if logger:
             for key, value in log_info.items():
                 logger.log_scalar(key, value, step=total_done)

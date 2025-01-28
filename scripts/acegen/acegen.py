@@ -5,6 +5,7 @@ import os
 import random
 import shutil
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
 
 import hydra
@@ -13,9 +14,9 @@ import numpy as np
 import torch
 import tqdm
 import yaml
+from acegen.models import adapt_state_dict, create_gru_actor, models, register_model
 
 from acegen.models.utils import reinitialize_model
-from acegen.models import adapt_state_dict, models, register_model, create_gru_actor
 from acegen.rl_env import generate_complete_smiles, TokenEnv
 from acegen.rl_env.baselines import LeaveOneOutBaseline, MovingAverageBaseline
 from acegen.scoring_functions import (
@@ -56,7 +57,7 @@ os.chdir("/tmp")
 
 @hydra.main(
     config_path=".",
-    config_name="config_denovo",
+    config_name="config_molopt",
     version_base="1.2",
 )
 def main(cfg: "DictConfig"):
@@ -187,11 +188,9 @@ def run_reinforce(cfg, task):
     actor_training = actor_training.to(device)
 
     prior, _ = create_actor(vocabulary_size=len(vocabulary))
-    prior.load_state_dict(
-        adapt_state_dict(deepcopy(ckpt), prior.state_dict())
-    )
+    prior.load_state_dict(adapt_state_dict(deepcopy(ckpt), prior.state_dict()))
     prior = prior.to(device)
-    
+
     if cfg.get("rnd_coef", False):
         rnd_target, _ = create_gru_actor(vocabulary_size=len(vocabulary))
         rnd_pred, _ = create_gru_actor(vocabulary_size=len(vocabulary))
@@ -253,7 +252,7 @@ def run_reinforce(cfg, task):
             baseline = MovingAverageBaseline(device=device)
         else:
             raise ValueError(f"Unknown baseline: {cfg.baseline}")
-    
+
     if cfg.get("rnd_coef", False):
         rnd_baseline = MovingAverageBaseline(device=device)
     else:
@@ -332,9 +331,9 @@ def run_reinforce(cfg, task):
         sample_n = data.size(0)
         data_next = data.get("next")
         done = data_next.get("done").squeeze(-1)
-        total_done += cfg.num_envs  # done.sum().item()
+        total_done += cfg.num_envs
         pbar.update(done.sum().item())
-        if len(data)==1:
+        if len(data) == 1:
             patience += 1
         else:
             patience = 0
@@ -388,12 +387,7 @@ def run_reinforce(cfg, task):
         # RND
         if cfg.get("rnd_coef", False):
             # Update RND
-            RND_loss = update_rand(
-                data,
-                rnd_target,
-                rnd_pred,
-                rnd_optim
-            )
+            RND_loss = update_rand(data, rnd_target, rnd_pred, rnd_optim)
             log_info.update({f"train/RND_loss": RND_loss.item()})
 
         # Average loss over the batch
@@ -401,8 +395,14 @@ def run_reinforce(cfg, task):
 
         # Add NLL Entropy loss term (this is the inverse to minimize entropy accross the batch to increase information gain)
         if cfg.get("nll_entropy_coef", False):
-            nll_entropy = torch.distributions.Categorical(logits=agent_likelihood).entropy().mean()
-            nll_entropy = nll_entropy / (sample_n / cfg.num_envs) # Scale by distribution size, i.e., penalize smaller entropy distributions
+            nll_entropy = (
+                torch.distributions.Categorical(logits=agent_likelihood)
+                .entropy()
+                .mean()
+            )
+            nll_entropy = nll_entropy / (
+                sample_n / cfg.num_envs
+            )  # Scale by distribution size, i.e., penalize smaller entropy distributions
             loss -= cfg.nll_entropy_coef * nll_entropy
 
         # Add regularizer that penalizes high likelihood for the entire sequence
@@ -415,7 +415,7 @@ def run_reinforce(cfg, task):
         loss.backward()
         optim.step()
         log_info.update({f"train/loss": loss.item()})
-        
+
         if cfg.get("lr_annealing", None) & (total_done < 5000):
             log_info.update(
                 {
@@ -468,7 +468,18 @@ def get_log_prob(data, model):
 
 
 def compute_loss(
-    data, model, prior, alpha=1, sigma=0.0, baseline=None, entropy_coef=0.0, kl_coef=0.0, rnd_coef=0.0, rnd_target=None, rnd_pred=None, rnd_baseline=None
+    data,
+    model,
+    prior,
+    alpha=1,
+    sigma=0.0,
+    baseline=None,
+    entropy_coef=0.0,
+    kl_coef=0.0,
+    rnd_coef=0.0,
+    rnd_target=None,
+    rnd_pred=None,
+    rnd_baseline=None,
 ):
 
     mask = data.get("mask").squeeze(-1)
@@ -487,7 +498,7 @@ def compute_loss(
     if baseline:
         baseline.update(reward.detach())
         reward = reward - baseline.mean
-        
+
     # Add intrinsic RND reward
     if rnd_coef:
         with torch.no_grad():
@@ -497,7 +508,7 @@ def compute_loss(
         # Normalize
         rnd_baseline.update(rnd_reward)
         rnd_reward = rnd_reward / rnd_baseline.std
-        reward = reward + (rnd_coef*rnd_reward)
+        reward = reward + (rnd_coef * rnd_reward)
 
     # REINFORCE (negative as we minimize the negative log prob to maximize the policy)
     loss = -agent_likelihood * reward
@@ -515,13 +526,11 @@ def compute_loss(
     return data, loss, agent_likelihood
 
 
-def update_rand(
-    data, rnd_target, rnd_pred, rnd_optim
-):
+def update_rand(data, rnd_target, rnd_pred, rnd_optim):
     with torch.no_grad():
         target_likelihood, _ = get_log_prob(data, rnd_target)
     pred_likelihood, _ = get_log_prob(data, rnd_pred)
-    
+
     # Loss
     loss = torch.pow((pred_likelihood - target_likelihood), 2).mean()
 
@@ -529,7 +538,7 @@ def update_rand(
     rnd_optim.zero_grad()
     loss.backward()
     rnd_optim.step()
-    
+
     return loss
 
 
