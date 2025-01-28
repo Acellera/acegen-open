@@ -57,7 +57,7 @@ os.chdir("/tmp")
 
 @hydra.main(
     config_path=".",
-    config_name="config_molopt",
+    config_name="config_molopt_denovo",
     version_base="1.2",
 )
 def main(cfg: "DictConfig"):
