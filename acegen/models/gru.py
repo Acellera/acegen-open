@@ -34,6 +34,22 @@ class Embed(torch.nn.Module):
         return out
 
 
+class Temperature(torch.nn.Module):
+    """Implements a temperature layer.
+
+    Simple Module that applies a temperature value to the logits for RL inference.
+
+    Args:
+        temperature (float): The temperature value.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, logits: torch.Tensor, temperature: torch.tensor) -> torch.Tensor:
+        return logits / temperature
+
+
 def create_gru_components(
     vocabulary_size: int,
     embedding_size: int = 256,
@@ -47,7 +63,7 @@ def create_gru_components(
     recurrent_state: str = "recurrent_state",
     python_based: bool = False,
 ):
-    """Create all GRU model components: embedding, GRU, and head.
+    """Create all GRU model components: embedding, GRU, head and temperature.
 
     These modules handle the case of having a time dimension (RL training)
     and not having it (RL inference).
@@ -97,8 +113,13 @@ def create_gru_components(
         in_keys=["features"],
         out_keys=[out_key],
     )
+    temperature = TensorDictModule(
+        Temperature(),
+        in_keys=[out_key, "temperature"],
+        out_keys=[out_key],
+    )
 
-    return embedding_module, gru_module, head
+    return embedding_module, gru_module, head, temperature
 
 
 def create_gru_actor(
@@ -139,7 +160,7 @@ def create_gru_actor(
     training_actor, inference_actor = create_gru_actor(10)
     ```
     """
-    embedding, gru, head = create_gru_components(
+    embedding, gru, head, temperature = create_gru_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
@@ -153,7 +174,7 @@ def create_gru_actor(
         python_based,
     )
 
-    actor_inference_model = TensorDictSequential(embedding, gru, head)
+    actor_inference_model = TensorDictSequential(embedding, gru, head, temperature)
     actor_training_model = TensorDictSequential(
         embedding,
         gru.set_recurrent_mode(True),
@@ -217,7 +238,7 @@ def create_gru_critic(
     output_size = vocabulary_size if critic_value_per_action else 1
     out_key = "action_value" if critic_value_per_action else "state_value"
 
-    embedding, gru, head = create_gru_components(
+    embedding, gru, head, _ = create_gru_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
@@ -281,7 +302,7 @@ def create_gru_actor_critic(
         inference_critic) = create_gru_actor_critic(10)
     ```
     """
-    embedding, gru, actor_head = create_gru_components(
+    embedding, gru, actor_head, temperature = create_gru_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
@@ -294,6 +315,8 @@ def create_gru_actor_critic(
         recurrent_state,
         python_based,
     )
+
+    actor_head = TensorDictSequential(actor_head, temperature)
 
     actor_head = ProbabilisticActor(
         module=actor_head,

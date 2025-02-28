@@ -37,6 +37,7 @@ def generate_complete_smiles(
     prompt: Union[str, list] = None,
     end_of_episode_key: str = "done",
     exploration_type: ExplorationType = ExplorationType.RANDOM,
+    temperature: float | torch.Tensor = 1.0,
     promptsmiles: str = None,
     promptsmiles_optimize: bool = True,
     promptsmiles_shuffle: bool = True,
@@ -68,6 +69,7 @@ def generate_complete_smiles(
             indicates the end of an episode. Defaults to "done".
         exploration_type (ExplorationType, optional): Exploration type to use. Defaults to
             :class:`~torchrl.envs.utils.ExplorationType.RANDOM`.
+        temperature (float, optional): Temperature to use when sampling actions from the policy.
         promptsmiles (str, optional): SMILES string of scaffold with attachment points or fragments seperated
             by "." with one attachment point each.
         promptsmiles_optimize (bool, optional): Optimize the prompt for the model being used.
@@ -335,6 +337,7 @@ def generate_complete_smiles(
 
         initial_observation = initial_observation.to(policy_device)
         tensordict_ = initial_observation
+        initial_temperature = tensordict_["temperature"].clone()
         finished = (
             torch.zeros(batch_size, dtype=torch.bool).unsqueeze(-1).to(policy_device)
         )
@@ -351,6 +354,9 @@ def generate_complete_smiles(
                     tensordict_.set(("next", "mask"), torch.ones_like(finished))
                     if prompt:
                         enforce_mask = enc_prompts[:, _] != vocabulary.end_token_index
+
+                    # Define temperature tensor
+                    tensordict_.set("temperature", initial_temperature * temperature)
 
                     # Execute policy
                     tensordict_ = tensordict_.to(policy_device)
