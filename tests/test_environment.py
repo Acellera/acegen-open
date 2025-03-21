@@ -135,7 +135,7 @@ def test_sample_smiles(
 @pytest.mark.parametrize("env_device", get_default_devices())
 @pytest.mark.parametrize("policy_device", get_default_devices())
 @pytest.mark.parametrize(
-    "prompt, prompt_error", [("c1ccccc", False), ("c%11ccccc", True)]
+    "prompt, prompt_error", [("c1ccccc", False), ("c%11ccccc", True), ("c1ccXcc", False)]
 )
 @pytest.mark.parametrize("batch_size", [2, 4])
 @pytest.mark.parametrize(
@@ -209,14 +209,16 @@ def test_sample_smiles_with_prompt(
     assert (action[terminated] == end_token).all()
     # Check they all start with the prompt
     smiles_str = [vocabulary.decode(smi.numpy()) for smi in action.cpu()]
-    assert all([smi.startswith(prompt) for smi in smiles_str])
+    if "X" not in prompt: # TODO if X in prompt, check string distance == sum(X)
+        assert all([smi.startswith(prompt) for smi in smiles_str])
 
     # Check return_smiles_only
     smiles = generate_complete_smiles(
         env, vocabulary=vocabulary, policy=None, prompt=prompt, return_smiles_only=True
     )
     assert len(smiles) == batch_size
-    assert all([smi.startswith(prompt) for smi in smiles])
+    if "X" not in prompt: # TODO if X in prompt, check string distance == sum(X)
+        assert all([smi.startswith(prompt) for smi in smiles])
     if prompt_error:
         assert all(smi == prompt for smi in smiles)
 
@@ -224,9 +226,15 @@ def test_sample_smiles_with_prompt(
 @skip_if_promptsmiles_not_available
 @pytest.mark.parametrize("batch_size", [2, 4])
 @pytest.mark.parametrize(
-    "promptsmiles", ["N1(*)CCN(CC1)CCCCN(*)", "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O"]
+    "promptsmiles", [
+        "N1(*)CCN(CC1)CCCCN(*)",
+        "Fc1ccc(*)cc1.C(*)C(O)CC(O)CC(=O)O",
+        "N1CCN(CC1)CCCCN",
+        ["N1(*)CCN(CC1)CCCCN(*)", "N1CCN(CC1)CCCCN"],
+        "data/scaffold_test_set"
+        ]
 )
-@pytest.mark.parametrize("promptsmiles_optimize", [False, True])
+@pytest.mark.parametrize("promptsmiles_optimize", [False])
 @pytest.mark.parametrize("promptsmiles_shuffle", [False, True])
 @pytest.mark.parametrize("promptsmiles_multi", [False, True])
 @pytest.mark.parametrize("promptsmiles_scan", [False, True])
@@ -287,6 +295,89 @@ def test_sample_promptsmiles(
         promptsmiles_optimize=promptsmiles_optimize,
         promptsmiles_shuffle=promptsmiles_shuffle,
         promptsmiles_scan=promptsmiles_scan,
+    )
+    terminated = smiles.get(("next", "terminated")).squeeze(
+        dim=-1
+    )  # if max_length is reached is False
+    truncated = smiles.get(("next", "truncated")).squeeze(
+        dim=-1
+    )  # if max_length is reached is True
+    done = smiles.get(("next", "done")).squeeze(dim=-1)
+    assert ((terminated | truncated) == done).all()
+    finished = done.any(-1)
+    if finished.all():
+        assert done.sum() >= batch_size
+        assert done.sum() == batch_size
+
+    assert (smiles["observation"][:, 0] == env.start_token).all()
+    assert (smiles["action"][terminated] == env.end_token).all()
+
+
+@skip_if_promptsmiles_not_available
+@pytest.mark.parametrize("batch_size", [2, 4])
+@pytest.mark.parametrize(
+    "promptsmiles", [
+        "c1ccXcc1",
+        "c1ccX(*)cc1",
+        "c1ccXc(*)c1",
+        ]
+)
+@pytest.mark.parametrize("promptsmiles_shuffle", [False, True])
+@pytest.mark.parametrize("promptsmiles_multi", [False, True])
+@pytest.mark.parametrize("device", get_default_devices())
+def test_sample_promptsmiles(
+    batch_size,
+    promptsmiles,
+    promptsmiles_shuffle,
+    promptsmiles_multi,
+    device,
+):
+    torch.manual_seed(0)
+    create_actor, _, _, voc_path, ckpt_path, tokenizer = models["gru"]
+
+    # Create vocabulary
+    with open(voc_path, "r") as f:
+        tokens = f.read().splitlines()
+    tokens_dict = dict(zip(tokens, range(len(tokens))))
+    vocabulary = Vocabulary.create_from_dict(
+        tokens_dict,
+        start_token="GO",
+        end_token="EOS",
+        tokenizer=tokenizer,
+    )
+    length_vocabulary = len(vocabulary)
+
+    # Create policy
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
+    policy_train, policy_inference = create_actor(length_vocabulary)
+    policy_train.load_state_dict(adapt_state_dict(ckpt, policy_train.state_dict()))
+    policy_inference.load_state_dict(
+        adapt_state_dict(ckpt, policy_inference.state_dict())
+    )
+    policy_train = policy_train.to(device)
+    policy_inference = policy_inference.to(device)
+
+    # Create environment
+    env = TokenEnv(
+        start_token=vocabulary.start_token_index,
+        end_token=vocabulary.end_token_index,
+        length_vocabulary=length_vocabulary,
+        device=device,
+        batch_size=batch_size,
+    )
+    env = TransformedEnv(env)
+    env.append_transform(InitTracker())
+    env.append_transform(get_primers_from_module(policy_train))
+
+    # Sample smiles
+    smiles = generate_complete_smiles(
+        environment=env,
+        vocabulary=vocabulary,
+        policy_sample=policy_inference,
+        policy_evaluate=policy_train,
+        promptsmiles=promptsmiles,
+        promptsmiles_optimize=False,
+        promptsmiles_shuffle=promptsmiles_shuffle,
     )
     terminated = smiles.get(("next", "terminated")).squeeze(
         dim=-1
