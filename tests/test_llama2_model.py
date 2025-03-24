@@ -49,12 +49,15 @@ def test_llama2_actor(vocabulary_size, device, sequence_length=5, batch_size=10)
         vocabulary_size,
         n_head=32,
         n_layer=2,
+        action_mask_key=None,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
     inference_batch = training_batch.clone()
     inference_batch.batch_size = [batch_size]
+    inference_batch.set("action_mask", torch.ones(batch_size, vocabulary_size, dtype=torch.bool))
+
 
     # Check that the inference model works
     inference_actor = inference_actor.to(device)

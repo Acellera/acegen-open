@@ -312,7 +312,6 @@ def generate_complete_smiles(
 
         failed_encodings = []
         if prompt:
-            print(prompt)
             if isinstance(prompt, str):
                 prompt = [prompt] * batch_size[0]
                 

@@ -3,7 +3,13 @@ from typing import Optional
 import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
-from torchrl.modules import ActorValueOperator, GRUModule, MLP, ProbabilisticActor, MaskedCategorical
+from torchrl.modules import (
+    ActorValueOperator,
+    GRUModule,
+    MaskedCategorical,
+    MLP,
+    ProbabilisticActor,
+)
 
 from acegen.models.common import Temperature
 
@@ -175,7 +181,7 @@ def create_gru_actor(
     else:
         inf_keys = ["logits"]
         inf_dist = distribution_class
-        
+
     actor_inference_model = ProbabilisticActor(
         module=actor_inference_model,
         in_keys=inf_keys,

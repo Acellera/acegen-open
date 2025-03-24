@@ -1,5 +1,6 @@
 import torch
 
+
 class Temperature(torch.nn.Module):
     """Implements a temperature layer.
 
