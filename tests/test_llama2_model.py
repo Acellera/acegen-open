@@ -1,4 +1,5 @@
 import pytest
+from packaging.version import Version
 import torch
 from acegen.data import smiles_to_tensordict
 from acegen.models.llama2 import (
@@ -12,12 +13,17 @@ try:
     import transformers
 
     transformers_available = True
+    wrong_version = False
+    if Version(transformers.__version__) <= Version("4.28.0"):
+        wrong_version = True
+        
 except ImportError:
     transformers_available = False
+    wrong_version = False
 
 skip_if_transformers_not_available = pytest.mark.skipif(
-    not transformers_available,
-    reason="transformers library is not available, skipping this test",
+    (not transformers_available) or wrong_version,
+    reason="Llama or transformers library is not available, skipping this test",
 )
 
 
@@ -43,12 +49,15 @@ def test_llama2_actor(vocabulary_size, device, sequence_length=5, batch_size=10)
         vocabulary_size,
         n_head=32,
         n_layer=2,
+        action_mask_key=None,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
     inference_batch = training_batch.clone()
     inference_batch.batch_size = [batch_size]
+    inference_batch.set("action_mask", torch.ones(batch_size, vocabulary_size, dtype=torch.bool))
+
 
     # Check that the inference model works
     inference_actor = inference_actor.to(device)
