@@ -42,7 +42,7 @@ class TokenEnv(EnvBase):
         start_token: int,
         end_token: int,
         length_vocabulary: int,
-        max_length: int = 100,
+        max_length: int = 200,
         device: DEVICE_TYPING = None,
         batch_size: int = 1,
         one_hot_action_encoding: bool = False,

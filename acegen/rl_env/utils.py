@@ -4,6 +4,7 @@ from pathlib import Path
 from functools import partial
 from typing import Callable, Union
 
+import omegaconf
 import torch
 from tensordict.nn import TensorDictModule
 from tensordict.nn.probabilistic import set_interaction_type as set_exploration_type
@@ -147,7 +148,8 @@ def generate_complete_smiles(
                 prompt_type = "fragment"
             else:
                 prompt_type = "scaffold"
-        elif isinstance(promptsmiles, list):
+        elif isinstance(promptsmiles, (list, omegaconf.listconfig.ListConfig)):
+            promptsmiles = list(promptsmiles)
             prompt_type = "scaffold"
         else:
             raise ValueError(
