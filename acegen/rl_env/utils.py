@@ -40,7 +40,7 @@ def generate_complete_smiles(
     prompt: Union[str, list] = None,
     end_of_episode_key: str = "done",
     exploration_type: ExplorationType = ExplorationType.RANDOM,
-    temperature: float | torch.Tensor = 1.0,
+    temperature: Union[float, torch.Tensor] = 1.0,
     promptsmiles: str = None,
     promptsmiles_optimize: bool = True,
     promptsmiles_shuffle: bool = True,
