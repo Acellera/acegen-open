@@ -55,14 +55,17 @@ os.chdir("/tmp")
 def main(cfg: "DictConfig"):
 
     if isinstance(cfg.seed, int):
-        cfg.seed = [cfg.seed]
+        seeds = [cfg.seed]
+    else:
+        seeds = cfg.seed
 
-    for seed in cfg.seed:
+    for seed in seeds:
 
         # Set seed
         random.seed(int(seed))
         np.random.seed(int(seed))
         torch.manual_seed(int(seed))
+        cfg.seed = int(seed)
 
         # Define save_dir and save config
         current_time = datetime.datetime.now()
@@ -93,7 +96,7 @@ def main(cfg: "DictConfig"):
                     task_config=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
-                    add_run_dir=True,
+                    add_run_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
                 run_reinvent(cfg, task)
@@ -110,6 +113,7 @@ def main(cfg: "DictConfig"):
                 )
                 for task in MSB:
                     run_reinvent(cfg, task)
+                    task.write_scores()
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -168,13 +172,14 @@ def run_reinvent(cfg, task):
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
-        adapt_state_dict(ckpt, actor_inference.state_dict())
+        adapt_state_dict(deepcopy(ckpt), actor_inference.state_dict())
     )
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
 
-    prior = deepcopy(actor_training)
+    prior, _ = create_actor(vocabulary_size=len(vocabulary))
+    prior.load_state_dict(adapt_state_dict(deepcopy(ckpt), prior.state_dict()))
+    prior = prior.to(device)
 
     # Create RL environment
     ####################################################################################################################
