@@ -4,10 +4,10 @@ import json
 import os
 import random
 import shutil
+from packaging import version
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
-
 import hydra
 import numpy as np
 
@@ -47,6 +47,10 @@ try:
     from molscore.manager import MolScore
 
     _has_molscore = True
+    if hasattr(molscore, "__version__"):
+        _molscore_version = version.parse(molscore.__version__)
+    else:
+        _molscore_version = version.parse("1.0")
 except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
@@ -105,10 +109,13 @@ def main(cfg: "DictConfig"):
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
                     add_run_dir=False,
-                    score_invalids=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_reinforce(cfg, task)
+                if _molscore_version < version.parse("2.0"):
+                    run_reinforce(cfg, task)
+                else:
+                    with task as scoring_function:
+                        run_reinforce(cfg, scoring_function)
 
             if cfg.molscore_mode == "benchmark":
                 MSB = MolScoreBenchmark(
@@ -118,12 +125,17 @@ def main(cfg: "DictConfig"):
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
                     add_benchmark_dir=False,
-                    score_invalids=True,
                     **cfg.get("molscore_kwargs", {}),
                 )
-                for task in MSB:
-                    run_reinforce(cfg, task)
-                    task.write_scores()
+                if _molscore_version < version.parse("2.0"):
+                    for task in MSB:
+                        run_reinforce(cfg, task)
+                        task.write_scores()
+                else:
+                    with MSB as benchmark:
+                        for task in benchmark:
+                            with task as scoring_function:
+                                run_reinforce(cfg, scoring_function)
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -134,7 +146,11 @@ def main(cfg: "DictConfig"):
                     output_dir=os.path.abspath(save_dir),
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_reinforce(cfg, task)
+                if _molscore_version < version.parse("2.0"):
+                    run_reinforce(cfg, task)
+                else:
+                    with task as scoring_function:
+                        run_reinforce(cfg, scoring_function)
 
         elif cfg.get("custom_task", None):
             if cfg.custom_task not in custom_scoring_functions:

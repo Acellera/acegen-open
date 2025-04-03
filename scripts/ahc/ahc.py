@@ -2,6 +2,7 @@
 import datetime
 import os
 import random
+from packaging import version
 from copy import deepcopy
 from pathlib import Path
 
@@ -39,6 +40,10 @@ try:
     from molscore.manager import MolScore
 
     _has_molscore = True
+    if hasattr(molscore, "__version__"):
+        _molscore_version = version.parse(molscore.__version__)
+    else:
+        _molscore_version = version.parse("1.0")
 except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
@@ -99,7 +104,11 @@ def main(cfg: "DictConfig"):
                     add_run_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_ahc(cfg, task)
+                if _molscore_version < version.parse("2.0"):
+                    run_ahc(cfg, task)
+                else:
+                    with task as scoring_function:
+                        run_ahc(cfg, scoring_function)
 
             if cfg.molscore_mode == "benchmark":
                 MSB = MolScoreBenchmark(
@@ -111,9 +120,15 @@ def main(cfg: "DictConfig"):
                     add_benchmark_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
-                for task in MSB:
-                    run_ahc(cfg, task)
-                    task.write_scores()
+                if _molscore_version < version.parse("2.0"):
+                    for task in MSB:
+                        run_ahc(cfg, task)
+                        task.write_scores()
+                else:
+                    with MSB as benchmark:
+                        for task in benchmark:
+                            with task as scoring_function:
+                                run_ahc(cfg, scoring_function)
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -124,7 +139,11 @@ def main(cfg: "DictConfig"):
                     output_dir=os.path.abspath(save_dir),
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_ahc(cfg, task)
+                if _molscore_version < version.parse("2.0"):
+                    run_ahc(cfg, task)
+                else:
+                    with task as scoring_function:
+                        run_ahc(cfg, scoring_function)
 
         elif cfg.get("custom_task", None):
             if cfg.custom_task not in custom_scoring_functions:
