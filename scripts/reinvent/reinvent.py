@@ -2,6 +2,7 @@
 import datetime
 import os
 import random
+from packaging import version
 from copy import deepcopy
 from pathlib import Path
 
@@ -39,6 +40,10 @@ try:
     from molscore.manager import MolScore
 
     _has_molscore = True
+    if hasattr(molscore, "__version__"):
+        _molscore_version = version.parse(molscore.__version__)
+    else:
+        _molscore_version = version.parse("1.0")
 except ImportError as err:
     _has_molscore = False
     MOLSCORE_ERR = err
@@ -55,14 +60,17 @@ os.chdir("/tmp")
 def main(cfg: "DictConfig"):
 
     if isinstance(cfg.seed, int):
-        cfg.seed = [cfg.seed]
+        seeds = [cfg.seed]
+    else:
+        seeds = cfg.seed
 
-    for seed in cfg.seed:
+    for seed in seeds:
 
         # Set seed
         random.seed(int(seed))
         np.random.seed(int(seed))
         torch.manual_seed(int(seed))
+        cfg.seed = int(seed)
 
         # Define save_dir and save config
         current_time = datetime.datetime.now()
@@ -93,10 +101,14 @@ def main(cfg: "DictConfig"):
                     task_config=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     output_dir=os.path.abspath(save_dir),
-                    add_run_dir=True,
+                    add_run_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_reinvent(cfg, task)
+                if _molscore_version < version.parse("2.0"):
+                    run_reinvent(cfg, task)
+                else:
+                    with task as scoring_function:
+                        run_reinvent(cfg, scoring_function)
 
             if cfg.molscore_mode == "benchmark":
                 MSB = MolScoreBenchmark(
@@ -108,8 +120,15 @@ def main(cfg: "DictConfig"):
                     add_benchmark_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
-                for task in MSB:
-                    run_reinvent(cfg, task)
+                if _molscore_version < version.parse("2.0"):
+                    for task in MSB:
+                        run_reinvent(cfg, task)
+                        task.write_scores()
+                else:
+                    with MSB as benchmark:
+                        for task in benchmark:
+                            with task as scoring_function:
+                                run_reinvent(cfg, scoring_function)
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
@@ -120,7 +139,11 @@ def main(cfg: "DictConfig"):
                     output_dir=os.path.abspath(save_dir),
                     **cfg.get("molscore_kwargs", {}),
                 )
-                run_reinvent(cfg, task)
+                if _molscore_version < version.parse("2.0"):
+                    run_reinvent(cfg, task)
+                else:
+                    with task as scoring_function:
+                        run_reinvent(cfg, scoring_function)
 
         elif cfg.get("custom_task", None):
             if cfg.custom_task not in custom_scoring_functions:
@@ -168,13 +191,14 @@ def run_reinvent(cfg, task):
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
     actor_training, actor_inference = create_actor(vocabulary_size=len(vocabulary))
     actor_inference.load_state_dict(
-        adapt_state_dict(ckpt, actor_inference.state_dict())
+        adapt_state_dict(deepcopy(ckpt), actor_inference.state_dict())
     )
-    actor_training.load_state_dict(adapt_state_dict(ckpt, actor_training.state_dict()))
     actor_inference = actor_inference.to(device)
     actor_training = actor_training.to(device)
 
-    prior = deepcopy(actor_training)
+    prior, _ = create_actor(vocabulary_size=len(vocabulary))
+    prior.load_state_dict(adapt_state_dict(deepcopy(ckpt), prior.state_dict()))
+    prior = prior.to(device)
 
     # Create RL environment
     ####################################################################################################################

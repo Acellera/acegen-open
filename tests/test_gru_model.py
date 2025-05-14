@@ -20,6 +20,7 @@ def generate_valid_data_batch(
         {
             "observation": tokens[:, :-1],
             "done": torch.zeros(batch_size, sequence_length, 1),
+            "temperature": torch.ones(batch_size, sequence_length, 1),
             "is_init": done[:, 1:],
             "next": TensorDict(
                 {

@@ -100,7 +100,14 @@ class Vocabulary(BaseVocabulary):
             if i == self.vocab[self.end_token]:
                 break
             chars.append(self.reversed_vocab[i])
-        string = "".join(chars)
+        
+        if self.tokenizer is None:
+            raise RuntimeError(
+                "Tokenizer not set. Please set a valid tokenizer first."
+                "Any class that implements the Tokenizer interface can be used."
+            )
+            
+        string = self.tokenizer.untokenize(chars)
         return string
 
     def add_characters(self, chars):
