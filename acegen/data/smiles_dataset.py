@@ -1,6 +1,7 @@
 import gzip
 import logging
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +14,8 @@ from acegen.data import chem_utils
 from acegen.data.utils import smiles_to_tensordict
 
 try:
+    if sys.version_info <= (3,9):
+        raise ImportError("Molbloom requires Python 3.10 or higher")
     from molbloom import BloomFilter, CustomFilter
 
     _has_molbloom = True
