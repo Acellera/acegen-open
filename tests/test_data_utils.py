@@ -19,9 +19,11 @@ from torch.utils.data import DataLoader
 
 
 try:
-    from molbloom import BloomFilter, CustomFilter
-
-    _has_molbloom = True
+    if sys.version_info < (3,10):
+        raise ImportError("Molbloom requires Python 3.10 or higher")
+    else:
+        from molbloom import BloomFilter, CustomFilter
+        _has_molbloom = True
 except ImportError:
     _has_molbloom = False
 
