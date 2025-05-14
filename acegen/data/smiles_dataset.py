@@ -14,11 +14,11 @@ from acegen.data import chem_utils
 from acegen.data.utils import smiles_to_tensordict
 
 try:
-    if sys.version_info <= (3,9):
+    if sys.version_info < (3,10):
         raise ImportError("Molbloom requires Python 3.10 or higher")
-    from molbloom import BloomFilter, CustomFilter
-
-    _has_molbloom = True
+    else:
+        from molbloom import BloomFilter, CustomFilter
+        _has_molbloom = True
 except ImportError:
     _has_molbloom = False
 
