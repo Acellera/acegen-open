@@ -83,6 +83,7 @@ def main(cfg: "DictConfig"):
         )
         with open_dict(cfg):
             cfg.save_dir = save_dir
+            cfg.script = __file__
         os.makedirs(save_dir, exist_ok=True)
         with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
             cfg_dict = OmegaConf.to_container(cfg, resolve=True)
@@ -215,7 +216,7 @@ def run_reinvent(cfg, task):
         "start_token": vocabulary.start_token_index,
         "end_token": vocabulary.end_token_index,
         "length_vocabulary": len(vocabulary),
-        "max_length": cfg.get("max_length", 100),
+        "max_length": cfg.get("max_length", 200),
         "batch_size": cfg.num_envs,
         "device": device,
     }

@@ -59,6 +59,13 @@ def main(cfg: "DictConfig"):
         np.random.seed(int(seed))
         torch.manual_seed(int(seed))
         cfg.seed = int(seed)
+        
+        # Check dataset path
+        if not cfg.dataset_path or not os.path.exists(cfg.dataset_path):
+            raise ValueError(
+                f"Dataset path '{cfg.dataset_path}' does not exist. "
+                "Please provide a valid --dataset_path."
+            )
 
         # Define save_dir and save config
         current_time = datetime.datetime.now()
@@ -69,6 +76,7 @@ def main(cfg: "DictConfig"):
         )
         with open_dict(cfg):
             cfg.save_dir = save_dir
+            cfg.script = __file__
         os.makedirs(save_dir, exist_ok=True)
         with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
             cfg_dict = OmegaConf.to_container(cfg, resolve=True)

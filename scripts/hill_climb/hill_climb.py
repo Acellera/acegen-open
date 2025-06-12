@@ -82,6 +82,7 @@ def main(cfg: "DictConfig"):
         )
         with open_dict(cfg):
             cfg.save_dir = save_dir
+            cfg.script = __file__
         os.makedirs(save_dir, exist_ok=True)
         with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
             cfg_dict = OmegaConf.to_container(cfg, resolve=True)
