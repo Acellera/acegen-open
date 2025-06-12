@@ -19,4 +19,5 @@ dependencies:
     - torchvision==0.18.0+cu121 # Pin the version to match your download or check the latest on PyTorch's website
     - git+https://github.com/pytorch/rl.git@83a7a57daee4b76b249dbc0ce2231f163f2a1482
     - git+https://github.com/pytorch/tensordict.git@c11024e0db864bd8487c68e3d0cf5e100fc07831
+    - git+https://github.com/Acellera/acegen-open.git
     - MolScore
