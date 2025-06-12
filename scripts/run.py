@@ -125,9 +125,10 @@ Examples:
     )
     
     parser.add_argument(
-        "algorithm",
+        "--algorithm",
         choices=list(ALGORITHMS.keys()),
         help="Name of the algorithm to run"
+        required=True
     )
     
     parser.add_argument(
