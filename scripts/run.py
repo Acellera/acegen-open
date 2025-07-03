@@ -194,7 +194,12 @@ def main():
     cfg = OmegaConf.merge(default_cfg, molscore_cfg)
 
     # Update experiment_name which determines directory
-    cfg["experiment_name"] = molscore_cfg["molscore_task"]
+    if Path(molscore_cfg["molscore_task"]).is_file() or Path(molscore_cfg["molscore_task"]).is_dir():
+        cfg["experiment_name"] = Path(molscore_cfg["molscore_task"]).stem
+    elif ":" in molscore_cfg["molscore_task"]:
+        cfg["experiment_name"] = molscore_cfg["molscore_task"].split(":", maxsplit=1)[1]
+    else:
+        cfg["experiment_name"] = molscore_cfg["molscore_task"]
 
     # Update seed
     cfg["seed"] = args.seed
