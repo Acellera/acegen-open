@@ -7,7 +7,7 @@ import numpy as np
 
 import torch
 import yaml
-from omegaconf import OmegaConf, open_dict, DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from packaging import version
 
 from acegen.scoring_functions import (
