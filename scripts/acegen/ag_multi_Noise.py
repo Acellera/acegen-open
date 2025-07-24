@@ -15,6 +15,7 @@ import torch
 import tqdm
 import yaml
 
+from acegen.script_helpers import set_seed, run_task
 from acegen.models import adapt_state_dict, models, register_model
 from acegen.rl_env import generate_complete_smiles, TokenEnv
 from acegen.scoring_functions import (
@@ -63,109 +64,13 @@ os.chdir("/tmp")
     version_base="1.2",
 )
 def main(cfg: "DictConfig"):
-
-    if isinstance(cfg.seed, int):
-        seeds = [cfg.seed]
-    else:
-        seeds = cfg.seed
-
-    for seed in seeds:
-
-        # Set seed
-        random.seed(int(seed))
-        np.random.seed(int(seed))
-        torch.manual_seed(int(seed))
-        cfg.seed = int(seed)
-
-        # Define save_dir and save config
-        current_time = datetime.datetime.now()
-        timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-        os.chdir(os.path.dirname(__file__))
-        save_dir = (
-            f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
-        )
-        with open_dict(cfg):
-            cfg.save_dir = save_dir
-        os.makedirs(save_dir, exist_ok=True)
-        with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
-            cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-            yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
-
-        # Define training task and run
-        if cfg.get("molscore_task", None):
-
-            if not _has_molscore:
-                raise RuntimeError(
-                    "MolScore library not found. Unable to create a scoring function. "
-                    "To install MolScore, use: `pip install MolScore`"
-                ) from MOLSCORE_ERR
-
-            if cfg.molscore_mode == "single":
-                task = MolScore(
-                    model_name=cfg.agent_name,
-                    task_config=cfg.molscore_task,
-                    budget=cfg.total_smiles,
-                    output_dir=os.path.abspath(save_dir),
-                    add_run_dir=False,
-                    **cfg.get("molscore_kwargs", {}),
-                )
-                if _molscore_version < version.parse("2.0"):
-                    run_reinforce(cfg, task)
-                else:
-                    with task as scoring_function:
-                        run_reinforce(cfg, scoring_function)
-
-            if cfg.molscore_mode == "benchmark":
-                MSB = MolScoreBenchmark(
-                    model_name=cfg.agent_name,
-                    model_parameters=dict(cfg),
-                    benchmark=cfg.molscore_task,
-                    budget=cfg.total_smiles,
-                    output_dir=os.path.abspath(save_dir),
-                    add_benchmark_dir=False,
-                    **cfg.get("molscore_kwargs", {}),
-                )
-                if _molscore_version < version.parse("2.0"):
-                    for task in MSB:
-                        run_reinforce(cfg, task)
-                        task.write_scores()
-                else:
-                    with MSB as benchmark:
-                        for task in benchmark:
-                            with task as scoring_function:
-                                run_reinforce(cfg, scoring_function)
-
-            if cfg.molscore_mode == "curriculum":
-                task = MolScoreCurriculum(
-                    model_name=cfg.agent_name,
-                    model_parameters=dict(cfg),
-                    benchmark=cfg.molscore_task,
-                    budget=cfg.total_smiles,
-                    output_dir=os.path.abspath(save_dir),
-                    **cfg.get("molscore_kwargs", {}),
-                )
-                if _molscore_version < version.parse("2.0"):
-                    run_reinforce(cfg, task)
-                else:
-                    with task as scoring_function:
-                        run_reinforce(cfg, scoring_function)
-
-        elif cfg.get("custom_task", None):
-            if cfg.custom_task not in custom_scoring_functions:
-                register_custom_scoring_function(cfg.custom_task, cfg.custom_task)
-            task = Task(
-                name=cfg.custom_task,
-                scoring_function=custom_scoring_functions[cfg.custom_task],
-                budget=cfg.total_smiles,
-                output_dir=save_dir,
-            )
-            run_reinforce(cfg, task)
-
-        else:
-            raise ValueError("No scoring function specified.")
+    run_task(cfg, run_reinforce, __file__)
 
 
 def run_reinforce(cfg, task):
+    
+    # Set seed
+    set_seed(cfg.seed)
 
     # Define number of agents in the population
     num_agents = cfg.get("num_agents", 1)
