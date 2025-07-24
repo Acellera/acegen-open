@@ -7,7 +7,7 @@ import numpy as np
 
 import torch
 import yaml
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf, open_dict, DictConfig
 from packaging import version
 
 from acegen.scoring_functions import (
@@ -38,7 +38,7 @@ def set_seed(seed):
     torch.manual_seed(int(seed))
 
 
-def run_task(cfg: "DictConfig", algorithm: callable, script_path: str = None):
+def run_task(cfg: DictConfig, algorithm: callable, script_path: str = None):
     """Shared pre-amble to interpret the config and run the task(s) for the seed(s)."""
     if isinstance(cfg.seed, int):
         seeds = [cfg.seed]
