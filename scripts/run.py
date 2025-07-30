@@ -2,12 +2,12 @@
 
 import argparse
 import importlib
-import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import yaml
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 
@@ -120,7 +120,7 @@ Usage:
 
 Examples:
   python run.py ahc --molscore_config config.yaml
-  python run.py reinforce --molscore_config config.yaml --model=gru_chembl lr=0.001
+  python run.py reinforce --molscore_config config.yaml --model=gru_chembl --lr=0.001
         """,
     )
 
@@ -214,6 +214,7 @@ def main():
     module = importlib.import_module(script_path.stem)
     print("Running script")
     module.main(cfg)
+    torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
