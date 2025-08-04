@@ -108,6 +108,15 @@ def update_config_from_args(cfg: DictConfig, overrides: Dict[str, Any]) -> DictC
 
     return cfg
 
+def make_cfg_paths_absolute(cfg: dict):
+    # Convert any paths to absolute
+    for key, value in cfg.items():
+        if isinstance(value, dict):
+            make_cfg_paths_absolute(value)
+        elif isinstance(value, (str, os.PathLike)):
+            if os.path.exists(value):
+                cfg[key] = str(Path(value).resolve())
+
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -162,7 +171,8 @@ Examples:
             # Handle boolean flags (--flag means True)
             key = arg[2:]
             config_overrides[key] = True
-
+    # Make paths absolute
+    make_cfg_paths_absolute(config_overrides)
     args.config_overrides = config_overrides
     return args
 
