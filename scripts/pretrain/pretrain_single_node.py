@@ -136,7 +136,7 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nStarting pretraining...")
     actor_losses = torch.zeros(len(dataloader))
-    for epoch in range(1, cfg.epochs):
+    for epoch in range(1, cfg.epochs+1):
 
         actor_losses.zero_()
 
