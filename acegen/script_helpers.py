@@ -105,11 +105,13 @@ def run_task(cfg: DictConfig, algorithm: callable, script_path: str = None):
                     for task in MSB:
                         algorithm(cfg, task)
                         task.write_scores()
+                        torch.cuda.empty_cache()
                 else:
                     with MSB as benchmark:
                         for task in benchmark:
                             with task as scoring_function:
                                 algorithm(cfg, scoring_function)
+                                torch.cuda.empty_cache()
 
             if cfg.molscore_mode == "curriculum":
                 task = MolScoreCurriculum(
