@@ -231,11 +231,18 @@ def run_reinvent(cfg, task):
             )
             replay_reward = torch.tensor(replay_reward, device=device).float()
             # Concatenate and create tensor
-            aug_tokens = [
-                torch.tensor(vocabulary.encode(smi))
-                for smi in sampled_smiles + replay_smiles
-            ]
-            aug_reward = torch.cat([sampled_reward, replay_reward], dim=0)
+            aug_tokens = []
+            aug_indices = []
+            for i, smi in enumerate(sampled_smiles):
+                try:
+                    aug_tokens.append(torch.tensor(vocabulary.encode(smi)))
+                    aug_indices.append(i)
+                except KeyError as e:
+                    print(f"WARNING: {e}")
+                    continue
+            for smi in replay_smiles:
+                aug_tokens.append(torch.tensor(vocabulary.encode(smi)))
+            aug_reward = torch.cat([sampled_reward[aug_indices], replay_reward], dim=0)
             aug_data = collate_smiles_to_tensordict(
                 arr=aug_tokens,
                 max_length=env.max_length,
