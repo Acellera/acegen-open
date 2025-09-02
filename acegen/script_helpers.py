@@ -36,6 +36,18 @@ def set_seed(seed):
     random.seed(int(seed))
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
+    
+    
+def create_save_dir(cfg: DictConfig, script_path: os.PathLike) -> os.PathLike:
+    """Create a unique save directory based on the current time."""
+    current_time = datetime.datetime.now()
+    timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
+    save_dir = (
+            f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
+        )
+    save_dir = Path(script_path).parent.resolve() / save_dir
+    os.makedirs(save_dir, exist_ok=True)
+    return save_dir
 
 
 def run_task(cfg: DictConfig, algorithm: callable, script_path: str = None):
@@ -50,18 +62,19 @@ def run_task(cfg: DictConfig, algorithm: callable, script_path: str = None):
         # Set seed
         cfg.seed = int(seed)
 
-        # Define save_dir and save config
-        current_time = datetime.datetime.now()
-        timestamp_str = current_time.strftime("%Y_%m_%d_%H%M%S")
-        os.chdir(os.path.dirname(script_path))
-        save_dir = (
-            f"{cfg.log_dir}/{cfg.experiment_name}_{cfg.agent_name}_{timestamp_str}"
-        )
+        # Define save_dir
+        os.chdir(Path(script_path).parent) # hydra quirk
+        if save_dir := cfg.get('save_dir', False):
+            save_dir = Path(save_dir).resolve()
+        else:
+            save_dir = create_save_dir(cfg, script_path)
+        
+        # Save config
         with open_dict(cfg):
-            cfg.save_dir = save_dir
-            cfg.script = script_path
+            cfg.save_dir = str(save_dir)
+            cfg.script = str(script_path)
         os.makedirs(save_dir, exist_ok=True)
-        with open(Path(save_dir) / "config.yaml", "w") as yaml_file:
+        with open(save_dir / "config.yaml", "w") as yaml_file:
             cfg_dict = OmegaConf.to_container(cfg, resolve=True)
             yaml.dump(cfg_dict, yaml_file, default_flow_style=False)
 
@@ -80,7 +93,7 @@ def run_task(cfg: DictConfig, algorithm: callable, script_path: str = None):
                     task_config=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     oracle_budget=cfg.get("oracle_budget", False),
-                    output_dir=os.path.abspath(save_dir),
+                    output_dir=save_dir,
                     add_run_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
@@ -97,7 +110,7 @@ def run_task(cfg: DictConfig, algorithm: callable, script_path: str = None):
                     benchmark=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     oracle_budget=cfg.get("oracle_budget", False),
-                    output_dir=os.path.abspath(save_dir),
+                    output_dir=save_dir,
                     add_benchmark_dir=False,
                     **cfg.get("molscore_kwargs", {}),
                 )
@@ -120,7 +133,7 @@ def run_task(cfg: DictConfig, algorithm: callable, script_path: str = None):
                     benchmark=cfg.molscore_task,
                     budget=cfg.total_smiles,
                     oracle_budget=cfg.get("oracle_budget", False),
-                    output_dir=os.path.abspath(save_dir),
+                    output_dir=save_dir,
                     **cfg.get("molscore_kwargs", {}),
                 )
                 if _molscore_version < version.parse("2.0"):
