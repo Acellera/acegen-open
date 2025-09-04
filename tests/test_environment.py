@@ -18,7 +18,7 @@ except ImportError:
 
 skip_if_promptsmiles_not_available = pytest.mark.skipif(
     not promptsmiles_available,
-    reason="prompsmiles library is not available, skipping this test",
+    reason="promptsmiles library is not available, skipping this test",
 )
 
 

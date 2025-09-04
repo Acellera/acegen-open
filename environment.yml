@@ -1,0 +1,24 @@
+name: acegen
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - flake8
+  - pytest
+  - pytest-cov
+  - hydra-core
+  - tqdm
+  - wandb
+  - rdkit>=2023.3.3
+  - ninja # torchrl dependency
+  - cmake # torchrl dependency
+  - pip:
+    #- --index-url https://download.pytorch.org/whl/cu121
+    #- --extra-index-url https://pypi.org/simple
+    - torch==2.6.0 #+cu121 # Pin the version to match your download or check the latest on PyTorch's website
+    - git+https://github.com/pytorch/rl.git@83a7a57daee4b76b249dbc0ce2231f163f2a1482 # Deffo ipython(new stable)
+    - tensordict==0.7.2 # Deffo
+    - git+https://github.com/Acellera/acegen-open.git
+    - MolScore

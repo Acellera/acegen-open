@@ -1,0 +1,58 @@
+# Logging configuration
+experiment_name: acegen
+agent_name: ACEGEN_MolOpt
+log_dir: results # Directory to save the results
+logger_backend: null # csv, wandb, tensorboard, or null
+seed: 101 # multiple seeds can be provided as a list to multiple experiments sequentially e.g. [101, 102, 103]
+
+# Environment configuration
+num_agents: 1 # Number of agents
+num_envs: 32 # Number of smiles to generate in parallel
+total_smiles: 10_000 # Total number of smiles to generate
+
+# Scoring function
+molscore_mode: benchmark # single, benchmark, or curriculum
+molscore_task: MolExpL # task configuration (JSON), benchmark (preset only), or curriculum task (preset only)
+molscore_kwargs:
+  exclude: [A2A_bioactivity]
+custom_task: null # Requires molscore to be set to null
+# Refer to the tutorials for more information on how to use custom scoring functions / tasks
+
+# Fix the beginning of the generated molecules
+prompt: null  # e.g. c1ccccc
+
+# Architecture
+model: gru_chembl34 # gru, lstm, or gpt2
+# The default prior varies for each model. Refer to the README file in the root directory for more information.
+# The default vocabulary varies for each prior. Refer to the README file in the root directory for more information.
+custom_model_factory: null # Path to a custom model factory (e.g. my_module.create_model)
+
+# Optimizer configuration
+lr: 0.0001 # default: 0.0001
+lr_annealing: False
+eps: 1.0e-08
+weight_decay: 0.0
+
+# Hill-Climb
+topk: 0.5
+
+# Reinforce configuration
+alpha: 3 # Reinforce=1
+sigma: 0.001 # Prior regularization
+baseline: null # null, mab or loo
+likely_penalty_coef: 0 # Encourage exploration
+entropy_coef: 0 # Encourage exploration
+
+# Data replay configuration
+replay_sampler: prioritized # uniform, prioritized
+replay_buffer_size: 100 # 0, means no buffer
+replay_batch_size: 50
+
+# Population learning configuration
+pop_init_noise: 0 # Used in ag_multi_Noise.py
+pop_entropy_coef: 0 # Used in ag_multi_ENT.py, ag_multi_CE.py, 
+pop_diff_coef: 0 # Used in ag_multi_DIFF.py, ag_multi_agentDIFF.py
+pop_norm: null # [max, mean] Used in ag_multi_POPNORM.py 
+novelty_bonus: False # Used in ag_multi_Shared.py
+DvD_size: 0 # Default=100 Used in ag_multi_DvD.py
+

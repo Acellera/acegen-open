@@ -228,7 +228,7 @@ def generate_complete_smiles(
                 # Add final complete smiles for logging and scoring
                 _output_data.set(
                     "promptsmiles",
-                    enc_smiles[-1][:, :-1].to(env_device),
+                    enc_smiles[-1][:, :].to(env_device),
                 )
                 # Fix failed encodings
                 if failed_encodings:
@@ -271,7 +271,7 @@ def generate_complete_smiles(
             # Add final completed promptsmiles for logging and scoring
             output_data.set(
                 "promptsmiles",
-                enc_smiles[-1][:, :-1].to(env_device),
+                enc_smiles[-1][:, :].to(env_device),
             )
 
         if remove_duplicates:

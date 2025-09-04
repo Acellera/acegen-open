@@ -78,14 +78,18 @@ conda create -n acegen python=3.10 -y
 conda activate acegen
 ```
 
-To install the required dependencies run the following commands. Replace `cu121` with your appropriate CUDA version (e.g., `cu118`, `cu117`, `cu102`).
+First install `torch` replacing `cu121` with your appropriate CUDA version (e.g., `cu118`, `cu117`, `cu102`).
 
 ```bash
 pip3 install torch torchvision  --index-url https://download.pytorch.org/whl/cu121
-pip3 install flake8 pytest pytest-cov hydra-core tqdm wandb
-pip3 install torchrl
 ```
 
+To install general requirements and the acegen stable versions of `torchrl` and `tensordict` run the following command.
+
+```bash
+pip3 install -r requirements.txt
+``` 
+[Optional] You can install the latest versions by running `pip3 install torchrl --upgrade` but they may not have been tested. 
 
   </details>
 

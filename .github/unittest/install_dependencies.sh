@@ -1,10 +1,14 @@
 # Upgrade pip
 python -m pip install --upgrade pip
 
-# Install dependencies
+# Install required dependencies
 python -m pip install flake8 pytest pytest-cov hydra-core tqdm
 python -m pip install torch torchvision
-python -m pip install transformers promptsmiles torchrl rdkit==2023.3.3 MolScore
+python -m pip install git+https://github.com/pytorch/rl.git@83a7a57daee4b76b249dbc0ce2231f163f2a1482
+python -m pip install git+https://github.com/pytorch/tensordict.git@c11024e0db864bd8487c68e3d0cf5e100fc07831
+
+# Install additional dependencies
+python -m pip install transformers promptsmiles MolScore
 python -m pip install deepsmiles
 python -m pip install selfies
 python -m pip install smi2sdf
