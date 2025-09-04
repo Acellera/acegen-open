@@ -44,7 +44,7 @@ class Vocabulary(BaseVocabulary):
         self.special_tokens = [end_token, start_token]
         self.special_tokens += list(set(special_tokens))
         self.additional_chars = set()
-        self.chars = self.special_tokens
+        self.chars = deepcopy(self.special_tokens)
         self.vocab_size = len(self.chars)
         self.vocab = dict(zip(self.chars, range(len(self.chars))))
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}
@@ -111,26 +111,39 @@ class Vocabulary(BaseVocabulary):
         return string
 
     def add_characters(self, chars):
-        """Adds characters to the vocabulary.
+        """Adds characters to the end of the vocabulary.
 
         Args:
             chars (list[str]): A list of characters to add to the vocabulary.
         """
+        additional_chars = set()
         for char in chars:
             if char not in self.chars:
-                self.additional_chars.add(char)
-        char_list = list(self.additional_chars)
-        char_list.sort()
-        self.chars = self.special_tokens + char_list
-        self.vocab_size = len(self.chars)
-        self.vocab = dict(zip(self.chars, range(len(self.chars))))
+                additional_chars.add(char)
+        additional_chars = list(additional_chars)
+        additional_chars.sort()
+        n_prev = len(self.chars)
+        n_new = n_prev + len(additional_chars)
+        self.chars += additional_chars
+        self.additional_chars.update(additional_chars)
+        self.vocab.update(dict(zip(additional_chars, range(n_prev, n_new))))
         self.reversed_vocab = {v: k for k, v in self.vocab.items()}
+        self.vocab_size = len(self.chars)
 
     def __len__(self):
         return len(self.chars)
 
     def __str__(self):
-        return "Vocabulary containing {} tokens: {}".format(len(self), self.chars)
+        return f"Vocabulary(len={len(self)}, tokens={self.vocab})"
+    
+    def __repr__(self):
+        return f"Vocabulary(len={len(self)}, tokens={self.vocab})"
+    
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.reversed_vocab[key]
+        if isinstance(key, str):
+            return self.vocab[key]
 
     @classmethod
     def create_from_strings(

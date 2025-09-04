@@ -3,7 +3,15 @@ from typing import Optional
 import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
-from torchrl.modules import ActorValueOperator, LSTMModule, MLP, ProbabilisticActor
+from torchrl.modules import (
+    ActorValueOperator,
+    LSTMModule,
+    MaskedCategorical,
+    MLP,
+    ProbabilisticActor,
+)
+
+from acegen.models.common import Temperature
 
 
 class Embed(torch.nn.Module):
@@ -101,8 +109,13 @@ def create_lstm_components(
         in_keys=["features"],
         out_keys=[out_key],
     )
+    temperature = TensorDictModule(
+        Temperature(),
+        in_keys=[out_key, "temperature"],
+        out_keys=[out_key],
+    )
 
-    return embedding_module, lstm_module, head
+    return embedding_module, lstm_module, head, temperature
 
 
 def create_lstm_actor(
@@ -116,6 +129,7 @@ def create_lstm_actor(
     return_log_prob=True,
     in_key: str = "observation",
     out_key: str = "logits",
+    action_mask_key: str = "action_mask",
     recurrent_state: str = "recurrent_state_actor",
     python_based: bool = False,
 ):
@@ -134,6 +148,7 @@ def create_lstm_actor(
             of the action.
         in_key (str): The input key name.
         out_key (str):): The output key name.
+        action_mask_key (str): The action mask key name.
         recurrent_state (str): The name of the recurrent state.
         python_based (bool): Whether to use the Python-based LSTM module.
             Default is False, a CuDNN-based LSTM module is used.
@@ -143,7 +158,7 @@ def create_lstm_actor(
     training_actor, inference_actor = create_lstm_actor(10)
     ```
     """
-    embedding, lstm, head = create_lstm_components(
+    embedding, lstm, head, temperature = create_lstm_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
@@ -157,18 +172,25 @@ def create_lstm_actor(
         python_based,
     )
 
-    actor_inference_model = TensorDictSequential(embedding, lstm, head)
+    actor_inference_model = TensorDictSequential(embedding, lstm, head, temperature)
     actor_training_model = TensorDictSequential(
         embedding,
         lstm.set_recurrent_mode(True),
         head,
     )
 
+    if action_mask_key:
+        inf_keys = {"logits": "logits", "mask": action_mask_key}
+        inf_dist = MaskedCategorical
+    else:
+        inf_keys = ["logits"]
+        inf_dist = distribution_class
+
     actor_inference_model = ProbabilisticActor(
         module=actor_inference_model,
-        in_keys=["logits"],
+        in_keys=inf_keys,
         out_keys=["action"],
-        distribution_class=distribution_class,
+        distribution_class=inf_dist,
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
@@ -221,7 +243,7 @@ def create_lstm_critic(
     output_size = vocabulary_size if critic_value_per_action else 1
     out_key = "action_value" if critic_value_per_action else "state_value"
 
-    embedding, lstm, head = create_lstm_components(
+    embedding, lstm, head, _ = create_lstm_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
@@ -285,7 +307,7 @@ def create_lstm_actor_critic(
         inference_critic) = create_lstm_actor_critic(10)
     ```
     """
-    embedding, lstm, actor_head = create_lstm_components(
+    embedding, lstm, actor_head, _ = create_lstm_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
