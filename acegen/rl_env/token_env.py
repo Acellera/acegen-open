@@ -42,7 +42,7 @@ class TokenEnv(EnvBase):
         start_token: int,
         end_token: int,
         length_vocabulary: int,
-        max_length: int = 100,
+        max_length: int = 200,
         device: DEVICE_TYPING = None,
         batch_size: int = 1,
         one_hot_action_encoding: bool = False,
@@ -91,6 +91,10 @@ class TokenEnv(EnvBase):
             self.num_envs, self.max_length, device=self.device, dtype=torch.bool
         )
         self.sequence_mask[:, 0] = True
+        
+        self.action_mask = torch.ones(
+            self.num_envs, self.length_vocabulary, device=self.device, dtype=torch.bool
+        )
 
         self._reset_tensordict = TensorDict(
             {
@@ -109,6 +113,7 @@ class TokenEnv(EnvBase):
                 ),
                 "sequence": self.sequence.clone(),
                 "sequence_mask": self.sequence_mask.clone(),
+                "action_mask": self.action_mask.clone()
             },
             device=self.device,
             batch_size=self.batch_size,
@@ -167,6 +172,7 @@ class TokenEnv(EnvBase):
                 "observation": obs,
                 "sequence": self.sequence.clone(),
                 "sequence_mask": self.sequence_mask.clone(),
+                "action_mask": self.action_mask.clone()
             },
             device=self.device,
             batch_size=self.batch_size,

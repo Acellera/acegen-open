@@ -3,7 +3,15 @@ from typing import Optional
 import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
-from torchrl.modules import ActorValueOperator, GRUModule, MLP, ProbabilisticActor
+from torchrl.modules import (
+    ActorValueOperator,
+    GRUModule,
+    MaskedCategorical,
+    MLP,
+    ProbabilisticActor,
+)
+
+from acegen.models.common import Temperature
 
 
 class Embed(torch.nn.Module):
@@ -32,22 +40,6 @@ class Embed(torch.nn.Module):
         if len(batch) > 1:
             out = out.unflatten(0, batch)
         return out
-
-
-class Temperature(torch.nn.Module):
-    """Implements a temperature layer.
-
-    Simple Module that applies a temperature value to the logits for RL inference.
-
-    Args:
-        temperature (float): The temperature value.
-    """
-
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, logits: torch.Tensor, temperature: torch.tensor) -> torch.Tensor:
-        return logits / temperature
 
 
 def create_gru_components(
@@ -133,6 +125,7 @@ def create_gru_actor(
     return_log_prob=True,
     in_key: str = "observation",
     out_key: str = "logits",
+    action_mask_key: str = "action_mask",
     recurrent_state: str = "recurrent_state_actor",
     python_based: bool = False,
 ):
@@ -151,6 +144,7 @@ def create_gru_actor(
             of the action.
         in_key (str): The input key name.
         out_key (str):): The output key name.
+        action_mask_key (str): The action mask key name.
         recurrent_state (str): The name of the recurrent state.
         python_based (bool): Whether to use the Python-based GRU module.
             Default is False, a CuDNN-based GRU module is used.
@@ -181,11 +175,18 @@ def create_gru_actor(
         head,
     )
 
+    if action_mask_key:
+        inf_keys = {"logits": "logits", "mask": action_mask_key}
+        inf_dist = MaskedCategorical
+    else:
+        inf_keys = ["logits"]
+        inf_dist = distribution_class
+
     actor_inference_model = ProbabilisticActor(
         module=actor_inference_model,
-        in_keys=["logits"],
+        in_keys=inf_keys,
         out_keys=["action"],
-        distribution_class=distribution_class,
+        distribution_class=inf_dist,
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )

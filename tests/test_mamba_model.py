@@ -44,12 +44,48 @@ def test_mamba_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
         vocabulary_size,
         n_embd=64,
         n_layer=8,
+        action_mask_key=None,
     )
     training_batch = generate_valid_data_batch(
         vocabulary_size, batch_size, sequence_length
     )
     inference_batch = training_batch.clone()
     inference_batch.batch_size = [batch_size]
+
+    # Check that the inference model works
+    inference_actor = inference_actor.to(device)
+    inference_batch = inference_batch.to(device)
+    inference_batch = inference_actor(inference_batch)
+    assert "logits" in inference_batch.keys()
+    assert "action" in inference_batch.keys()
+
+    # Check that the training model works
+    training_actor = training_actor.to(device)
+    training_batch = training_batch.to(device)
+    training_batch = training_actor(training_batch)
+    assert "logits" in training_batch.keys()
+    assert "action" in training_batch.keys()
+    
+    
+@skip_if_mamba_not_available
+@pytest.mark.parametrize("vocabulary_size", [10])
+@pytest.mark.parametrize("device", get_default_devices())
+def test_mamba_masked_actor(vocabulary_size, device, sequence_length=5, batch_size=10):
+    torch.manual_seed(0)
+    # Create the model and a data batch
+    training_actor, inference_actor = create_mamba_actor(
+        vocabulary_size,
+        n_embd=64,
+        n_layer=8,
+        action_mask_key="action_mask",
+    )
+    training_batch = generate_valid_data_batch(
+        vocabulary_size, batch_size, sequence_length
+    )
+    inference_batch = training_batch.clone()
+    inference_batch.batch_size = [batch_size]
+    inference_batch.set("action_mask", torch.ones(batch_size, vocabulary_size, dtype=torch.bool))
+
 
     # Check that the inference model works
     inference_actor = inference_actor.to(device)
