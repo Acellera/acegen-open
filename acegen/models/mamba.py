@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
-from torchrl.modules import ActorValueOperator, ProbabilisticActor
+from torchrl.modules import ActorValueOperator, MaskedCategorical, ProbabilisticActor
 
 try:
     from mamba_ssm.models.mixer_seq_simple import MixerModel
@@ -80,6 +80,7 @@ def create_mamba_actor(
     vocabulary_size: int,
     n_embd: int = 128,
     n_layer: int = 24,
+    action_mask_key: str = "action_mask",
     return_log_prob: bool = True,
     **kwargs,
 ):
@@ -114,6 +115,14 @@ def create_mamba_actor(
     policy_training = TensorDictSequential(lm_training, lm_head)
     policy_inference = TensorDictSequential(lm_inference, lm_head)
 
+    # Create optional mask for inference
+    if action_mask_key:
+        inf_keys = {"logits": "logits", "mask": action_mask_key}
+        inf_dist = MaskedCategorical
+    else:
+        inf_keys = ["logits"]
+        inf_dist = torch.distributions.Categorical
+
     # To make the actor probabilities, wrap the policy in a ProbabilisticActor
     # This module will take care of sampling and computing log_probabilities
     probabilistic_policy_training = ProbabilisticActor(
@@ -126,9 +135,9 @@ def create_mamba_actor(
     )
     probabilistic_policy_inference = ProbabilisticActor(
         module=policy_inference,
-        in_keys=["logits"],
+        in_keys=inf_keys,
         out_keys=["action"],
-        distribution_class=torch.distributions.Categorical,
+        distribution_class=inf_dist,
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )

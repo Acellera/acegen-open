@@ -32,6 +32,17 @@ class Tokenizer:
                 [tokenized.append(unit) for unit in list(char)]
         tokenized.append(self.end_token)
         return tokenized
+    
+    def untokenize(self, tokens: list[int]) -> str:
+        smiles = ""
+        for t in tokens:
+            if t == self.start_token:
+                continue
+            elif t == self.end_token:
+                break
+            else:
+                smiles += t
+        return smiles
 
 
 def test_from_smiles():

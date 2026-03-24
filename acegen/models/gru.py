@@ -3,7 +3,15 @@ from typing import Optional
 import torch
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torchrl.envs import ExplorationType
-from torchrl.modules import ActorValueOperator, GRUModule, MLP, ProbabilisticActor
+from torchrl.modules import (
+    ActorValueOperator,
+    GRUModule,
+    MaskedCategorical,
+    MLP,
+    ProbabilisticActor,
+)
+
+from acegen.models.common import Temperature
 
 
 class Embed(torch.nn.Module):
@@ -47,7 +55,7 @@ def create_gru_components(
     recurrent_state: str = "recurrent_state",
     python_based: bool = False,
 ):
-    """Create all GRU model components: embedding, GRU, and head.
+    """Create all GRU model components: embedding, GRU, head and temperature.
 
     These modules handle the case of having a time dimension (RL training)
     and not having it (RL inference).
@@ -97,8 +105,13 @@ def create_gru_components(
         in_keys=["features"],
         out_keys=[out_key],
     )
+    temperature = TensorDictModule(
+        Temperature(),
+        in_keys=[out_key, "temperature"],
+        out_keys=[out_key],
+    )
 
-    return embedding_module, gru_module, head
+    return embedding_module, gru_module, head, temperature
 
 
 def create_gru_actor(
@@ -112,6 +125,7 @@ def create_gru_actor(
     return_log_prob=True,
     in_key: str = "observation",
     out_key: str = "logits",
+    action_mask_key: str = "action_mask",
     recurrent_state: str = "recurrent_state_actor",
     python_based: bool = False,
 ):
@@ -130,6 +144,7 @@ def create_gru_actor(
             of the action.
         in_key (str): The input key name.
         out_key (str):): The output key name.
+        action_mask_key (str): The action mask key name.
         recurrent_state (str): The name of the recurrent state.
         python_based (bool): Whether to use the Python-based GRU module.
             Default is False, a CuDNN-based GRU module is used.
@@ -139,7 +154,7 @@ def create_gru_actor(
     training_actor, inference_actor = create_gru_actor(10)
     ```
     """
-    embedding, gru, head = create_gru_components(
+    embedding, gru, head, temperature = create_gru_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
@@ -153,18 +168,25 @@ def create_gru_actor(
         python_based,
     )
 
-    actor_inference_model = TensorDictSequential(embedding, gru, head)
+    actor_inference_model = TensorDictSequential(embedding, gru, head, temperature)
     actor_training_model = TensorDictSequential(
         embedding,
         gru.set_recurrent_mode(True),
         head,
     )
 
+    if action_mask_key:
+        inf_keys = {"logits": "logits", "mask": action_mask_key}
+        inf_dist = MaskedCategorical
+    else:
+        inf_keys = ["logits"]
+        inf_dist = distribution_class
+
     actor_inference_model = ProbabilisticActor(
         module=actor_inference_model,
-        in_keys=["logits"],
+        in_keys=inf_keys,
         out_keys=["action"],
-        distribution_class=distribution_class,
+        distribution_class=inf_dist,
         return_log_prob=return_log_prob,
         default_interaction_type=ExplorationType.RANDOM,
     )
@@ -217,7 +239,7 @@ def create_gru_critic(
     output_size = vocabulary_size if critic_value_per_action else 1
     out_key = "action_value" if critic_value_per_action else "state_value"
 
-    embedding, gru, head = create_gru_components(
+    embedding, gru, head, _ = create_gru_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
@@ -281,7 +303,7 @@ def create_gru_actor_critic(
         inference_critic) = create_gru_actor_critic(10)
     ```
     """
-    embedding, gru, actor_head = create_gru_components(
+    embedding, gru, actor_head, temperature = create_gru_components(
         vocabulary_size,
         embedding_size,
         hidden_size,
@@ -294,6 +316,8 @@ def create_gru_actor_critic(
         recurrent_state,
         python_based,
     )
+
+    actor_head = TensorDictSequential(actor_head, temperature)
 
     actor_head = ProbabilisticActor(
         module=actor_head,

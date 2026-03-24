@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import tempfile
 
@@ -19,9 +20,11 @@ from torch.utils.data import DataLoader
 
 
 try:
-    from molbloom import BloomFilter, CustomFilter
-
-    _has_molbloom = True
+    if sys.version_info < (3,10):
+        raise ImportError("Molbloom requires Python 3.10 or higher")
+    else:
+        from molbloom import BloomFilter, CustomFilter
+        _has_molbloom = True
 except ImportError:
     _has_molbloom = False
 
@@ -57,19 +60,19 @@ def test_smiles_to_tensordict():
     assert "terminated" in keys
 
     # Check shapes of tensors
-    assert result["observation"].shape == (B, T - 1)
-    assert result["action"].shape == (B, T - 1)
-    assert result["done"].shape == (B, T - 1, 1)
-    assert result["terminated"].shape == (B, T - 1, 1)
-    assert result["mask"].shape == (B, T - 1)
+    assert result["observation"].shape == (B, T)
+    assert result["action"].shape == (B, T)
+    assert result["done"].shape == (B, T, 1)
+    assert result["terminated"].shape == (B, T, 1)
+    assert result["mask"].shape == (B, T)
 
-    assert next_tensordict["observation"].shape == (B, T - 1)
-    assert next_tensordict["reward"].shape == (B, T - 1, 1)
-    assert next_tensordict["done"].shape == (B, T - 1, 1)
-    assert next_tensordict["terminated"].shape == (B, T - 1, 1)
+    assert next_tensordict["observation"].shape == (B, T)
+    assert next_tensordict["reward"].shape == (B, T, 1)
+    assert next_tensordict["done"].shape == (B, T, 1)
+    assert next_tensordict["terminated"].shape == (B, T, 1)
 
     # Check if the batch_size attribute is correctly set
-    assert result.batch_size == torch.Size([B, T - 1])
+    assert result.batch_size == torch.Size([B, T])
 
     # Check rewards are in the right position
     assert (result["next"]["reward"][next_tensordict["done"]].cpu() == reward).all()

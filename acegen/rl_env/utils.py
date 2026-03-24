@@ -1,7 +1,10 @@
+import re
 import warnings
+from pathlib import Path
 from functools import partial
 from typing import Callable, Union
 
+import omegaconf
 import torch
 from tensordict.nn import TensorDictModule
 from tensordict.nn.probabilistic import set_interaction_type as set_exploration_type
@@ -12,6 +15,7 @@ from torchrl.envs import EnvBase
 from torchrl.envs.utils import ExplorationType, step_mdp
 
 from acegen.data.utils import smiles_to_tensordict
+from acegen.data.smiles_dataset import load_dataset
 from acegen.vocabulary import Vocabulary
 
 try:
@@ -37,6 +41,7 @@ def generate_complete_smiles(
     prompt: Union[str, list] = None,
     end_of_episode_key: str = "done",
     exploration_type: ExplorationType = ExplorationType.RANDOM,
+    temperature: Union[float, torch.Tensor] = 1.0,
     promptsmiles: str = None,
     promptsmiles_optimize: bool = True,
     promptsmiles_shuffle: bool = True,
@@ -68,6 +73,7 @@ def generate_complete_smiles(
             indicates the end of an episode. Defaults to "done".
         exploration_type (ExplorationType, optional): Exploration type to use. Defaults to
             :class:`~torchrl.envs.utils.ExplorationType.RANDOM`.
+        temperature (float, optional): Temperature to use when sampling actions from the policy.
         promptsmiles (str, optional): SMILES string of scaffold with attachment points or fragments seperated
             by "." with one attachment point each.
         promptsmiles_optimize (bool, optional): Optimize the prompt for the model being used.
@@ -132,12 +138,25 @@ def generate_complete_smiles(
             vocabulary=vocabulary,
             max_length=max_length,
         )
-        # Split fragments into a list if there are multiple
-        promptsmiles = promptsmiles.split(".")
-        if len(promptsmiles) == 1:
-            promptsmiles = promptsmiles[0]
-
+        # Deduce type of prompt
         if isinstance(promptsmiles, str):
+            if Path(promptsmiles).exists():
+                promptsmiles = load_dataset(promptsmiles)
+                prompt_type = "scaffold"
+            elif "." in promptsmiles:
+                promptsmiles = promptsmiles.split(".")
+                prompt_type = "fragment"
+            else:
+                prompt_type = "scaffold"
+        elif isinstance(promptsmiles, (list, omegaconf.listconfig.ListConfig)):
+            promptsmiles = list(promptsmiles)
+            prompt_type = "scaffold"
+        else:
+            raise ValueError(
+                "PromptSMILES must be a string or a list of strings, or a path to a file."
+                )
+
+        if prompt_type == "scaffold":
             # We are decorating a Scaffold
             PS = ScaffoldDecorator(
                 scaffold=promptsmiles,
@@ -150,7 +169,7 @@ def generate_complete_smiles(
                 return_all=True,
             )
 
-        if isinstance(promptsmiles, list):
+        if prompt_type == "fragment": 
             # We are linking fragments
             PS = FragmentLinker(
                 fragments=promptsmiles,
@@ -209,7 +228,7 @@ def generate_complete_smiles(
                 # Add final complete smiles for logging and scoring
                 _output_data.set(
                     "promptsmiles",
-                    enc_smiles[-1][:, :-1].to(env_device),
+                    enc_smiles[-1][:, :].to(env_device),
                 )
                 # Fix failed encodings
                 if failed_encodings:
@@ -252,7 +271,7 @@ def generate_complete_smiles(
             # Add final completed promptsmiles for logging and scoring
             output_data.set(
                 "promptsmiles",
-                enc_smiles[-1][:, :-1].to(env_device),
+                enc_smiles[-1][:, :].to(env_device),
             )
 
         if remove_duplicates:
@@ -297,6 +316,17 @@ def generate_complete_smiles(
         if prompt:
             if isinstance(prompt, str):
                 prompt = [prompt] * batch_size[0]
+                
+            # Add X to vocabulary for substitution
+            vocabulary.add_characters("X")
+            free_sample_tokens = torch.tensor([vocabulary["X"], vocabulary.end_token_index]).to(policy_device)
+            
+            # Create action mask of atoms
+            atom_patt = re.compile(r"(\[[^\]]*\]|Br|Cl|[a-wyzA-WYZ])")
+            atom_tokens = torch.tensor([vocabulary[t] for t in vocabulary.chars if atom_patt.fullmatch(t)]).to(policy_device)
+            atom_mask = torch.zeros(len(vocabulary)-1, dtype=torch.bool).to(policy_device)
+            atom_mask = atom_mask.scatter(0, atom_tokens, True)
+            
             # Encode the prompt(s)
             tokens = []
             for i, smi in enumerate(prompt):
@@ -335,6 +365,7 @@ def generate_complete_smiles(
 
         initial_observation = initial_observation.to(policy_device)
         tensordict_ = initial_observation
+        initial_temperature = tensordict_["temperature"].clone()
         finished = (
             torch.zeros(batch_size, dtype=torch.bool).unsqueeze(-1).to(policy_device)
         )
@@ -350,7 +381,15 @@ def generate_complete_smiles(
                     tensordict_.set("mask", torch.ones_like(finished))
                     tensordict_.set(("next", "mask"), torch.ones_like(finished))
                     if prompt:
-                        enforce_mask = enc_prompts[:, _] != vocabulary.end_token_index
+                        enforce_mask = ~torch.isin(
+                            enc_prompts[:, _], free_sample_tokens
+                            )
+                        # Apply atom mask if prompt is X
+                        if any(enc_prompts[:, _] == vocabulary["X"]):
+                            tensordict_["action_mask"][enc_prompts[:, _] == vocabulary["X"]] = atom_mask
+
+                    # Define temperature tensor
+                    tensordict_.set("temperature", initial_temperature * temperature)
 
                     # Execute policy
                     tensordict_ = tensordict_.to(policy_device)
@@ -359,10 +398,10 @@ def generate_complete_smiles(
 
                     # Enforce prompt
                     if prompt:
-                        new_action = (~enforce_mask * tensordict_.get("action")) + (
+                        prompt_action = (~enforce_mask * tensordict_.get("action")) + (
                             enforce_mask * enc_prompts[:, _]
                         ).long()
-                        tensordict_.set("action", new_action)
+                        tensordict_.set("action", prompt_action)
 
                     # Step forward in the environment
                     tensordict_ = environment.step(tensordict_)
@@ -370,6 +409,9 @@ def generate_complete_smiles(
                     # Mask out finished environments
                     if finished.any():
                         tensordict_.masked_fill_(finished.squeeze(), 0)
+                        # Don't fill action_mask
+                        tensordict_["action_mask"][finished.squeeze()] = 1
+                        tensordict_["next"]["action_mask"][finished.squeeze()] = 1
 
                     # Extend list of tensordicts
                     tensordicts.append(tensordict_.clone())

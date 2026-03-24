@@ -2,12 +2,7 @@ from typing import Optional
 
 import torch
 from tensordict.tensordict import TensorDict, TensorDictBase
-from torchrl.data import (
-    Composite,
-    Categorical,
-    OneHotDiscreteTensorSpec,
-    Unbounded,
-)
+from torchrl.data import Categorical, Composite, OneHotDiscreteTensorSpec, Unbounded
 from torchrl.data.utils import DEVICE_TYPING
 from torchrl.envs import EnvBase
 
@@ -47,7 +42,7 @@ class TokenEnv(EnvBase):
         start_token: int,
         end_token: int,
         length_vocabulary: int,
-        max_length: int = 100,
+        max_length: int = 200,
         device: DEVICE_TYPING = None,
         batch_size: int = 1,
         one_hot_action_encoding: bool = False,
@@ -96,6 +91,10 @@ class TokenEnv(EnvBase):
             self.num_envs, self.max_length, device=self.device, dtype=torch.bool
         )
         self.sequence_mask[:, 0] = True
+        
+        self.action_mask = torch.ones(
+            self.num_envs, self.length_vocabulary, device=self.device, dtype=torch.bool
+        )
 
         self._reset_tensordict = TensorDict(
             {
@@ -109,8 +108,12 @@ class TokenEnv(EnvBase):
                 "terminated": torch.zeros(
                     self.num_envs, 1, device=self.device, dtype=torch.bool
                 ),
+                "temperature": torch.ones(
+                    self.num_envs, 1, device=self.device, dtype=torch.float32
+                ),
                 "sequence": self.sequence.clone(),
                 "sequence_mask": self.sequence_mask.clone(),
+                "action_mask": self.action_mask.clone()
             },
             device=self.device,
             batch_size=self.batch_size,
@@ -169,6 +172,7 @@ class TokenEnv(EnvBase):
                 "observation": obs,
                 "sequence": self.sequence.clone(),
                 "sequence_mask": self.sequence_mask.clone(),
+                "action_mask": self.action_mask.clone()
             },
             device=self.device,
             batch_size=self.batch_size,
@@ -181,9 +185,7 @@ class TokenEnv(EnvBase):
 
     def _set_specs(self) -> None:
         obs_spec = (
-            OneHotDiscreteTensorSpec
-            if self.one_hot_obs_encoding
-            else Categorical
+            OneHotDiscreteTensorSpec if self.one_hot_obs_encoding else Categorical
         )
         self.observation_spec = Composite(
             {
@@ -220,9 +222,7 @@ class TokenEnv(EnvBase):
             }
         ).expand(self.num_envs)
         action_spec = (
-            OneHotDiscreteTensorSpec
-            if self.one_hot_action_encoding
-            else Categorical
+            OneHotDiscreteTensorSpec if self.one_hot_action_encoding else Categorical
         )
         self.action_spec = Composite(
             {
@@ -246,12 +246,8 @@ class TokenEnv(EnvBase):
         self.done_spec = (
             Composite(
                 {
-                    "done": Categorical(
-                        n=2, dtype=torch.bool, device=self.device
-                    ),
-                    "truncated": Categorical(
-                        n=2, dtype=torch.bool, device=self.device
-                    ),
+                    "done": Categorical(n=2, dtype=torch.bool, device=self.device),
+                    "truncated": Categorical(n=2, dtype=torch.bool, device=self.device),
                     "terminated": Categorical(
                         n=2, dtype=torch.bool, device=self.device
                     ),

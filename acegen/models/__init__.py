@@ -76,6 +76,22 @@ models = {
         resources.files("acegen.priors") / "gru_chembl34.ckpt",
         SMILESTokenizerChEMBL(),
     ),
+    "gru_guacamol": (
+        create_gru_actor,
+        create_gru_critic,
+        create_gru_actor_critic,
+        resources.files("acegen.priors") / "gru_guacamol_vocabulary.ckpt",
+        resources.files("acegen.priors") / "gru_guacamol.ckpt",
+        SMILESTokenizerChEMBL(),
+    ),
+    "gru_zinc250k": (
+        create_gru_actor,
+        create_gru_critic,
+        create_gru_actor_critic,
+        resources.files("acegen.priors") / "gru_zinc250k_vocabulary.ckpt",
+        resources.files("acegen.priors") / "gru_zinc250k.ckpt",
+        SMILESTokenizerChEMBL(),
+    ),
     "lstm": (
         create_lstm_actor,
         create_lstm_critic,

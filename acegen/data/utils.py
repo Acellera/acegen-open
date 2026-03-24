@@ -22,6 +22,7 @@ def smiles_to_tensordict(
         mask_value (int): Value to used for padding. Default: -1.
         replace_mask_value (int): Value to replace the mask value with. Default: None.
     """
+    smiles = torch.nn.functional.pad(smiles, (0, 1), value=mask_value, mode="constant") # Pad by 1 to preserve shape
     B, T = smiles.shape
     mask = smiles != mask_value
     device = torch.device(device) if isinstance(device, str) else device
