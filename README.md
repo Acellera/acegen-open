@@ -133,6 +133,37 @@ pip install ./
 ---
 
 <details>
+  <summary><strong>Development / Testing</strong></summary>
+  &nbsp; <!-- This adds a non-breaking space for some spacing -->
+
+A `Makefile` is provided to run the test suite against the stable or nightly torch/torchrl/tensordict stack without needing to push to GitHub.
+
+**One-time environment setup:**
+
+```bash
+make setup-stable    # Python 3.11 + pinned torchrl/tensordict commits
+make setup-nightly   # Python 3.12 + torchrl/tensordict from git HEAD
+```
+
+**Run tests:**
+
+```bash
+make test-stable     # pytest in the acegen-stable conda env
+make test-nightly    # pytest in the acegen-nightly conda env
+make test            # pytest in the currently active conda env
+```
+
+**Clean up:**
+
+```bash
+make clean-envs      # remove both acegen-stable and acegen-nightly envs
+```
+
+</details>
+
+---
+
+<details>
   <summary><strong>2. Generating libraries of molecules</strong></summary>
   &nbsp; <!-- This adds a non-breaking space for some spacing -->
 

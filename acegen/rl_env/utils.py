@@ -7,9 +7,8 @@ from typing import Callable, Union
 import omegaconf
 import torch
 from tensordict.nn import TensorDictModule
-from tensordict.nn.probabilistic import set_interaction_type as set_exploration_type
-from tensordict.tensordict import TensorDictBase
-from tensordict.utils import remove_duplicates as rdups
+from acegen._compat import set_exploration_type, TensorDictBase
+from acegen._compat import remove_duplicates as rdups
 from torchrl.collectors import RandomPolicy
 from torchrl.envs import EnvBase
 from torchrl.envs.utils import ExplorationType, step_mdp

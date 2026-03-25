@@ -1,8 +1,8 @@
 from typing import Optional
 
 import torch
-from tensordict.tensordict import TensorDict, TensorDictBase
-from torchrl.data import Categorical, Composite, OneHotDiscreteTensorSpec, Unbounded
+from acegen._compat import TensorDict, TensorDictBase
+from acegen._compat import Categorical, Composite, OneHotDiscreteTensorSpec, Unbounded
 from torchrl.data.utils import DEVICE_TYPING
 from torchrl.envs import EnvBase
 

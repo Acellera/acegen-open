@@ -30,7 +30,7 @@ from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
 from torchrl.objectives import A2CLoss
-from torchrl.objectives.value.advantages import GAE
+from acegen._compat import make_gae as GAE
 from torchrl.record.loggers import get_logger
 
 try:

@@ -26,7 +26,7 @@ from acegen.scoring_functions import (
 )
 from acegen.vocabulary import Vocabulary
 from omegaconf import OmegaConf, open_dict
-from tensordict.utils import isin
+from acegen._compat import isin
 from torch.distributions.kl import kl_divergence
 
 from torchrl.data import (

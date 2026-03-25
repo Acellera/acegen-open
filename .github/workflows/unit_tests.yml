@@ -15,17 +15,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10","3.11"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        torch-stack: ["stable", "nightly"]
         os: [ubuntu-latest]
+        include:
+          - torch-stack: stable
+            install-script: .github/unittest/install_dependencies.sh
+          - torch-stack: nightly
+            install-script: .github/unittest/install_dependencies_nightly.sh
+        exclude:
+          # Only run nightly on the latest Python to reduce CI load
+          - python-version: "3.10"
+            torch-stack: nightly
+          - python-version: "3.11"
+            torch-stack: nightly
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
+    - name: Install dependencies (${{ matrix.torch-stack }})
       run: |
-       bash .github/unittest/install_dependencies.sh
+       bash ${{ matrix.install-script }}
     - name: Test with pytest
       run: |
         pytest tests/ --cov=acegen

@@ -24,7 +24,7 @@ from acegen.scoring_functions import (
 from acegen.vocabulary import Vocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict import TensorDict
-from tensordict.utils import isin
+from acegen._compat import isin
 from torch.distributions.kl import kl_divergence
 from torchrl.data import (
     LazyTensorStorage,
@@ -36,7 +36,7 @@ from torchrl.data import (
 from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
 from torchrl.objectives import ClipPPOLoss
-from torchrl.objectives.value.advantages import GAE
+from acegen._compat import make_gae as GAE
 from torchrl.record.loggers import get_logger
 
 try:
