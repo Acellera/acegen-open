@@ -7,6 +7,8 @@ tqdm
 wandb
 rdkit>=2023.3.3
 
-# TorchRL and Tensordict
-git+https://github.com/pytorch/rl.git@83a7a57daee4b76b249dbc0ce2231f163f2a1482
-git+https://github.com/pytorch/tensordict.git@c11024e0db864bd8487c68e3d0cf5e100fc07831
+# PyTorch, Tensordict, and TorchRL
+torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124 # Replace cuda version
+torchvision --index-url https://download.pytorch.org/whl/cu124 # Replace cuda version
+tensordict==0.7.2
+# git+https://github.com/pytorch/rl.git@83a7a57daee4b76b249dbc0ce2231f163f2a148 # TorchRL must be installed locally via git clone
