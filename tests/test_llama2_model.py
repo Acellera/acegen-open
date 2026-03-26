@@ -11,13 +11,14 @@ from utils import get_default_devices
 
 try:
     import transformers
+    from transformers import LlamaModel as _  # verify the model class is importable
 
     transformers_available = True
     wrong_version = False
     if Version(transformers.__version__) <= Version("4.28.0"):
         wrong_version = True
-        
-except ImportError:
+
+except (ImportError, ModuleNotFoundError):
     transformers_available = False
     wrong_version = False
 

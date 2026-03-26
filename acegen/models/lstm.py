@@ -12,6 +12,7 @@ from torchrl.modules import (
 )
 
 from acegen.models.common import Temperature
+from acegen._compat import make_recurrent
 
 
 class Embed(torch.nn.Module):
@@ -175,7 +176,7 @@ def create_lstm_actor(
     actor_inference_model = TensorDictSequential(embedding, lstm, head, temperature)
     actor_training_model = TensorDictSequential(
         embedding,
-        lstm.set_recurrent_mode(True),
+        make_recurrent(lstm),
         head,
     )
 
@@ -259,7 +260,7 @@ def create_lstm_critic(
 
     critic_inference_model = TensorDictSequential(embedding, lstm, head)
     critic_training_model = TensorDictSequential(
-        embedding, lstm.set_recurrent_mode(True), head
+        embedding, make_recurrent(lstm), head
     )
     return critic_training_model, critic_inference_model
 
@@ -347,7 +348,7 @@ def create_lstm_actor_critic(
         value_operator=critic_head,
     )
 
-    common_net = TensorDictSequential(embedding, lstm.set_recurrent_mode(True))
+    common_net = TensorDictSequential(embedding, make_recurrent(lstm))
     actor_critic_training = ActorValueOperator(
         common_operator=common_net,
         policy_operator=actor_head,
