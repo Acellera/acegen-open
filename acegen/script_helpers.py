@@ -4,7 +4,6 @@ import random
 from pathlib import Path
 
 import numpy as np
-
 import torch
 import yaml
 from omegaconf import DictConfig, OmegaConf, open_dict
