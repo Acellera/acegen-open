@@ -4,7 +4,7 @@ python -m pip install --upgrade pip
 # Install dependencies
 python -m pip install flake8 pytest pytest-cov hydra-core tqdm packaging
 python -m pip install torch torchvision
-python -m pip install transformers promptsmiles torchrl rdkit==2023.3.3 MolScore # causal-conv1d>=1.4.0 mamba-ssm==1.2.2
+python -m pip install transformers promptsmiles torchrl rdkit>=2023.3.3 MolScore # causal-conv1d>=1.4.0 mamba-ssm==1.2.2
 python -m pip install deepsmiles
 python -m pip install selfies
 python -m pip install smi2sdf

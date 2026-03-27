@@ -293,7 +293,7 @@ def run_ppo(cfg, task):
             ):
                 replay_batch = experience_replay_buffer.sample()
                 replay_batch = replay_batch.exclude(
-                    "_weight", "index", "priority", inplace=True
+                    "_weight", "priority_weight", "index", "priority", inplace=True
                 )
                 extended_data = torch.cat([data, replay_batch], dim=0)
             else:

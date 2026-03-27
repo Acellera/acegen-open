@@ -4,20 +4,62 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "acegen"
-version = "1.0"
+version = "1.1"
 authors = [
   { name="Albert Bou", email="albertbou92@gmail.com"},
 ]
 description = "A torchrl RL framework for de novo drug design"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
 ]
-dynamic = ["dependencies"]
+# Versions are pinned for reproducibility. This package is not published to PyPI.
+# If using a different CUDA version, update the [[tool.uv.index]] url below
+# and the corresponding index-url in requirements.txt.
+dependencies = [
+    "flake8",
+    "pytest",
+    "pytest-cov",
+    "hydra-core",
+    "tqdm",
+    "wandb",
+    "rdkit>=2023.3.3",
+    "torch==2.11.0",
+    "torchvision",
+    "torchrl==0.11.1",
+    "tensordict==0.11.0",
+    "MolScore",
+    "promptsmiles"
+]
 
 [project.urls]
 Homepage = "https://github.com/Acellera/acegen-open"
 Issues = "https://github.com/Acellera/acegen-open/issues"
+
+# uv index configuration for PyTorch CUDA wheels.
+# Replace cu128 with your CUDA version if needed (e.g. cu124, cu121).
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+# Discovers all packages in the repo root (acegen, acegen.*, etc.)
+
+[tool.setuptools.package-data]
+acegen = ["priors/**/*"]

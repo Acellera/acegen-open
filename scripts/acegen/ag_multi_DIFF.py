@@ -303,7 +303,7 @@ def run_reinforce(cfg, task):
                 and len(experience_replay_buffer) > cfg.replay_batch_size
             ):
                 replay_batch = experience_replay_buffer.sample().exclude(
-                    "priority", "index", "_weight", "SMILES"
+                    "priority", "index", "_weight", "priority_weight", "SMILES"
                 )
                 data = torch.cat((data.exclude("SMILES"), replay_batch.to(device)), 0)
 

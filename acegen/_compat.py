@@ -3,8 +3,8 @@
 Import version-sensitive names from this module rather than directly from
 tensordict or torchrl, so that a single try/except handles each API migration.
 """
+
 import inspect
-import warnings
 
 import torch
 import torch.nn.functional as _F
@@ -48,9 +48,7 @@ except ImportError:
 # set_exploration_type in newer torchrl/tensordict versions.
 # ---------------------------------------------------------------------------
 try:
-    from tensordict.nn.probabilistic import (
-        set_interaction_type as set_exploration_type,
-    )
+    from tensordict.nn.probabilistic import set_interaction_type as set_exploration_type
 except ImportError:
     from torchrl.envs.utils import set_exploration_type
 
@@ -63,6 +61,7 @@ try:
 except ImportError:
 
     def remove_duplicates(td, key):
+        """Backwards compatible function to remove duplicate rows from a TensorDict based on the values in the specified key."""
         vals = td.get(key)
         flat = vals.flatten(1) if vals.dim() > 1 else vals.unsqueeze(1)
         seen, keep = set(), []
@@ -72,6 +71,7 @@ except ImportError:
                 seen.add(t)
                 keep.append(i)
         return td[keep]
+
 
 # ---------------------------------------------------------------------------
 # tensordict: isin
@@ -85,7 +85,9 @@ except ImportError:
     except ImportError:
 
         def isin(input, reference, key):
+            """Backwards compatible function to check if the values in the specified key of the input TensorDict are present in the corresponding key of the reference TensorDict."""
             return torch.isin(input.get(key), reference.get(key))
+
 
 # ---------------------------------------------------------------------------
 # torchrl spec class renames (~0.3→0.4)
@@ -95,15 +97,11 @@ except ImportError:
 # Current code already uses the new names; shim handles older installations.
 # ---------------------------------------------------------------------------
 try:
-    from torchrl.data import (
-        Categorical,
-        Composite,
-        Unbounded,
-    )
+    from torchrl.data import Categorical, Composite, Unbounded
 except ImportError:
     from torchrl.data import (
-        DiscreteTensorSpec as Categorical,
         CompositeSpec as Composite,
+        DiscreteTensorSpec as Categorical,
         UnboundedContinuousTensorSpec as Unbounded,
     )
 
