@@ -14,7 +14,7 @@ from acegen.data import chem_utils, load_dataset, MolBloomDataset, SMILESDataset
 from acegen.models import models, register_model
 from acegen.rl_env import generate_complete_smiles, TokenEnv
 from acegen.vocabulary import tokenizer_options, Vocabulary
-from tensordict.utils import remove_duplicates
+from acegen._compat import remove_duplicates
 from torch.utils.data import DataLoader
 from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module

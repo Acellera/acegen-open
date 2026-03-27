@@ -15,7 +15,7 @@ dependencies:
   - ninja # torchrl dependency
   - cmake # torchrl dependency
   - pip:
-    #- --index-url https://download.pytorch.org/whl/cu121
+    - --index-url https://download.pytorch.org/whl/cu124
     #- --extra-index-url https://pypi.org/simple
     - torch==2.6.0 #+cu121 # Pin the version to match your download or check the latest on PyTorch's website
     - git+https://github.com/pytorch/rl.git@83a7a57daee4b76b249dbc0ce2231f163f2a1482 # Deffo ipython(new stable)

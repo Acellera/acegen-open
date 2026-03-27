@@ -24,7 +24,7 @@ from acegen.scoring_functions import (
 from acegen.vocabulary import Vocabulary
 from omegaconf import OmegaConf, open_dict
 from tensordict import TensorDict
-from tensordict.utils import isin
+from acegen._compat import isin
 from torch.distributions.kl import kl_divergence
 from torchrl.data import (
     LazyTensorStorage,
@@ -36,7 +36,7 @@ from torchrl.data import (
 from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
 from torchrl.objectives import ClipPPOLoss
-from torchrl.objectives.value.advantages import GAE
+from acegen._compat import make_gae as GAE
 from torchrl.record.loggers import get_logger
 
 try:
@@ -293,7 +293,7 @@ def run_ppo(cfg, task):
             ):
                 replay_batch = experience_replay_buffer.sample()
                 replay_batch = replay_batch.exclude(
-                    "_weight", "index", "priority", inplace=True
+                    "_weight", "priority_weight", "index", "priority", inplace=True
                 )
                 extended_data = torch.cat([data, replay_batch], dim=0)
             else:
@@ -368,7 +368,7 @@ def run_ppo(cfg, task):
             # Add data to the replay buffer
             if len(replay_data) > 0:
                 reward = replay_data.get(("next", "reward"))
-                replay_data.set("priority", reward)
+                replay_data.set("priority", reward.reshape(reward.shape[0], -1).max(dim=-1).values)
                 experience_replay_buffer.extend(replay_data)
 
         if logger:

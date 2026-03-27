@@ -16,7 +16,7 @@ from acegen.models import models, register_model
 from acegen.rl_env import generate_complete_smiles, TokenEnv
 from acegen.vocabulary import tokenizer_options, Vocabulary
 from rdkit import Chem
-from tensordict.utils import remove_duplicates
+from acegen._compat import remove_duplicates
 from torch.distributed import barrier, destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader

@@ -2,9 +2,9 @@
 python -m pip install --upgrade pip
 
 # Install dependencies
-python -m pip install flake8 pytest pytest-cov hydra-core tqdm
-python -m pip install torch torchvision
-python -m pip install transformers promptsmiles torchrl rdkit==2023.3.3 MolScore # causal-conv1d>=1.4.0 mamba-ssm==1.2.2
+python -m pip install flake8 pytest pytest-cov hydra-core tqdm packaging
+python -m pip install torch torchvision torchrl tensordict
+python -m pip install transformers promptsmiles torchrl rdkit>=2023.3.3 MolScore # causal-conv1d>=1.4.0 mamba-ssm==1.2.2
 python -m pip install deepsmiles
 python -m pip install selfies
 python -m pip install smi2sdf
@@ -25,12 +25,3 @@ python -c "import promptsmiles"
 # Install local package
 cd ../acegen-open
 pip install -e .
-pip uninstall --yes torchrl
-pip uninstall --yes tensordict
-
-# Install torchrl and tensordict nightly
-cd ..
-python -m pip install git+https://github.com/pytorch-labs/tensordict.git
-git clone https://github.com/pytorch/rl.git
-cd rl
-python setup.py develop

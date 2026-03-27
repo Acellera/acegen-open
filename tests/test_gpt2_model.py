@@ -10,9 +10,10 @@ from utils import get_default_devices
 
 try:
     import transformers
+    from transformers import GPT2Model as _  # verify the model class is importable
 
     transformers_available = True
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     transformers_available = False
 
 skip_if_transformers_not_available = pytest.mark.skipif(

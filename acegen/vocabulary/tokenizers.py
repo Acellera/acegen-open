@@ -4,35 +4,35 @@ try:
     import deepsmiles
 
     _has_deepsmiles = True
-except ImportError as err:
+except (ImportError, AttributeError) as err:
     _has_deepsmiles = False
     DEEPSMILES_ERR = err
 try:
     import selfies
 
     _has_selfies = True
-except ImportError as err:
+except (ImportError, AttributeError) as err:
     _has_selfies = False
     SELFIES_ERR = err
 try:
     import smizip
 
     _has_smizip = True
-except ImportError as err:
+except (ImportError, AttributeError) as err:
     _has_smizip = False
     SMIZIP_ERR = err
 try:
     import atomInSmiles as AIS
 
     _has_AIS = True
-except ImportError as err:
+except (ImportError, AttributeError) as err:
     _has_AIS = False
     AIS_ERR = err
 try:
     import safe
 
     _has_SAFE = True
-except ImportError as err:
+except (ImportError, AttributeError) as err:
     _has_SAFE = False
     SAFE_ERR = err
 

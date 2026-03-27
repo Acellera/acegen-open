@@ -27,7 +27,7 @@ from acegen.scoring_functions import (
 )
 from acegen.vocabulary import Vocabulary
 from omegaconf import OmegaConf, open_dict
-from tensordict.utils import isin
+from acegen._compat import isin
 from torch.distributions.kl import kl_divergence
 
 from torchrl.data import (
@@ -281,7 +281,7 @@ def run_reinforce(cfg, task):
             and len(experience_replay_buffer) > cfg.replay_batch_size
         ):
             replay_batch = experience_replay_buffer.sample().exclude(
-                "priority", "index", "prior_log_prob", "_weight", "SMILES"
+                "priority", "index", "prior_log_prob", "_weight", "priority_weight", "SMILES"
             )
             data = torch.cat((data.exclude("SMILES"), replay_batch), 0)
 
@@ -348,7 +348,7 @@ def run_reinforce(cfg, task):
             # Add data to the replay buffer
             if len(replay_data) > 0:
                 reward = replay_data.get(("next", "reward"))
-                replay_data.set("priority", reward)
+                replay_data.set("priority", reward.reshape(reward.shape[0], -1).max(dim=-1).values)
                 experience_replay_buffer.extend(replay_data)
 
         # Log info

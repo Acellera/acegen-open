@@ -12,6 +12,7 @@ from torchrl.modules import (
 )
 
 from acegen.models.common import Temperature
+from acegen._compat import make_recurrent
 
 
 class Embed(torch.nn.Module):
@@ -171,7 +172,7 @@ def create_gru_actor(
     actor_inference_model = TensorDictSequential(embedding, gru, head, temperature)
     actor_training_model = TensorDictSequential(
         embedding,
-        gru.set_recurrent_mode(True),
+        make_recurrent(gru),
         head,
     )
 
@@ -255,7 +256,7 @@ def create_gru_critic(
 
     critic_inference_model = TensorDictSequential(embedding, gru, head)
     critic_training_model = TensorDictSequential(
-        embedding, gru.set_recurrent_mode(True), head
+        embedding, make_recurrent(gru), head
     )
     return critic_training_model, critic_inference_model
 
@@ -345,7 +346,7 @@ def create_gru_actor_critic(
         value_operator=critic_head,
     )
 
-    common_net = TensorDictSequential(embedding, gru.set_recurrent_mode(True))
+    common_net = TensorDictSequential(embedding, make_recurrent(gru))
     actor_critic_training = ActorValueOperator(
         common_operator=common_net,
         policy_operator=actor_head,
