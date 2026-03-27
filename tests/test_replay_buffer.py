@@ -183,11 +183,13 @@ def test_buffer_sample_exclude_internal_keys():
     extend_buffer(buf, data)
 
     sample = buf.sample()
-    # Scripts exclude these keys before using replay data in the loss
-    cleaned = sample.exclude("priority", "index", "_weight")
+    # Scripts exclude these keys before using replay data in the loss.
+    # torchrl >= 0.11.1 uses 'priority_weight'; older versions use '_weight'.
+    cleaned = sample.exclude("priority", "index", "_weight", "priority_weight")
     assert "priority" not in cleaned.keys()
     assert "index" not in cleaned.keys()
     assert "_weight" not in cleaned.keys()
+    assert "priority_weight" not in cleaned.keys()
     # Core data keys should still be present
     assert "action" in cleaned.keys()
     assert "observation" in cleaned.keys()
@@ -206,7 +208,37 @@ def test_multiple_extend_sample_cycles():
         if len(buf) >= 4:
             sample = buf.sample()
             assert sample.batch_size[0] == 4
-            _ = sample.exclude("priority", "index", "_weight")
+            _ = sample.exclude("priority", "index", "_weight", "priority_weight")
+
+
+def test_replay_batch_cat_compatible_with_data():
+    """Replay sample torch.cat'd with fresh data must not raise a KeyError.
+
+    In torchrl >= 0.11.1 PrioritizedSampler adds 'priority_weight' to every
+    sample. If not excluded, the strict-key check in torch.cat raises a KeyError
+    because the fresh data batch does not have that key. This test exercises the
+    exact exclude pattern used in ag.py, ag_multi_*.py, and ppo.py.
+    """
+    buf = make_experience_replay_buffer(replay_batch_size=3)
+    data = make_data_batch(batch_size=10)
+    extend_buffer(buf, data)
+
+    replay_batch = buf.sample().exclude(
+        "priority", "index", "prior_log_prob", "_weight", "priority_weight", "SMILES"
+    )
+
+    # Simulate fresh data as produced in the training loop
+    fresh = make_data_batch(batch_size=4)
+    fresh.batch_size = [fresh.batch_size[0]]
+    fresh_clean = fresh.exclude("SMILES")
+
+    # Both TensorDicts must have identical keys for torch.cat to succeed
+    assert set(fresh_clean.keys()) == set(replay_batch.keys()), (
+        f"Key mismatch before cat — fresh: {set(fresh_clean.keys())}, "
+        f"replay: {set(replay_batch.keys())}"
+    )
+    combined = torch.cat([fresh_clean, replay_batch], dim=0)
+    assert combined.batch_size[0] == fresh_clean.batch_size[0] + replay_batch.batch_size[0]
 
 
 def test_priority_set_from_reward():
@@ -235,5 +267,5 @@ def test_buffer_with_ppo_sampler():
     assert len(buf) >= 1
 
     sample = buf.sample()
-    cleaned = sample.exclude("_weight", "index", "priority", inplace=False)
+    cleaned = sample.exclude("_weight", "priority_weight", "index", "priority", inplace=False)
     assert "action" in cleaned.keys()

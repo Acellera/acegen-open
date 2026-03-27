@@ -44,9 +44,9 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
 
 ## Table of Contents
 1. **Installation**
-   - 1.1. Conda environment and required dependencies
-   - 1.2. Optional dependencies
-   - 1.3. Install ACEGEN
+   - 1.1. Conda/mamba environment
+   - 1.2. uv environment
+   - 1.3. Optional dependencies
 2. **Generating libraries of molecules**
    - 2.1. Running training scripts to generate compound libraries
    - 2.2. Alternative usage
@@ -67,45 +67,58 @@ ACEGEN provides tutorials for integrating custom models and custom scoring funct
   <summary><strong>1. Installation</strong></summary>
   &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
+  Download acegen-open ready for installation
+  ```bash
+  git clone https://github.com/Acellera/acegen-open.git
+  cd acegen-open
+  ```
+
   <details>
-    <summary><strong>1.1. Conda environment and required dependencies</strong></summary>
+    <summary><strong>1.1. Conda/mamba environment</strong></summary>
     &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
-To create the conda / mamba environment, run:
+Create and activate the environment:
 
 ```bash
 conda create -n acegen python=3.10 -y
 conda activate acegen
 ```
 
-First install general requirements for the acegen-stable versions of `torchrl` and `tensordict`, which for the tested versions required `torch==2.6.0`.
+Install dependencies and the package (use `-e` for editable mode):
 
 ```bash
-pip3 install -r requirements.txt
-``` 
-> Note: Be sure to replace `cu124` with your appropriate CUDA version.
+pip install -r requirements.txt
+pip install .
+```
 
-`torchrl` requires a local clone to install the C++ binaries properly, and a specific commit for the acegen-stable version.
-
-```bash
-git clone https://github.com/pytorch/rl.git
-cd rl
-git checkout 83a7a57daee4b76b249dbc0ce2231f163f2a1482
-python setup.py clean ; python setup.py install
-cd ..
-``` 
-[Optional] You can install the latest versions by running `pip3 install torchrl --upgrade` but they may not have been tested. 
+> **Note:** Replace `cu128` in `requirements.txt` (and the `[[tool.uv.index]]` url in `pyproject.toml`) with your CUDA version if needed — e.g. `cu124`, `cu121`. See the [PyTorch install page](https://pytorch.org/get-started/locally/) for available versions.
 
   </details>
 
   <details>
-    <summary><strong>1.2. Optional dependencies</strong></summary>
+    <summary><strong>1.2. uv environment</strong></summary>
+    &nbsp; <!-- This adds a non-breaking space for some spacing -->
+
+[uv](https://docs.astral.sh/uv/) manages the environment automatically from `pyproject.toml` and the committed `uv.lock` for exact reproducibility.
+
+```bash
+uv sync
+```
+
+To use uv, prefix any commands with `uv run`. 
+
+> **Note:** The default CUDA version is `cu128`. To use a different version, edit the `[[tool.uv.index]]` url in `pyproject.toml` (e.g. change `cu128` → `cu124`) **before** running `uv sync`. See the [PyTorch install page](https://pytorch.org/get-started/locally/) for available versions.
+
+  </details>
+
+  <details>
+    <summary><strong>1.3. Optional dependencies</strong></summary>
     &nbsp; <!-- This adds a non-breaking space for some spacing -->
 
 Unless you intend to define your own custom scoring functions, install MolScore by running:
 
 ```bash
-pip3 install rdkit==2023.3.3
+pip3 install rdkit>=2023.3.3
 pip3 install MolScore
 ```
 
@@ -116,20 +129,6 @@ pip3 install promptsmiles
 ```
 
 To learn how to configure constrained molecule generation with ACEGEN and promptsmiles, please refer to this [tutorial](tutorials/using_promptsmiles.md).
-
-  </details>
-
-  <details>
-    <summary><strong>1.3. Install ACEGEN</strong></summary>
-    &nbsp; <!-- This adds a non-breaking space for some spacing -->
-
-To install ACEGEN, run (use `pip install -e ./` for develop mode):
-
-```bash
-git clone https://github.com/Acellera/acegen-open.git
-cd acegen-open
-pip install ./
-```
 
   </details>
 
@@ -406,3 +405,7 @@ If you use ACEGEN in your work, please refer to this BibTeX entry to cite it:
   publisher={ACS Publications}
 }
 ```
+
+This repo was also used in the following publications:
+1. [Thomas M, Bou A, Gómez-Tamayo JC, Tresadern G, Ahmad M, De Fabritiis G. REINFORCE-ING Chemical Language Models for Drug Discovery. Journal of Chemical Information and Modeling. 2025 Nov 16;65(23):12752-63.](https://pubs.acs.org/doi/10.1021/acs.jcim.5c02053)
+2. [Thomas M, Bou A, De Fabritiis G. Test-time training scaling laws for chemical exploration in drug design. Journal of Chemical Information and Modeling. 2025 Dec 9;65(24):13178-86.](https://pubs.acs.org/doi/10.1021/acs.jcim.5c02316)
