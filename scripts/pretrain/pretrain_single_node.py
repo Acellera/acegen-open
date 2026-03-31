@@ -9,12 +9,11 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-
+from acegen._compat import remove_duplicates
 from acegen.data import chem_utils, load_dataset, MolBloomDataset, SMILESDataset
 from acegen.models import models, register_model
 from acegen.rl_env import generate_complete_smiles, TokenEnv
 from acegen.vocabulary import tokenizer_options, Vocabulary
-from acegen._compat import remove_duplicates
 from torch.utils.data import DataLoader
 from torchrl.envs import InitTracker, TransformedEnv
 from torchrl.modules.utils import get_primers_from_module
@@ -136,7 +135,7 @@ def main(cfg: "DictConfig"):
 
     logging.info("\nStarting pretraining...")
     actor_losses = torch.zeros(len(dataloader))
-    for epoch in range(1, cfg.epochs+1):
+    for epoch in range(1, cfg.epochs + 1):
 
         actor_losses.zero_()
 
@@ -169,7 +168,7 @@ def main(cfg: "DictConfig"):
                         policy_evaluate=actor_training,
                         max_length=100,
                     )
-                    smiles_log_prob = smiles["sample_log_prob"].sum(-1)
+                    smiles_log_prob = smiles["action_log_prob"].sum(-1)
                     smiles_str = [
                         vocabulary.decode(smi.cpu().numpy())
                         for smi in smiles.get("action")
