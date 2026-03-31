@@ -1,6 +1,5 @@
 import gzip
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -10,14 +9,14 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from acegen.data import chem_utils
-
 from acegen.data.utils import smiles_to_tensordict
 
 try:
-    if sys.version_info < (3,10):
+    if sys.version_info < (3, 10):
         raise ImportError("Molbloom requires Python 3.10 or higher")
     else:
         from molbloom import BloomFilter, CustomFilter
+
         _has_molbloom = True
 except ImportError:
     _has_molbloom = False
@@ -26,7 +25,7 @@ except ImportError:
 def load_dataset(file_path):
     """Reads a list of SMILES from file_path."""
     smiles_list = []
-    if any(["gz" in ext for ext in os.path.basename(file_path).split(".")[1:]]):
+    if any("gz" in ext for ext in Path(file_path).suffixes):
         with gzip.open(file_path) as f:
             for line in tqdm(f, desc="Load Samples"):
                 smiles_list.append(line.decode("utf-8").split()[0])
@@ -50,7 +49,7 @@ class MolBloomDataset:
                 )
             )
         else:
-            bloom_path = dataset_path.rsplit(".", 1)[0] + ".bloom"
+            bloom_path = str(Path(dataset_path).with_suffix(".bloom"))
             if Path(bloom_path).exists():
                 logging.info(f"Loading pre-calculated bloom filter {bloom_path}")
                 self.bloom_filter = BloomFilter(bloom_path)
@@ -89,7 +88,7 @@ class SMILESDataset(Dataset):
         self.randomize_smiles = randomize_smiles
         self.randomize_type = randomize_type
         self.bloom_filter = None
-        os.makedirs(cache_path, exist_ok=True)
+        Path(cache_path).mkdir(parents=True, exist_ok=True)
 
         self.files = {
             "smiles_index": "smiles.index.mmap",
@@ -143,13 +142,13 @@ class SMILESDataset(Dataset):
 
         mmaps = {}
         mmaps["smiles_index"] = np.memmap(
-            str(self.files["smiles_index"]) + ".tmp",
+            self.files["smiles_index"].with_suffix(".tmp"),
             mode="w+",
             dtype=np.int64,
             shape=num_samples + 1,
         )
         mmaps["smiles_data"] = np.memmap(
-            str(self.files["smiles_data"]) + ".tmp",
+            self.files["smiles_data"].with_suffix(".tmp"),
             mode="w+",
             dtype=np.int64,
             shape=num_smiles_encodings,
@@ -165,7 +164,7 @@ class SMILESDataset(Dataset):
 
         for name, mmap in mmaps.items():
             mmap.flush()
-            os.rename(mmap.filename, str(self.files[name]))
+            Path(mmap.filename).rename(self.files[name])
 
     def __getitem__(self, i):
 
