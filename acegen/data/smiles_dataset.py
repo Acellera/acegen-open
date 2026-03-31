@@ -81,13 +81,16 @@ class SMILESDataset(Dataset):
         vocabulary,
         randomize_smiles=False,
         randomize_type="restricted",
+        ignore_incompatible=False,
     ):
 
         self.vocabulary = vocabulary
         self.dataset_path = dataset_path
         self.randomize_smiles = randomize_smiles
         self.randomize_type = randomize_type
+        self.ignore_incompatible = ignore_incompatible
         self.bloom_filter = None
+        self._n_input = None
         Path(cache_path).mkdir(parents=True, exist_ok=True)
 
         self.files = {
@@ -119,13 +122,21 @@ class SMILESDataset(Dataset):
     def _sample_iter(self):
 
         smiles_list = load_dataset(self.dataset_path)
+        self._n_input = len(smiles_list)
 
         for smiles in tqdm(
             smiles_list,
             total=len(smiles_list),
             desc="Process samples",
         ):
-            encoded_smiles = self.vocabulary.encode(smiles)
+            if self.ignore_incompatible:
+                try:
+                    encoded_smiles = self.vocabulary.encode(smiles)
+                except KeyError:
+                    continue
+            else:
+                encoded_smiles = self.vocabulary.encode(smiles)
+
             if encoded_smiles is None:
                 continue
 
