@@ -164,8 +164,8 @@ def run_a2c(cfg, task):
     loss_module = A2CLoss(
         actor_network=actor_training,
         critic_network=critic_training,
-        critic_coef=cfg.critic_coef,
-        entropy_coef=cfg.entropy_coef,
+        critic_coeff=cfg.critic_coef,
+        entropy_coeff=cfg.entropy_coef,
         loss_critic_type="l2",
     )
 
