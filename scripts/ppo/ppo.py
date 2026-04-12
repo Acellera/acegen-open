@@ -165,8 +165,8 @@ def run_ppo(cfg, task):
     loss_module = ClipPPOLoss(
         actor=actor_training,
         critic=critic_training,
-        critic_coef=cfg.critic_coef,
-        entropy_coef=cfg.entropy_coef,
+        critic_coeff=cfg.critic_coef,
+        entropy_coeff=cfg.entropy_coef,
         clip_epsilon=cfg.ppo_clip,
         loss_critic_type="l2",
         normalize_advantage=True,
