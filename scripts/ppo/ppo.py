@@ -309,6 +309,10 @@ def run_ppo(cfg, task):
             for batch in buffer:
 
                 # Compute PPO losses
+                # TorchRL PPO expects `action_log_prob`, while some AceGen paths
+                # still populate `sample_log_prob`. Mirror it for compatibility.
+                if "action_log_prob" not in batch.keys() and "sample_log_prob" in batch.keys():
+                    batch.set("action_log_prob", batch.get("sample_log_prob"))
                 mask = batch.get("mask").squeeze(-1)
                 loss = loss_module(batch)
                 loss = loss.named_apply(
