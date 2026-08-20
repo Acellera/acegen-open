@@ -1,0 +1,44 @@
+version: 2
+
+updates:
+  # Python dependencies (pyproject.toml + uv.lock).
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      # Transitive dependencies churn a lot and are rarely interesting
+      # individually; batch them into one reviewable PR.
+      python-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # torch, torchvision, torchrl and tensordict are pinned deliberately and
+      # must move in lockstep: torchrl ships a compiled extension linked against
+      # a specific libtorch ABI, and a torch minor bump also means changing the
+      # CUDA wheel index in pyproject.toml. A lone bump to any one of them
+      # produces a broken environment, so minor/major upgrades are done by hand.
+      # Patch releases stay in scope -- they are ABI-compatible.
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "torchvision"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "torchrl"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "tensordict"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # Workflow actions (currently pinned to Node 16-era v3 tags).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
